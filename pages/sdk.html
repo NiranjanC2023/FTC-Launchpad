@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>FTC SDK Documentation - FTC Starter Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="../style.css?v=2">
+</head>
+<body>
+  <header>
+    <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode">
+      <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+      </svg>
+      <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+    </button>
+  </header>
+
+  <main>
+    <div class="container">
+      <a href="resources.html" class="btn btn-secondary back-button">← Back to Resources</a>
+      
+      <h1>FTC SDK Documentation</h1>
+
+      <p class="subtitle">
+        Comprehensive guide to the FIRST Tech Challenge Software Development Kit and its core components.
+      </p>
+
+      <section class="content-section">
+        <h2>What is the FTC SDK?</h2>
+        <p>The FTC SDK is a Java-based software development kit provided by FIRST for programming FTC robots. It includes libraries for:</p>
+        <ul>
+          <li>Motor and servo control</li>
+          <li>Sensor integration (cameras, distance sensors, touch sensors)</li>
+          <li>Gamepad input handling</li>
+          <li>Robot configuration and initialization</li>
+          <li>Telemetry for driver station communication</li>
+        </ul>
+      </section>
+
+      <section class="content-section">
+        <h2>Getting Started with FTC SDK</h2>
+        <p>To use the FTC SDK, you'll need:</p>
+        <ul>
+          <li><strong>Android Studio</strong> - Download from developer.android.com</li>
+          <li><strong>FTC Robot Controller App</strong> - Official app from FIRST</li>
+          <li><strong>FTC SDK Repository</strong> - Clone from GitHub</li>
+          <li><strong>Java Knowledge</strong> - Basic understanding of object-oriented programming</li>
+        </ul>
+      </section>
+
+      <section class="content-section">
+        <h2>Key Classes & Libraries</h2>
+        
+        <div class="content-subsection">
+          <h3>Hardware Classes</h3>
+          <ul>
+            <li><code>DcMotor</code> - DC Motor control</li>
+            <li><code>Servo</code> - Servo motor positioning</li>
+            <li><code>ColorSensor</code> - RGB color detection</li>
+            <li><code>DistanceSensor</code> - Distance measurement</li>
+            <li><code>TouchSensor</code> - Digital input</li>
+            <li><code>IMU</code> - Inertial measurement unit for orientation</li>
+          </ul>
+        </div>
+
+        <div class="content-subsection">
+          <h3>OpMode Classes</h3>
+          <ul>
+            <li><code>LinearOpMode</code> - Linear programming model (most common)</li>
+            <li><code>IterativeOpMode</code> - Iterative programming model</li>
+          </ul>
+        </div>
+
+        <div class="content-subsection">
+          <h3>Utility Classes</h3>
+          <ul>
+            <li><code>Telemetry</code> - Send data to driver station</li>
+            <li><code>Gamepad</code> - Receive controller input</li>
+            <li><code>ElapsedTime</code> - Timer for autonomous periods</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <h2>Official Resources</h2>
+        <ul>
+          <li>FTC SDK GitHub Repository: github.com/FIRST-Tech-Challenge/FtcRobotController</li>
+          <li>FIRST Official Documentation: firstinspires.org</li>
+          <li>Android Studio Setup Guide: developer.android.com</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+
+  <script src="../script.js?v=2"></script>
+</body>
+</html>

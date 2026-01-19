@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Drivetrain Design - FTC Starter Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="../style.css?v=2">
+</head>
+<body>
+  <header>
+    <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode">
+      <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+      </svg>
+      <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+    </button>
+  </header>
+
+  <main>
+    <div class="container">
+      <a href="resources.html" class="btn btn-secondary back-button">← Back to Resources</a>
+      
+      <h1>Drivetrain Design</h1>
+
+      <p class="subtitle">
+        Learn how to design and build an effective drivetrain system for your FTC robot.
+      </p>
+
+      <section class="content-section">
+        <h2>What is a Drivetrain?</h2>
+        <p>The drivetrain is the system that moves your robot around the field. It consists of motors, wheels, gearboxes, and mechanical linkages that work together to provide movement and control.</p>
+      </section>
+
+      <section class="content-section">
+        <h2>Common Drivetrain Types</h2>
+        
+        <div class="content-subsection">
+          <h3>Tank Drive (2-Motor)</h3>
+          <p><strong>Description:</strong> Two motors control left and right wheel sets independently.</p>
+          <p><strong>Pros:</strong> Simple, easy to code, good pushing power</p>
+          <p><strong>Cons:</strong> Slower turning, less maneuverability</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>Mecanum Drive (4-Motor)</h3>
+          <p><strong>Description:</strong> Four motors with mecanum wheels allow omni-directional movement.</p>
+          <p><strong>Pros:</strong> Excellent maneuverability, can strafe sideways</p>
+          <p><strong>Cons:</strong> More complex, requires specialized wheels and coding</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>X-Drive (4-Motor)</h3>
+          <p><strong>Description:</strong> Four motors arranged at 45-degree angles for diagonal movement.</p>
+          <p><strong>Pros:</strong> Good maneuverability, simpler than mecanum</p>
+          <p><strong>Cons:</strong> Reduced pushing power compared to tank drive</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>H-Drive (3-Motor)</h3>
+          <p><strong>Description:</strong> Two motors for forward/backward, one for sideways strafe.</p>
+          <p><strong>Pros:</strong> Balanced maneuverability and power</p>
+          <p><strong>Cons:</strong> More complex gearing</p>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <h2>Key Considerations</h2>
+        <ul>
+          <li><strong>Wheel Size:</strong> Larger wheels go faster, smaller wheels have more torque</li>
+          <li><strong>Motor Power:</strong> Use higher-torque motors for slower, more powerful movement</li>
+          <li><strong>Gearing:</strong> Adjust gear ratios to balance speed and power</li>
+          <li><strong>Weight Distribution:</strong> Keep weight centered for stable movement</li>
+          <li><strong>Traction:</strong> Choose appropriate wheel material for field surface</li>
+        </ul>
+      </section>
+
+      <section class="content-section">
+        <h2>Design Tips</h2>
+        <ul>
+          <li>Start simple - tank drive is reliable for beginners</li>
+          <li>Test mobility before adding mechanisms</li>
+          <li>Leave room for maintenance and adjustments</li>
+          <li>Use structural reinforcement to prevent flexing</li>
+          <li>Consider the field layout when designing movement</li>
+        </ul>
+      </section>
+
+      <section class="content-section">
+        <h2>Motor & Wheel Selection</h2>
+        <p>For FTC competitions, you're typically limited to:</p>
+        <ul>
+          <li><strong>REV HD Hex Motor</strong> - Standard, reliable, good torque</li>
+          <li><strong>REV Core Hex Motor</strong> - Lighter, cheaper alternative</li>
+          <li><strong>gobilda Yellow Jacket</strong> - High-speed option</li>
+          <li><strong>Wheels:</strong> Mecanum, traction, or omni wheels depending on drivetrain type</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+
+  <script src="../script.js?v=2"></script>
+</body>
+</html>

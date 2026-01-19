@@ -426,6 +426,17 @@ h2 {
   padding-left: 1.5rem;
 }
 
+.content-subsection {
+  margin: 1rem 0;
+  padding: 0;
+}
+
+.content-subsection h3 {
+  color: var(--accent-primary);
+  font-size: 0.95rem;
+  margin: 0.75rem 0 0.5rem 0;
+}
+
 .resources-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

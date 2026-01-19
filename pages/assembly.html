@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Assembly Tutorials - FTC Starter Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="../style.css?v=2">
+</head>
+<body>
+  <header>
+    <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode">
+      <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+      </svg>
+      <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+    </button>
+  </header>
+
+  <main>
+    <div class="container">
+      <a href="resources.html" class="btn btn-secondary back-button">← Back to Resources</a>
+      
+      <h1>Assembly Tutorials</h1>
+
+      <p class="subtitle">
+        Step-by-step guides for assembling common FTC robot components and subsystems.
+      </p>
+
+      <section class="content-section">
+        <h2>Basic Chassis Assembly</h2>
+        <ol>
+          <li>Cut or obtain aluminum extrusion for frame (typically 12"x12" base)</li>
+          <li>Assemble frame using corner brackets and M4 bolts</li>
+          <li>Attach motor mounts to frame using T-slot nuts</li>
+          <li>Mount motors to frame with appropriate spacing</li>
+          <li>Install wheels on motor shafts</li>
+          <li>Add bearing blocks for wheel support</li>
+          <li>Connect motors to Control Hub with cables</li>
+        </ol>
+      </section>
+
+      <section class="content-section">
+        <h2>Linear Slide Assembly</h2>
+        <p><strong>Materials:</strong> REV Linear Slides, aluminum frame, motor, lead screw</p>
+        <ol>
+          <li>Assemble slide rails according to REV instructions</li>
+          <li>Attach motor to carriage using motor bracket</li>
+          <li>Connect motor output to lead screw</li>
+          <li>Mount rails to robot chassis using L-brackets</li>
+          <li>Apply lubricant to slide rails and lead screw</li>
+          <li>Test smooth motion before final assembly</li>
+        </ol>
+      </section>
+
+      <section class="content-section">
+        <h2>Servo-Driven Mechanism</h2>
+        <p><strong>Example: Claw Mechanism</strong></p>
+        <ol>
+          <li>Design or 3D print claw arms</li>
+          <li>Attach servo to robot frame using servo bracket</li>
+          <li>Connect servo arms to claw linkages</li>
+          <li>Test range of motion (0-180 degrees)</li>
+          <li>Adjust servo zero position as needed</li>
+          <li>Connect servo cable to Control Hub port</li>
+          <li>Verify smooth operation without binding</li>
+        </ol>
+      </section>
+
+      <section class="content-section">
+        <h2>Sensor Installation</h2>
+        
+        <div class="content-subsection">
+          <h3>Color Sensor</h3>
+          <p>Mount on robot facing downward to detect field elements or elements on ground.</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>Distance Sensor</h3>
+          <p>Mount on front or sides for obstacle detection. Ensure clear line-of-sight to target.</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>Camera</h3>
+          <p>Mount on front with clear view. Secure cables to prevent accidental disconnection.</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>IMU</h3>
+          <p>Mount on robot body (Control Hub location). Ensure not subject to vibration.</p>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <h2>Electrical Assembly</h2>
+        <ol>
+          <li>Connect battery to power switch using XT30 connectors</li>
+          <li>Connect power switch output to Control Hub</li>
+          <li>Connect motors to motor ports (matching software configuration)</li>
+          <li>Connect servos to servo ports</li>
+          <li>Connect sensors to I2C/analog ports</li>
+          <li>Route cables through cable management</li>
+          <li>Label all connections for easy troubleshooting</li>
+          <li>Test power delivery to all components</li>
+        </ol>
+      </section>
+
+      <section class="content-section">
+        <h2>Assembly Best Practices</h2>
+        <ul>
+          <li>Always use lock washers on critical fasteners</li>
+          <li>Don't over-tighten bolts (strip aluminum easily)</li>
+          <li>Leave room for future modifications</li>
+          <li>Label components and cables during assembly</li>
+          <li>Test each subsystem before full integration</li>
+          <li>Keep spare fasteners and components</li>
+          <li>Document your assembly process with photos</li>
+          <li>Perform load testing before competition</li>
+        </ul>
+      </section>
+
+      <section class="content-section">
+        <h2>Common Assembly Mistakes</h2>
+        <ul>
+          <li>Misaligning wheels causing uneven traction</li>
+          <li>Loose connections leading to dropped motors</li>
+          <li>Forgetting cable strain relief</li>
+          <li>Over-tightening fasteners and cracking components</li>
+          <li>Poor cable routing causing tangles</li>
+          <li>Inadequate support for heavy mechanisms</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+
+  <script src="../script.js?v=2"></script>
+</body>
+</html>

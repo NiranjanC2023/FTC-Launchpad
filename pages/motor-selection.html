@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Motor Selection - FTC Starter Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="../style.css?v=2">
+</head>
+<body>
+  <header>
+    <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode">
+      <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+      </svg>
+      <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+    </button>
+  </header>
+
+  <main>
+    <div class="container">
+      <a href="resources.html" class="btn btn-secondary back-button">← Back to Resources</a>
+      
+      <h1>Motor Selection</h1>
+
+      <p class="subtitle">
+        Guide to choosing the right motors for your FTC robot based on speed, torque, and application needs.
+      </p>
+
+      <section class="content-section">
+        <h2>Understanding Motor Specifications</h2>
+        
+        <div class="content-subsection">
+          <h3>RPM (Revolutions Per Minute)</h3>
+          <p>How fast the motor spins. Higher RPM = faster movement. Typical FTC motors range 30-312 RPM at stall.</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>Torque</h3>
+          <p>Rotational force measured in oz-in. Higher torque = more pushing power and ability to lift heavy loads.</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>Stall Torque</h3>
+          <p>Maximum torque when motor is completely blocked. Used for calculating lifting capacity.</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>Power</h3>
+          <p>Measured in watts. Affects heat output and energy consumption.</p>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <h2>Common FTC Motors</h2>
+        
+        <div class="content-subsection">
+          <h3>REV HD Hex Motor</h3>
+          <p><strong>Specifications:</strong> 312 RPM, 76 oz-in stall torque</p>
+          <p><strong>Best For:</strong> Drivetrain, mechanisms requiring high torque</p>
+          <p><strong>Cost:</strong> Medium</p>
+          <p><strong>Notes:</strong> Most popular choice, reliable, good balance of speed and power</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>REV Core Hex Motor</h3>
+          <p><strong>Specifications:</strong> 312 RPM, 64 oz-in stall torque</p>
+          <p><strong>Best For:</strong> Budget builds, secondary motors</p>
+          <p><strong>Cost:</strong> Lower</p>
+          <p><strong>Notes:</strong> Lighter and cheaper than HD Hex, slightly lower torque</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>gobilda Yellow Jacket Motor</h3>
+          <p><strong>Specifications:</strong> Multiple ratios available (139 to 312 RPM)</p>
+          <p><strong>Best For:</strong> Speed-focused drivetrains</p>
+          <p><strong>Cost:</strong> Medium-High</p>
+          <p><strong>Notes:</strong> Very reliable, available in high-speed versions</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>NeveRest Motor</h3>
+          <p><strong>Specifications:</strong> 105 RPM, 110 oz-in stall torque</p>
+          <p><strong>Best For:</strong> Heavy lifting, high-torque mechanisms</p>
+          <p><strong>Cost:</strong> Higher</p>
+          <p><strong>Notes:</strong> Most torque per motor, excellent for slide systems</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>REV Smart Robot Servo</h3>
+          <p><strong>Specifications:</strong> 270-degree rotation, programmable stall torque</p>
+          <p><strong>Best For:</strong> Precise angular positioning (claws, arms)</p>
+          <p><strong>Cost:</strong> Medium</p>
+          <p><strong>Notes:</strong> Not for drivetrain, essential for mechanism control</p>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <h2>Choosing Motors for Different Systems</h2>
+        
+        <div class="content-subsection">
+          <h3>Drivetrain</h3>
+          <p>Use high-torque motors (76+ oz-in) for pushing power. Gear down for more torque, up for more speed. Tank drive typically uses 2-4 motors.</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>Linear Slides</h3>
+          <p>Use NeveRest (110 oz-in) or geared-down HD Hex motors. Lifting mechanisms need high torque to support load without slipping.</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>Intake/Shooter</h3>
+          <p>Use higher RPM motors (312 RPM) for fast pickup and ejection. Torque less critical for these applications.</p>
+        </div>
+
+        <div class="content-subsection">
+          <h3>Mechanisms</h3>
+          <p>Use servos (0.5-5 oz-in) for controlled positioning. Motors for continuous rotation mechanisms.</p>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <h2>Gearing & Speed Control</h2>
+        <p>Use gearboxes to adjust motor output:</p>
+        <ul>
+          <li><strong>Higher Gear Ratio:</strong> Slower speed, more torque (e.g., 4:1)</li>
+          <li><strong>Lower Gear Ratio:</strong> Higher speed, less torque (e.g., 1:1)</li>
+          <li><strong>Direct Drive:</strong> No gearing, full motor RPM and torque</li>
+        </ul>
+        <p><strong>Example:</strong> HD Hex (312 RPM) with 4:1 gearing = 78 RPM output with 4x torque</p>
+      </section>
+
+      <section class="content-section">
+        <h2>Selection Tips</h2>
+        <ul>
+          <li>Start with HD Hex motors for beginners - versatile and reliable</li>
+          <li>Calculate load requirements before choosing motors</li>
+          <li>Consider space constraints - larger motors may not fit</li>
+          <li>Think about future upgrades when planning</li>
+          <li>Test motor speed/torque tradeoffs during build</li>
+          <li>Document your final motor configuration for reference</li>
+        </ul>
+      </section>
+
+      <section class="content-section">
+        <h2>Budget Breakdown</h2>
+        <div class="example-box">
+          <p><strong>Basic Drivetrain (2 motors):</strong> $80-120</p>
+          <p><strong>Enhanced Drivetrain (4 motors):</strong> $160-240</p>
+          <p><strong>Mechanism Motors (2-3):</strong> $60-150</p>
+          <p><strong>Servos (2-4):</strong> $40-100</p>
+          <p><strong>Total Robot Motors:</strong> $300-500</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="../script.js?v=2"></script>
+</body>
+</html>
