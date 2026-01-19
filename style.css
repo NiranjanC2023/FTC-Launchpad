@@ -209,6 +209,37 @@ h2 {
   transform: translateX(-4px);
 }
 
+.back-button {
+  margin-bottom: 1.5rem;
+}
+
+.programming-section {
+  margin-top: 3rem;
+  padding: 24px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.programming-section:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--accent-primary);
+}
+
+.programming-section h2 {
+  margin-top: 0;
+  color: var(--accent-primary);
+}
+
+.placeholder-content {
+  padding: 24px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
 .resources-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
