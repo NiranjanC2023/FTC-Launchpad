@@ -337,6 +337,95 @@ h2 {
   padding-left: 1.5rem;
 }
 
+.example-box {
+  background: var(--bg-secondary);
+  border-left: 4px solid var(--accent-secondary);
+  padding: 16px;
+  border-radius: 6px;
+  margin: 1rem 0;
+  color: var(--text-secondary);
+}
+
+.table-container {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+.funding-table,
+.sponsorship-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.funding-table thead,
+.sponsorship-table thead {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.funding-table th,
+.sponsorship-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.funding-table td,
+.sponsorship-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.funding-table tbody tr:hover,
+.sponsorship-table tbody tr:hover {
+  background: var(--bg-secondary);
+}
+
+.total-row {
+  background: var(--accent-primary);
+  color: white;
+  font-weight: 600;
+}
+
+.total-row td {
+  border-bottom: none;
+  padding: 14px 16px;
+}
+
+.platinum-row {
+  background: var(--accent-secondary);
+  color: white;
+}
+
+.platinum-row td {
+  color: white;
+  font-weight: 500;
+}
+
+.funding-option {
+  margin: 1.5rem 0;
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.funding-option h3 {
+  margin-top: 0;
+  color: var(--accent-primary);
+  font-size: 1rem;
+}
+
+.funding-option ul {
+  margin: 0.5rem 0 0 0;
+  padding-left: 1.5rem;
+}
+
 .resources-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
