@@ -240,6 +240,86 @@ h2 {
   color: var(--text-secondary);
 }
 
+.content-section {
+  margin-top: 2rem;
+  padding: 16px 0;
+}
+
+.content-section h3 {
+  color: var(--accent-primary);
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.content-section ul {
+  list-style: disc;
+  list-style-position: inside;
+  padding-left: 1rem;
+  color: var(--text-secondary);
+}
+
+.content-section li {
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+}
+
+.code-block {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 1rem;
+}
+
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.code-header span {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.copy-btn {
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.copy-btn:hover {
+  background: var(--accent-secondary);
+  transform: scale(1.05);
+}
+
+.copy-btn:active {
+  transform: scale(0.95);
+}
+
+.code-block pre {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+}
+
+.code-block code {
+  color: var(--text-primary);
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
 .resources-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
