@@ -320,6 +320,23 @@ h2 {
   line-height: 1.5;
 }
 
+.important-box {
+  background: var(--bg-secondary);
+  border-left: 4px solid var(--accent-primary);
+  padding: 16px;
+  border-radius: 6px;
+  margin-top: 1rem;
+}
+
+.important-box strong {
+  color: var(--accent-primary);
+}
+
+.important-box ul {
+  margin: 0.5rem 0 0 0;
+  padding-left: 1.5rem;
+}
+
 .resources-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

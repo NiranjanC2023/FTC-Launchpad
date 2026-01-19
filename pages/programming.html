@@ -119,6 +119,149 @@ public void runOpMode() {
     }
 }</code></pre>
           </div>
+          <div class="important-box">
+            <strong>⚠️ Important Tips:</strong>
+            <ul>
+              <li>The names must match exactly what you set in the Robot Configuration</li>
+              <li>Hardware mapping happens before waitForStart()</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <h3>Step 3: Reading Gamepad Input</h3>
+          <p>FTC gamepads give you access to:</p>
+          <ul>
+            <li>Joysticks</li>
+            <li>Buttons</li>
+            <li>Triggers</li>
+            <li>D-pad</li>
+          </ul>
+          <p>Example joystick input:</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span>Java</span>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>double forward = -gamepad1.left_stick_y;
+double turn = gamepad1.right_stick_x;</code></pre>
+          </div>
+          <p><strong>Why the negative sign?</strong></p>
+          <ul>
+            <li>Pushing the joystick forward returns a negative value</li>
+          </ul>
+        </div>
+
+        <div class="content-section">
+          <h3>Step 4: Using Buttons for Mechanisms</h3>
+          <p>Buttons are commonly used for:</p>
+          <ul>
+            <li>Intakes</li>
+            <li>Slides</li>
+            <li>Arms</li>
+            <li>Claws</li>
+          </ul>
+          <p>Example:</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span>Java</span>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>if (gamepad1.a) {
+    intakeMotor.setPower(1.0);
+} else if (gamepad1.b) {
+    intakeMotor.setPower(-1.0);
+} else {
+    intakeMotor.setPower(0);
+}</code></pre>
+          </div>
+          <p>This ensures:</p>
+          <ul>
+            <li>The motor only moves when a button is pressed</li>
+            <li>The motor stops when no input is given</li>
+          </ul>
+        </div>
+
+        <div class="content-section">
+          <h3>Step 5: Controlling Servos</h3>
+          <p>Servos move to a position between 0.0 and 1.0.</p>
+          <p>Example:</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span>Java</span>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>if (gamepad1.right_bumper) {
+    clawServo.setPosition(1.0); // open
+}
+
+if (gamepad1.left_bumper) {
+    clawServo.setPosition(0.0); // close
+}</code></pre>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <h3>Step 6: The TeleOp Loop (Very Important)</h3>
+          <p>Everything inside:</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span>Java</span>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>while (opModeIsActive()) {
+    // Code here
+}</code></pre>
+          </div>
+          <p>runs repeatedly during the match.</p>
+          <p><strong>Rules of the loop:</strong></p>
+          <ul>
+            <li>Do NOT use sleep() inside TeleOp</li>
+            <li>Keep logic fast and responsive</li>
+            <li>Always update motor powers every loop</li>
+          </ul>
+        </div>
+
+        <div class="content-section">
+          <h3>Step 7: Telemetry (Debugging for Drivers)</h3>
+          <p>Telemetry sends information to the Driver Station.</p>
+          <p>Example:</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span>Java</span>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>telemetry.addData("Left Power", leftDrive.getPower());
+telemetry.addData("Right Power", rightDrive.getPower());
+telemetry.update();</code></pre>
+          </div>
+          <p>Use telemetry to:</p>
+          <ul>
+            <li>Debug issues</li>
+            <li>Show sensor values</li>
+            <li>Help drivers understand robot state</li>
+          </ul>
+        </div>
+
+        <div class="content-section">
+          <h3>Common Beginner Mistakes</h3>
+          <ul>
+            <li>Forgetting waitForStart()</li>
+            <li>Using sleep() inside the TeleOp loop</li>
+            <li>Not stopping motors when buttons are released</li>
+            <li>Hardware names not matching the configuration</li>
+          </ul>
+        </div>
+
+        <div class="content-section">
+          <h3>What to Learn Next</h3>
+          <p>Once you have a basic TeleOp working, consider learning:</p>
+          <ul>
+            <li>Motor direction and braking modes</li>
+            <li>Encoders for precise movement</li>
+            <li>Subsystems and command-based structure</li>
+            <li>Driver control smoothing</li>
+          </ul>
         </div>
       </section>
 
