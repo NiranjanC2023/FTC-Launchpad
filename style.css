@@ -238,6 +238,50 @@ h2 {
   transform: translateY(0);
 }
 
+.step-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 2rem;
+}
+
+.step-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  padding: 1.5rem;
+  text-align: center;
+  border-radius: 28px;
+  font-size: 1rem;
+  line-height: 1.4;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.step-card strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 1.05rem;
+}
+
+.step-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+.step-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 2rem;
+}
+
+.step-label {
+  color: var(--accent-secondary);
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
 .back-link {
   display: inline-block;
   margin-bottom: 1.5rem;
