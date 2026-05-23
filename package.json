@@ -1,0 +1,21 @@
+{
+  "name": "ftcstarterhub",
+  "version": "1.0.0",
+  "description": "A centralized hub for FTC rookie teams, new members, and students interested in joining or starting an FTC team.",
+  "keywords": [],
+  "homepage": "https://github.com/NiranjanC2023/FTC-Launchpad#readme",
+  "bugs": {
+    "url": "https://github.com/NiranjanC2023/FTC-Launchpad/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NiranjanC2023/FTC-Launchpad.git"
+  },
+  "license": "ISC",
+  "author": "Evergreen-Tech-a-Trons",
+  "type": "commonjs",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
