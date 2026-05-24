@@ -1,5 +1,6 @@
 var express = require("express");
 var router = express.Router();
+const User = require('../models/user');
 
 // Home page
 router.get("/", function(req, res){
@@ -111,6 +112,50 @@ router.get("/team-org", function(req, res){
 
 router.get("/teams-nearby", function(req, res){
     res.render("pages/teams-nearby");
+});
+
+// Account routes
+router.get('/signup', function(req, res){
+    res.render('pages/signup', { error: null });
+});
+
+router.post('/signup', async function(req, res){
+    try {
+        const { name, email, password } = req.body;
+        if (!name || !email || !password) return res.render('pages/signup', { error: 'All fields required' });
+        const existing = await User.findOne({ email: email.toLowerCase() }).exec();
+        if (existing) return res.render('pages/signup', { error: 'Email already registered' });
+        const user = new User({ name, email: email.toLowerCase() });
+        await user.setPassword(password);
+        await user.save();
+        req.session.userId = user._id;
+        res.redirect('/');
+    } catch (err) {
+        res.render('pages/signup', { error: err.message });
+    }
+});
+
+router.get('/login', function(req, res){
+    res.render('pages/login', { error: null });
+});
+
+router.post('/login', async function(req, res){
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) return res.render('pages/login', { error: 'Email and password required' });
+        const user = await User.findOne({ email: email.toLowerCase() }).exec();
+        if (!user) return res.render('pages/login', { error: 'Invalid credentials' });
+        const ok = await user.validatePassword(password);
+        if (!ok) return res.render('pages/login', { error: 'Invalid credentials' });
+        req.session.userId = user._id;
+        res.redirect('/');
+    } catch (err) {
+        res.render('pages/login', { error: err.message });
+    }
+});
+
+router.get('/logout', function(req, res){
+    req.session.destroy(() => res.redirect('/'));
 });
 
 module.exports = router;

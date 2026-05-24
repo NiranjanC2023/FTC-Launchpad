@@ -262,7 +262,10 @@ function initTeamsPage() {
 
   const studentRaw = sessionStorage.getItem(STUDENT_KEY);
   if (!studentRaw) {
-    container.innerHTML = `<p>No signup info found. <a href="/join-form">Fill the form first</a>.</p>`;
+    const status = document.getElementById('teamsStatus');
+    if (status) status.innerHTML = 'No signup info found. <a href="/join-form">Fill the form first</a>.';
+    // render sample teams so the page layout and map still appear
+    renderTeams(SAMPLE_TEAMS, null);
     return;
   }
 

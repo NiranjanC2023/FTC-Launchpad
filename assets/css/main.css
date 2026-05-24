@@ -43,17 +43,10 @@ body {
   min-height: 100vh;
 }
 
-header {
-  position: fixed;
-  top: 0;
-  right: 0;
-  left: 0;
-  padding: 20px;
-  z-index: 1000;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-   .team-card h3 { margin: 0 0 6px 0; }
+/* Avoid globally styling the top header (Bootstrap navbar handles that).
+   Use `main header` for page-specific header layout if needed. */
+
+main header { padding: 20px 0; }
 
 .creator-badge {
   font-size: 0.9rem;
@@ -151,6 +144,10 @@ main {
 }
 
 .container {
+  /* Restrict our page container rules to main content only so we don't override Bootstrap's global .container */
+}
+
+main .container {
   max-width: 800px;
   margin: 0 auto;
 }
@@ -165,7 +162,6 @@ h1 {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-
 .subtitle {
   font-size: 1.15rem;
   line-height: 1.6;
@@ -174,7 +170,26 @@ h1 {
   max-width: 600px;
 }
 
-h2 {
+main h1 {
+  font-size: clamp(2.5rem, 8vw, 3.5rem);
+  font-weight: 800;
+  margin: 0 0 1rem 0;
+  line-height: 1.1;
+  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+main .subtitle {
+  font-size: 1.15rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0 0 2rem 0;
+  max-width: 600px;
+}
+
+main h2 {
   margin-top: 3rem;
   margin-bottom: 1.5rem;
   font-weight: 700;
@@ -191,7 +206,7 @@ h2 {
   flex-wrap: wrap;
 }
 
-.btn {
+.main .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -205,37 +220,36 @@ h2 {
   font-size: 1rem;
   white-space: nowrap;
 }
-
-.btn-primary {
+.main .btn-primary {
   background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
   color: white;
   box-shadow: var(--shadow-lg);
 }
 
-.btn-primary:hover {
+.main .btn-primary:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-xl);
 }
 
-.btn-primary:active {
+.main .btn-primary:active {
   transform: translateY(0);
 }
 
-.btn-secondary {
+.main .btn-secondary {
   background: var(--bg-tertiary);
   color: var(--accent-primary);
   border: 1.5px solid var(--border-color);
   box-shadow: var(--shadow-sm);
 }
 
-.btn-secondary:hover {
+.main .btn-secondary:hover {
   border-color: var(--accent-primary);
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
   background: var(--bg-secondary);
 }
 
-.btn-secondary:active {
+.main .btn-secondary:active {
   transform: translateY(0);
 }
 
@@ -648,7 +662,7 @@ h2 {
     flex-direction: column;
   }
 
-  .btn {
+  main .btn {
     width: 100%;
   }
 
