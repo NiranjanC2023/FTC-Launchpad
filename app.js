@@ -12,12 +12,23 @@ var setUpPassport = require("./setuppassport");
 //var routes = require("./routes");
 
 var app = express();
-mongoose.connect(params.DATABASECONNECTION, {useUnifiedTopology:true, useNewUrlParser:true, useCreateIndex:true});
-setUpPassport();
 
 app.set("port", process.env.PORT || 3000);
+
+// Static files - serve FIRST before setting up routes/views
+app.use("/assets", express.static(path.join(__dirname, "assets")));
+app.use(express.static(path.join(__dirname, "public")));
+
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
+
+// Connect to MongoDB but don't block if it fails
+mongoose.connect(params.DATABASECONNECTION).catch(err => {
+    console.log("MongoDB connection failed (non-blocking):", err.message);
+});
+
+setUpPassport();
+
 app.use(bodyParser.urlencoded({extended:false}));
 app.use(cookieParser());
 app.use(session({

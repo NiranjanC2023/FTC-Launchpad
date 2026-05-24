@@ -59,7 +59,7 @@ function initJoinForm() {
     };
 
     sessionStorage.setItem(STUDENT_KEY, JSON.stringify(data));
-    window.location.href = 'teams-nearby.html';
+    window.location.href = '/teams-nearby';
   });
 }
 
@@ -84,14 +84,37 @@ function renderTeams(teams, userCoords) {
   const list = document.getElementById('teamsList');
   if (!list) return;
 
+  // clear list
   list.innerHTML = '';
+
+  // ensure a map container exists above the list
+  let mapEl = document.getElementById('teamsMap');
+  if (!mapEl) {
+    mapEl = document.createElement('div');
+    mapEl.id = 'teamsMap';
+    mapEl.style.width = '100%';
+    mapEl.style.height = '400px';
+    list.parentNode.insertBefore(mapEl, list);
+  }
+
+  // create a simple accessible list alongside the map
+  const listEl = document.createElement('div');
+  listEl.className = 'teams-list-cards';
+  list.appendChild(listEl);
+
+  // prepare marker index for quick lookup from list items
+  if (!window._teamMarkers) window._teamMarkers = {};
+
   teams.forEach(team => {
     const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
 
     const card = document.createElement('div');
     card.className = 'team-card';
     card.innerHTML = `
-      <h3>${team.name}</h3>
+      <div class="team-card-head">
+        <h3>${team.name}</h3>
+        <button class="btn btn-link goto-marker" title="Show on map" data-team="${team.name}"><i class="fa-solid fa-location-dot"></i></button>
+      </div>
       <p>${team.contact}</p>
       ${dist !== null ? `<p><strong>${dist.toFixed(1)} km away</strong></p>` : ''}
       <div class="team-actions">
@@ -99,18 +122,120 @@ function renderTeams(teams, userCoords) {
       </div>
     `;
 
-    const btn = card.querySelector('.send-btn');
-    btn.addEventListener('click', () => sendToTeam(team));
+    const sendBtn = card.querySelector('.send-btn');
+    sendBtn.addEventListener('click', () => sendToTeam(team));
 
-    list.appendChild(card);
+    // goto-marker handler (may wait for map/marker readiness)
+    const gotoBtn = card.querySelector('.goto-marker');
+    gotoBtn.addEventListener('click', () => {
+      const teamName = gotoBtn.getAttribute('data-team');
+      // Try to open marker immediately if available
+      function openMarker() {
+        const markers = window._teamMarkers || {};
+        const marker = markers[teamName];
+        const map = window._teamsMapInstance;
+        if (marker && map) {
+          try {
+            const latlng = marker.getLatLng();
+            map.setView(latlng, 13);
+            marker.openPopup();
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+        return false;
+      }
+
+      // keep trying for a short period if map/marker not ready yet
+      if (!openMarker()) {
+        let attempts = 0;
+        const iv = setInterval(() => {
+          attempts++;
+          if (openMarker() || attempts > 20) clearInterval(iv);
+        }, 200);
+      }
+    });
+
+    listEl.appendChild(card);
   });
+
+  // initialize Leaflet map when available
+  function tryInitMap() {
+    if (!window.L) {
+      setTimeout(tryInitMap, 200);
+      return;
+    }
+
+    // remove existing map instance if any
+    if (window._teamsMapInstance) {
+      try { window._teamsMapInstance.remove(); } catch (e) {}
+      window._teamsMapInstance = null;
+    }
+
+    const map = L.map('teamsMap', { scrollWheelZoom: false });
+    window._teamsMapInstance = map;
+
+    const markerCoords = [];
+    teams.forEach(team => {
+      if (typeof team.lat !== 'number' || typeof team.lon !== 'number') return;
+      // use a Font Awesome based divIcon so the marker matches the list icon (solid, red)
+      const iconHtml = '<i class="fa-solid fa-location-dot"></i>';
+      const faIcon = L.divIcon({
+        className: 'fa-marker-icon',
+        html: iconHtml,
+        // larger icon size for better visibility on map
+        iconSize: [48, 48],
+        iconAnchor: [24, 48]
+      });
+      const marker = L.marker([team.lat, team.lon], { icon: faIcon }).addTo(map);
+      // index marker by team name for list -> map interactions
+      if (!window._teamMarkers) window._teamMarkers = {};
+      window._teamMarkers[team.name] = marker;
+      const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
+      const popupContent = `
+        <strong>${team.name}</strong><br/>
+        ${team.contact}<br/>
+        ${dist !== null ? `<em>${dist.toFixed(1)} km away</em><br/>` : ''}
+        <button class="popup-send-btn btn btn-primary" data-team="${team.name}">Send My Info</button>
+      `;
+      marker.bindPopup(popupContent);
+      markerCoords.push([team.lat, team.lon]);
+    });
+
+    map.on('popupopen', function() {
+      const btn = document.querySelector('.popup-send-btn');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          const teamName = btn.getAttribute('data-team');
+          const team = teams.find(t => t.name === teamName);
+          if (team) sendToTeam(team);
+        });
+      }
+    });
+
+    if (markerCoords.length > 0) {
+      const bounds = L.latLngBounds(markerCoords);
+      if (userCoords) {
+        map.setView([userCoords.lat, userCoords.lon], 10);
+      } else {
+        map.fitBounds(bounds.pad(0.2));
+      }
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+    } else {
+      map.setView([39.5, -98.35], 4);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+    }
+  }
+
+  tryInitMap();
 }
 
 function sendToTeam(team) {
   const raw = sessionStorage.getItem(STUDENT_KEY);
   if (!raw) {
     alert('No student info found. Please fill the signup form first.');
-    window.location.href = 'join-form.html';
+    window.location.href = '/join-form';
     return;
   }
 
@@ -137,7 +262,17 @@ function initTeamsPage() {
 
   const studentRaw = sessionStorage.getItem(STUDENT_KEY);
   if (!studentRaw) {
-    container.innerHTML = `<p>No signup info found. <a href="join-form.html">Fill the form first</a>.</p>`;
+    container.innerHTML = `<p>No signup info found. <a href="/join-form">Fill the form first</a>.</p>`;
+    return;
+  }
+
+  // If server provided teams (EJS), use them directly
+  if (window.__TEAMS__) {
+    const teams = window.__TEAMS__;
+    const coords = window.__USER_COORDS__ || null;
+    const status = document.getElementById('teamsStatus');
+    if (status) status.textContent = 'Loaded teams from server';
+    renderTeams(teams, coords);
     return;
   }
 
@@ -178,10 +313,24 @@ function loadSiteShells() {
     document.head.appendChild(link);
   }
 
-  const prefix = location.pathname.includes('/pages/') ? '../' : '';
+  // inject Leaflet CSS + JS for interactive maps (if not present)
+  if (!document.querySelector('link[href*="leaflet.css"]')) {
+    const llink = document.createElement('link');
+    llink.rel = 'stylesheet';
+    llink.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(llink);
+  }
+  if (!window.L && !document.querySelector('script[data-leaflet]')) {
+    const lscript = document.createElement('script');
+    lscript.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    lscript.setAttribute('data-leaflet', 'true');
+    document.body.appendChild(lscript);
+  }
+
+  // prefix not used; removed to clean up
 
   // load header
-  fetch(prefix + 'assets/partial/header.html')
+    fetch('/assets/partial/header.html')
     .then(r => r.text())
     .then(html => {
       const header = document.querySelector('header');
@@ -194,17 +343,17 @@ function loadSiteShells() {
       }
 
       // rewrite links using data-href attributes so paths work in pages/ and root
-      const anchors = document.querySelectorAll('[data-href]');
-      anchors.forEach(a => {
-        const target = a.getAttribute('data-href');
-        a.setAttribute('href', prefix + target);
+        const anchors = document.querySelectorAll('[data-href]');
+        anchors.forEach(a => {
+          const target = a.getAttribute('data-href');
+          if (target) a.setAttribute('href', target);
       });
       // bind theme toggle after header is in DOM
       bindThemeToggle();
     }).catch(() => {});
 
   // load footer
-  fetch(prefix + 'assets/partial/footer.html')
+    fetch('/assets/partial/footer.html')
     .then(r => r.text())
     .then(html => {
       const footerContainer = document.createElement('div');
@@ -213,4 +362,6 @@ function loadSiteShells() {
       const yearEl = document.getElementById('site-year');
       if (yearEl) yearEl.textContent = new Date().getFullYear();
     }).catch(() => {});
+
+    // (removed) prefix calculation — always use absolute paths for partials
 }
