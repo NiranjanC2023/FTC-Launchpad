@@ -1,6 +1,23 @@
 var express = require("express");
 var router = express.Router();
+const mongoose = require('mongoose');
 const User = require('../models/user');
+
+function normalizeEmail(email) {
+    return String(email || '').trim().toLowerCase();
+}
+
+function signIn(req, user) {
+    req.session.userId = user._id.toString();
+}
+
+function isDatabaseConnected() {
+    return mongoose.connection.readyState === 1;
+}
+
+function databaseErrorMessage() {
+    return 'Database is not connected. Start MongoDB or set MONGODB_URI, then try again.';
+}
 
 // Home page
 router.get("/", function(req, res){
@@ -121,14 +138,22 @@ router.get('/signup', function(req, res){
 
 router.post('/signup', async function(req, res){
     try {
-        const { name, email, password } = req.body;
-        if (!name || !email || !password) return res.render('pages/signup', { error: 'All fields required' });
-        const existing = await User.findOne({ email: email.toLowerCase() }).exec();
+        if (!isDatabaseConnected()) return res.render('pages/signup', { error: databaseErrorMessage() });
+        const { name, email, password, age, phone, interests } = req.body;
+        const normalizedEmail = normalizeEmail(email);
+        if (!name || !normalizedEmail || !password) return res.render('pages/signup', { error: 'All fields required' });
+        const existing = await User.findOne({ email: normalizedEmail }).exec();
         if (existing) return res.render('pages/signup', { error: 'Email already registered' });
-        const user = new User({ name, email: email.toLowerCase() });
+        const user = new User({
+            name: name.trim(),
+            email: normalizedEmail,
+            age: age ? Number(age) : undefined,
+            phone,
+            interests
+        });
         await user.setPassword(password);
         await user.save();
-        req.session.userId = user._id;
+        signIn(req, user);
         res.redirect('/');
     } catch (err) {
         res.render('pages/signup', { error: err.message });
@@ -141,13 +166,15 @@ router.get('/login', function(req, res){
 
 router.post('/login', async function(req, res){
     try {
+        if (!isDatabaseConnected()) return res.render('pages/login', { error: databaseErrorMessage() });
         const { email, password } = req.body;
-        if (!email || !password) return res.render('pages/login', { error: 'Email and password required' });
-        const user = await User.findOne({ email: email.toLowerCase() }).exec();
+        const normalizedEmail = normalizeEmail(email);
+        if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required' });
+        const user = await User.findOne({ email: normalizedEmail }).exec();
         if (!user) return res.render('pages/login', { error: 'Invalid credentials' });
         const ok = await user.validatePassword(password);
         if (!ok) return res.render('pages/login', { error: 'Invalid credentials' });
-        req.session.userId = user._id;
+        signIn(req, user);
         res.redirect('/');
     } catch (err) {
         res.render('pages/login', { error: err.message });

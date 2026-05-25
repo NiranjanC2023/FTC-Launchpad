@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 var express = require("express");
 var path = require("path");
 var mongoose = require("mongoose");
@@ -14,6 +16,7 @@ var setUpPassport = require("./setuppassport");
 var app = express();
 
 app.set("port", process.env.PORT || 3000);
+mongoose.set("bufferCommands", false);
 
 // Static files - serve FIRST before setting up routes/views
 app.use("/assets", express.static(path.join(__dirname, "assets")));
@@ -22,9 +25,13 @@ app.use(express.static(path.join(__dirname, "public")));
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 
-// Connect to MongoDB but don't block if it fails
-mongoose.connect(params.DATABASECONNECTION).catch(err => {
-    console.log("MongoDB connection failed (non-blocking):", err.message);
+// Connect to MongoDB but don't block static pages if it fails
+mongoose.connect(params.DATABASECONNECTION, {
+    serverSelectionTimeoutMS: 5000
+}).then(() => {
+    console.log("MongoDB connected");
+}).catch(err => {
+    console.log("MongoDB connection failed:", err.message);
 });
 
 setUpPassport();

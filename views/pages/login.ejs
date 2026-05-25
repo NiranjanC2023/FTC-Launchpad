@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <title>Log In - FTC Starter Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="/assets/css/main.css?v=2">
+  <link rel="stylesheet" href="/assets/css/main.css?v=8">
 </head>
-<body>
+<body class="auth-page">
   <header>
     <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode"></button>
   </header>
@@ -27,11 +27,15 @@
           <label class="form-label">Password</label>
           <input name="password" type="password" class="form-control" required />
         </div>
+        <div class="mb-3">
+          <label class="form-label"><input type="checkbox" name="remember" value="1" /> Remember me</label>
+        </div>
         <button class="btn btn-primary" type="submit">Log in</button>
       </form>
+      <p style="margin-top:14px">Don't have an account? <a href="#" data-href="/signup">Sign up</a></p>
     </div>
   </main>
 
-  <script src="/assets/js/main.js?v=2"></script>
+  <script src="/assets/js/main.js?v=8"></script>
 </body>
 </html>

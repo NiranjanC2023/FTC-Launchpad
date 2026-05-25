@@ -1,3 +1,3 @@
 module.exports = {
-    DATABASECONNECTION: "mongodb://localhost:27017/ftc-launchpad"
+    DATABASECONNECTION: process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/ftc-launchpad"
 };

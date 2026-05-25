@@ -3,14 +3,6 @@ const html = document.documentElement;
 const savedTheme = localStorage.getItem('theme') || 'light';
 html.setAttribute('data-theme', savedTheme);
 
-// Respect user's system preference on first visit
-if (!localStorage.getItem('theme')) {
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const initialTheme = prefersDark ? 'dark' : 'light';
-  html.setAttribute('data-theme', initialTheme);
-  localStorage.setItem('theme', initialTheme);
-}
-
 function bindThemeToggle() {
   const themeToggle = document.getElementById('themeToggle');
   if (!themeToggle) return;
@@ -86,6 +78,8 @@ function renderTeams(teams, userCoords) {
 
   // clear list
   list.innerHTML = '';
+  window._teamMarkers = {};
+  window._teamCards = {};
 
   // ensure a map container exists above the list
   let mapEl = document.getElementById('teamsMap');
@@ -98,67 +92,182 @@ function renderTeams(teams, userCoords) {
   }
 
   // create a simple accessible list alongside the map
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'teams-search';
+  searchWrap.innerHTML = `
+    <label for="teamsSearch">Search teams</label>
+    <div class="teams-search-field">
+      <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+      <input id="teamsSearch" type="search" placeholder="Search by team or contact" autocomplete="off" />
+      <span class="teams-search-count" aria-live="polite"></span>
+    </div>
+  `;
+  list.appendChild(searchWrap);
+
+  const emptyEl = document.createElement('p');
+  emptyEl.className = 'teams-empty';
+  emptyEl.hidden = true;
+  emptyEl.textContent = 'No teams match your search.';
+  list.appendChild(emptyEl);
+
   const listEl = document.createElement('div');
   listEl.className = 'teams-list-cards';
   list.appendChild(listEl);
 
-  // prepare marker index for quick lookup from list items
-  if (!window._teamMarkers) window._teamMarkers = {};
+  const searchInput = searchWrap.querySelector('#teamsSearch');
+  const resultCount = searchWrap.querySelector('.teams-search-count');
+
+  function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[char]));
+  }
+
+  function activateMarkerLabel(teamName) {
+    document.querySelectorAll('.marker-label').forEach(el => {
+      el.classList.add('marker-label--dim');
+      el.classList.remove('marker-label--active');
+    });
+
+    const marker = (window._teamMarkers || {})[teamName];
+    const tooltip = marker && marker.getTooltip ? marker.getTooltip() : null;
+    const tooltipEl = tooltip && tooltip.getElement ? tooltip.getElement() : null;
+    if (tooltipEl) {
+      tooltipEl.classList.remove('marker-label--dim');
+      tooltipEl.classList.add('marker-label--active');
+    }
+  }
+
+  function applySearch() {
+    const query = searchInput.value.trim().toLowerCase();
+    let visibleCount = 0;
+
+    Object.values(window._teamCards).forEach(card => {
+      const matches = !query || card.dataset.search.includes(query);
+      card.hidden = !matches;
+      if (matches) visibleCount++;
+
+      const marker = (window._teamMarkers || {})[card.dataset.team];
+      if (marker && marker.setOpacity) {
+        marker.setOpacity(matches ? 1 : 0.28);
+      }
+    });
+
+    resultCount.textContent = `${visibleCount} team${visibleCount === 1 ? '' : 's'}`;
+    emptyEl.hidden = visibleCount !== 0;
+  }
+
+  function highlightTeamCard(teamName, options = {}) {
+    const card = window._teamCards[teamName];
+    if (!card) return;
+
+    if (card.hidden) {
+      searchInput.value = '';
+      applySearch();
+    }
+
+    Object.values(window._teamCards).forEach(item => item.classList.remove('is-active'));
+    card.classList.add('is-active');
+
+    if (options.scroll) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  function focusTeam(teamName, options = {}) {
+    const marker = (window._teamMarkers || {})[teamName];
+    const map = window._teamsMapInstance;
+
+    highlightTeamCard(teamName, { scroll: Boolean(options.scroll) });
+    activateMarkerLabel(teamName);
+
+    if (!marker || !map) return false;
+
+    try {
+      const latlng = marker.getLatLng();
+      const zoom = Math.max(map.getZoom(), options.zoom || 14);
+      if (map.flyTo) {
+        map.flyTo(latlng, zoom, { animate: true, duration: 0.45 });
+      } else {
+        map.setView(latlng, zoom);
+      }
+
+      if (options.openPopup !== false) {
+        marker.openPopup();
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function focusTeamWhenReady(teamName, options = {}) {
+    if (focusTeam(teamName, options)) return;
+
+    let attempts = 0;
+    const iv = setInterval(() => {
+      attempts++;
+      if (focusTeam(teamName, options) || attempts > 20) {
+        clearInterval(iv);
+      }
+    }, 150);
+  }
+
+  searchInput.addEventListener('input', applySearch);
 
   teams.forEach(team => {
     const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
+    const teamName = String(team.name || 'Unnamed team');
+    const contact = String(team.contact || 'Contact unavailable');
 
     const card = document.createElement('div');
     card.className = 'team-card';
+    // attach team name to the DOM card for easy lookup from marker events
+    card.dataset.team = teamName;
+    card.dataset.search = `${teamName} ${contact}`.toLowerCase();
     card.innerHTML = `
       <div class="team-card-head">
-        <h3>${team.name}</h3>
-        <button class="btn btn-link goto-marker" title="Show on map" data-team="${team.name}"><i class="fa-solid fa-location-dot"></i></button>
+        <div>
+          <h3>${escapeHTML(teamName)}</h3>
+          <span class="team-card-label">FTC team</span>
+        </div>
+        <button class="btn btn-link goto-marker" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-location-dot"></i></button>
       </div>
-      <p>${team.contact}</p>
-      ${dist !== null ? `<p><strong>${dist.toFixed(1)} km away</strong></p>` : ''}
+      <p class="team-card-contact">${escapeHTML(contact)}</p>
+      ${dist !== null ? `<p class="team-distance"><span>Distance</span><strong>${dist.toFixed(1)} km away</strong></p>` : ''}
       <div class="team-actions">
         <button class="btn btn-primary send-btn">Send My Info</button>
       </div>
     `;
+    window._teamCards[teamName] = card;
 
     const sendBtn = card.querySelector('.send-btn');
     sendBtn.addEventListener('click', () => sendToTeam(team));
 
-    // goto-marker handler (may wait for map/marker readiness)
     const gotoBtn = card.querySelector('.goto-marker');
-    gotoBtn.addEventListener('click', () => {
-      const teamName = gotoBtn.getAttribute('data-team');
-      // Try to open marker immediately if available
-      function openMarker() {
-        const markers = window._teamMarkers || {};
-        const marker = markers[teamName];
-        const map = window._teamsMapInstance;
-        if (marker && map) {
-          try {
-            const latlng = marker.getLatLng();
-            map.setView(latlng, 13);
-            marker.openPopup();
-            return true;
-          } catch (e) {
-            return false;
-          }
-        }
-        return false;
-      }
+    gotoBtn.addEventListener('click', event => {
+      event.stopPropagation();
+      focusTeamWhenReady(teamName, { openPopup: true, zoom: 14 });
+    });
 
-      // keep trying for a short period if map/marker not ready yet
-      if (!openMarker()) {
-        let attempts = 0;
-        const iv = setInterval(() => {
-          attempts++;
-          if (openMarker() || attempts > 20) clearInterval(iv);
-        }, 200);
-      }
+    card.addEventListener('mouseenter', () => {
+      focusTeamWhenReady(teamName, { openPopup: true, zoom: 14 });
+    });
+    card.addEventListener('focusin', () => {
+      focusTeamWhenReady(teamName, { openPopup: true, zoom: 14 });
+    });
+    card.addEventListener('click', event => {
+      if (event.target.closest('.send-btn, .goto-marker')) return;
+      focusTeamWhenReady(teamName, { openPopup: true, zoom: 14 });
     });
 
     listEl.appendChild(card);
   });
+  applySearch();
 
   // initialize Leaflet map when available
   function tryInitMap() {
@@ -180,28 +289,61 @@ function renderTeams(teams, userCoords) {
     teams.forEach(team => {
       if (typeof team.lat !== 'number' || typeof team.lon !== 'number') return;
       // use a Font Awesome based divIcon so the marker matches the list icon (solid, red)
+        // (removed helper wrappers) marker open logic handled by goto button below
       const iconHtml = '<i class="fa-solid fa-location-dot"></i>';
       const faIcon = L.divIcon({
         className: 'fa-marker-icon',
         html: iconHtml,
-        // larger icon size for better visibility on map
         iconSize: [48, 48],
-        iconAnchor: [24, 48]
+        iconAnchor: [24, 48],
+        tooltipAnchor: [0, -22],
+        popupAnchor: [0, -54]
       });
+      const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
       const marker = L.marker([team.lat, team.lon], { icon: faIcon }).addTo(map);
+      // Always show the team name above the marker as a permanent tooltip/label
+      marker.bindTooltip(team.name, {
+        permanent: true,
+        direction: 'top',
+        offset: [0, -16],
+        opacity: 1,
+        className: 'marker-label'
+      });
+
+      const teamName = String(team.name || 'Unnamed team');
+
       // index marker by team name for list -> map interactions
       if (!window._teamMarkers) window._teamMarkers = {};
-      window._teamMarkers[team.name] = marker;
-      const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
+      window._teamMarkers[teamName] = marker;
+
+      // Open popup on hover and highlight the hovered marker's label while dimming others
+      marker.on('mouseover', function() {
+        try { marker.openPopup(); } catch(e) {}
+        activateMarkerLabel(teamName);
+        highlightTeamCard(teamName);
+      });
+
+      marker.on('mouseout', function() {
+        try { marker.closePopup(); } catch(e) {}
+      });
+
+      marker.on('click', function() {
+        focusTeam(teamName, { scroll: true, openPopup: true, zoom: 14 });
+      });
       const popupContent = `
-        <strong>${team.name}</strong><br/>
-        ${team.contact}<br/>
+        <strong>${escapeHTML(teamName)}</strong><br/>
+        ${escapeHTML(team.contact || 'Contact unavailable')}<br/>
         ${dist !== null ? `<em>${dist.toFixed(1)} km away</em><br/>` : ''}
-        <button class="popup-send-btn btn btn-primary" data-team="${team.name}">Send My Info</button>
+        <button class="popup-send-btn btn btn-primary" data-team="${escapeHTML(teamName)}">Send My Info</button>
       `;
-      marker.bindPopup(popupContent);
+      marker.bindPopup(popupContent, {
+        offset: L.point(0, -12),
+        autoPan: true,
+        autoPanPadding: L.point(24, 24)
+      });
       markerCoords.push([team.lat, team.lon]);
     });
+    applySearch();
 
     map.on('popupopen', function() {
       const btn = document.querySelector('.popup-send-btn');
@@ -280,9 +422,13 @@ function initTeamsPage() {
   }
 
   const status = document.getElementById('teamsStatus');
-  status.textContent = 'Trying to get your location…';
+  // Render a usable view immediately so the page isn't blank while waiting for geolocation
+  status.textContent = 'Loading teams…';
+  renderTeams(SAMPLE_TEAMS, null);
 
+  // Try to get a more accurate list based on user's location, but don't block the UI.
   if (navigator.geolocation) {
+    const geoOptions = { maximumAge: 60000, timeout: 2000, enableHighAccuracy: false };
     navigator.geolocation.getCurrentPosition((pos) => {
       const coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
       status.textContent = `Found your location (${coords.lat.toFixed(3)}, ${coords.lon.toFixed(3)})`;
@@ -290,18 +436,18 @@ function initTeamsPage() {
       withDist.sort((a,b) => a.distance - b.distance);
       renderTeams(withDist, coords);
     }, (err) => {
-      status.textContent = 'Location denied or unavailable — showing nearby teams';
-      renderTeams(SAMPLE_TEAMS, null);
-    });
+      // If geolocation fails or times out, leave the immediate list in place and show a brief notice.
+      status.textContent = 'Using nearby teams (location unavailable)';
+    }, geoOptions);
   } else {
     status.textContent = 'Geolocation not supported — showing nearby teams';
-    renderTeams(SAMPLE_TEAMS, null);
   }
 }
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
   loadSiteShells();
+  bindThemeToggle();
   initJoinForm();
   initTeamsPage();
 });
@@ -313,7 +459,8 @@ function loadSiteShells() {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = 'https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css';
-    document.head.appendChild(link);
+    const appStylesheet = document.querySelector('link[href*="/assets/css/main.css"], link[href*="assets/css/main.css"]');
+    document.head.insertBefore(link, appStylesheet || document.head.firstChild);
   }
 
   // inject Leaflet CSS + JS for interactive maps (if not present)
