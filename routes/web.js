@@ -153,9 +153,11 @@ router.post('/signup', async function(req, res){
         });
         await user.setPassword(password);
         await user.save();
+        console.log(`User signup saved: ${user.email} -> ${mongoose.connection.name}.${User.collection.name}`);
         signIn(req, user);
         res.redirect('/');
     } catch (err) {
+        console.error('Signup failed:', err);
         res.render('pages/signup', { error: err.message });
     }
 });

@@ -16,7 +16,6 @@ var setUpPassport = require("./setuppassport");
 var app = express();
 
 app.set("port", process.env.PORT || 3000);
-mongoose.set("bufferCommands", false);
 
 // Static files - serve FIRST before setting up routes/views
 app.use("/assets", express.static(path.join(__dirname, "assets")));
@@ -27,9 +26,10 @@ app.set("view engine", "ejs");
 
 // Connect to MongoDB but don't block static pages if it fails
 mongoose.connect(params.DATABASECONNECTION, {
+    dbName: params.DATABASENAME,
     serverSelectionTimeoutMS: 5000
 }).then(() => {
-    console.log("MongoDB connected");
+    console.log(`MongoDB connected to database: ${mongoose.connection.name}`);
 }).catch(err => {
     console.log("MongoDB connection failed:", err.message);
 });
@@ -37,6 +37,7 @@ mongoose.connect(params.DATABASECONNECTION, {
 setUpPassport();
 
 app.use(bodyParser.urlencoded({extended:false}));
+app.use(express.json());
 app.use(cookieParser());
 app.use(session({
     secret:"doemlfgddfsoi!gjdsf5684561dsf",

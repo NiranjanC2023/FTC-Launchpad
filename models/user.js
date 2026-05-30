@@ -10,8 +10,7 @@ const UserSchema = new mongoose.Schema({
   interests: { type: String, trim: true },
   createdAt: { type: Date, default: Date.now }
 }, {
-  collection: 'Users',
-  bufferCommands: false
+  collection: 'Users'
 });
 
 UserSchema.methods.setPassword = async function(password) {

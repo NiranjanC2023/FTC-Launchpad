@@ -50,8 +50,17 @@ function initJoinForm() {
       timestamp: new Date().toISOString()
     };
 
-    sessionStorage.setItem(STUDENT_KEY, JSON.stringify(data));
-    window.location.href = '/teams-nearby';
+    // Save to database via API before redirecting
+    fetch('/api/signups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    .then(() => {
+      sessionStorage.setItem(STUDENT_KEY, JSON.stringify(data));
+      window.location.href = '/teams-nearby';
+    })
+    .catch(err => console.error('Failed to save to database:', err));
   });
 }
 
@@ -492,12 +501,26 @@ function loadSiteShells() {
         document.body.insertBefore(h, document.body.firstChild);
       }
 
-      // rewrite links using data-href attributes so paths work in pages/ and root
-        const anchors = document.querySelectorAll('[data-href]');
-        anchors.forEach(a => {
-          const target = a.getAttribute('data-href');
-          if (target) a.setAttribute('href', target);
-      });
+      // Update links and toggle visibility based on auth status
+      fetch('/api/users/me')
+        .then(r => r.json())
+        .then(data => {
+          const user = data.user;
+          const anchors = document.querySelectorAll('[data-href]');
+          anchors.forEach(a => {
+            const target = a.getAttribute('data-href');
+            if (target) a.setAttribute('href', target);
+
+            // Toggle visibility: hide Login/Signup if logged in, hide Logout if logged out
+            const navItem = a.closest('li') || a;
+            if (target === '/login' || target === '/signup') {
+              navItem.style.display = user ? 'none' : '';
+            } else if (target === '/logout') {
+              navItem.style.display = user ? '' : 'none';
+            }
+          });
+        }).catch(() => {});
+
       // bind theme toggle after header is in DOM
       bindThemeToggle();
     }).catch(() => {});

@@ -101,10 +101,12 @@ router.post('/users/signup', async function(req, res) {
 		});
 		await user.setPassword(password);
 		await user.save();
+		console.log(`User API signup saved: ${user.email} -> ${mongoose.connection.name}.${User.collection.name}`);
 		// set session
 		signIn(req, user);
 		res.json({ ok: true, user: publicUser(user) });
 	} catch (err) {
+		console.error('API signup failed:', err);
 		res.status(500).json({ ok: false, error: err.message });
 	}
 });
