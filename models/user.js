@@ -8,6 +8,7 @@ const UserSchema = new mongoose.Schema({
   age: { type: Number },
   phone: { type: String, trim: true },
   interests: { type: String, trim: true },
+  teamNumber: { type: Number },
   createdAt: { type: Date, default: Date.now }
 }, {
   collection: 'Users'

@@ -3,6 +3,7 @@ var router = express.Router();
 const mongoose = require('mongoose');
 const User = require('../models/user');
 const Team = require('../models/team');
+const Student = require('../models/student');
 const params = require('../params/params');
 
 function normalizeEmail(email) {
@@ -15,6 +16,13 @@ function signIn(req, user) {
 
 function isDatabaseConnected() {
     return mongoose.connection.readyState === 1;
+}
+
+function ensureAuthenticated(req, res, next) {
+    if (req.session.userId) {
+        return next();
+    }
+    res.redirect('/login');
 }
 
 function databaseErrorMessage() {
@@ -311,6 +319,87 @@ router.post('/team-register', async function(req, res) {
     }
 });
 
+// Team Management Dashboard
+router.get('/manage-team', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.render('pages/manage-team', { error: databaseErrorMessage() });
+        
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        // Find team associated with this user's email
+        const team = await Team.findOne({ contact: user.email }).lean().exec();
+        
+        // Fetch potential recruits (students who signed up via join-form)
+        const recruits = await Student.find({}).sort({ createdAt: -1 }).limit(50).lean().exec();
+
+        res.render('pages/manage-team', { 
+            user, 
+            team, 
+            recruits,
+            error: null 
+        });
+    } catch (err) {
+        console.error('Management page error:', err);
+        res.render('pages/manage-team', { 
+            error: 'Failed to load dashboard',
+            user: null, team: null, recruits: [] 
+        });
+    }
+});
+
+// Update Team Details
+router.post('/manage-team/update', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const { notes, recruiting } = req.body;
+        
+        // Ensure the user actually owns this team by checking the contact email
+        const team = await Team.findOneAndUpdate(
+            { contact: user.email },
+            { 
+                notes: notes,
+                recruiting: recruiting === 'on',
+                updatedAt: new Date()
+            },
+            { new: true }
+        ).exec();
+
+        if (!team) {
+            return res.render('pages/manage-team', { 
+                error: 'Team not found or you do not have permission to edit it.',
+                user, team: null, recruits: [] 
+            });
+        }
+
+        res.redirect('/manage-team');
+    } catch (err) {
+        console.error('Update team error:', err);
+        res.redirect('/manage-team?error=update_failed');
+    }
+});
+
+// Member Team Page
+router.get('/my-team', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.render('pages/my-team', { error: databaseErrorMessage() });
+        
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user || !user.teamNumber) return res.redirect('/');
+
+        const team = await Team.findOne({ teamNumber: user.teamNumber }).lean().exec();
+        if (!team) return res.render('pages/my-team', { error: 'Team not found', team: null });
+
+        res.render('pages/my-team', { team, user, error: null });
+    } catch (err) {
+        res.render('pages/my-team', { error: 'Error loading team page', team: null });
+    }
+});
+
 // Account routes
 router.get('/signup', function(req, res){
     res.render('pages/signup', { error: null });
@@ -357,6 +446,14 @@ router.post('/login', async function(req, res){
         const ok = await user.validatePassword(password);
         if (!ok) return res.render('pages/login', { error: 'Invalid credentials' });
         signIn(req, user);
+
+        // If the user is a team contact, redirect to management dashboard
+        const team = await Team.findOne({ contact: normalizedEmail }).lean().exec();
+        if (team) return res.redirect('/manage-team');
+
+        // If the user is a member of a team, redirect to their team page
+        if (user.teamNumber) return res.redirect('/my-team');
+
         res.redirect('/');
     } catch (err) {
         res.render('pages/login', { error: err.message });

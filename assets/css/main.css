@@ -72,6 +72,26 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* Modern Dashboard Enhancements */
+.dashboard-page {
+  background: 
+    radial-gradient(at 0% 0%, color-mix(in srgb, var(--accent-soft) 10%, transparent) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, color-mix(in srgb, var(--accent-secondary) 5%, transparent) 0px, transparent 50%),
+    var(--bg-primary);
+}
+
+.btn-success {
+  background: #10b981 !important;
+  border-color: #059669 !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+.btn-success:hover {
+  background: #059669 !important;
+  transform: translateY(-2px);
+}
+
 a {
   color: var(--accent-primary);
   text-decoration-thickness: 1px;
@@ -830,34 +850,10 @@ h3 {
   border-color: #f5c6cb;
 }
 
-.alert-success {
-  color: #0f5132;
-  background: #d1e7dd;
-  border-color: #badbcc;
-}
-
 [data-theme="dark"] .alert-danger {
   color: #f5a5a5;
   background: #5a2e30;
   border-color: #6d3a3c;
-}
-
-[data-theme="dark"] .alert-success {
-  color: #9be0bd;
-  background: #173b2c;
-  border-color: #2d654d;
-}
-
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-}
-
-.checkbox-row input {
-  width: auto;
-  min-height: auto;
 }
 
 .table-container {
@@ -998,21 +994,6 @@ h3 {
   color: var(--text-primary);
   font-size: clamp(1rem, 1.6vw, 1.2rem);
   line-height: 1.35;
-}
-
-.team-card-meta,
-.team-card-notes {
-  width: 100%;
-  color: var(--text-secondary);
-  font-size: 0.94rem;
-  line-height: 1.45;
-}
-
-.team-card-notes {
-  padding: 10px 12px;
-  background: var(--surface-soft);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
 }
 
 .team-distance {

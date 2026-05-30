@@ -514,22 +514,31 @@ function loadSiteShells() {
         document.body.insertBefore(h, document.body.firstChild);
       }
 
+      // Immediately rewrite all links so they work even while auth is loading
+      const initialAnchors = document.querySelectorAll('[data-href]');
+      initialAnchors.forEach(a => {
+        const target = a.getAttribute('data-href');
+        if (target) a.setAttribute('href', target);
+      });
+
       // Update links and toggle visibility based on auth status
       fetch('/api/users/me')
         .then(r => r.json())
-        .then(data => {
+        .then(data => { 
           const user = data.user;
           const anchors = document.querySelectorAll('[data-href]');
           anchors.forEach(a => {
+            // Toggle visibility based on auth status
             const target = a.getAttribute('data-href');
-            if (target) a.setAttribute('href', target);
-
-            // Toggle visibility: hide Login/Signup if logged in, hide Logout if logged out
             const navItem = a.closest('li') || a;
             if (target === '/login' || target === '/signup') {
               navItem.style.display = user ? 'none' : '';
             } else if (target === '/logout') {
               navItem.style.display = user ? '' : 'none';
+            } else if (target === '/manage-team') {
+              navItem.style.display = (user && user.hasTeam) ? '' : 'none';
+            } else if (target === '/my-team') {
+              navItem.style.display = (user && user.teamNumber) ? '' : 'none';
             }
           });
         }).catch(() => {});
