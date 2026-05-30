@@ -231,22 +231,27 @@ function renderTeams(teams, userCoords) {
   teams.forEach(team => {
     const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
     const teamName = String(team.name || 'Unnamed team');
+    const teamNumber = team.teamNumber ? `FTC ${team.teamNumber}` : 'FTC team';
     const contact = String(team.contact || 'Contact unavailable');
+    const location = String(team.location || '').trim();
+    const notes = String(team.notes || '').trim();
 
     const card = document.createElement('div');
     card.className = 'team-card';
     // attach team name to the DOM card for easy lookup from marker events
     card.dataset.team = teamName;
-    card.dataset.search = `${teamName} ${contact}`.toLowerCase();
+    card.dataset.search = `${teamName} ${teamNumber} ${contact} ${location} ${notes}`.toLowerCase();
     card.innerHTML = `
       <div class="team-card-head">
         <div>
           <h3>${escapeHTML(teamName)}</h3>
-          <span class="team-card-label">FTC team</span>
+          <span class="team-card-label">${escapeHTML(teamNumber)}${team.verified ? ' · verified' : ''}</span>
         </div>
         <button class="btn btn-link goto-marker" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-location-dot"></i></button>
       </div>
       <p class="team-card-contact">${escapeHTML(contact)}</p>
+      ${location ? `<p class="team-card-meta">${escapeHTML(location)}</p>` : ''}
+      ${notes ? `<p class="team-card-notes">${escapeHTML(notes)}</p>` : ''}
       ${dist !== null ? `<p class="team-distance"><span>Distance</span><strong>${dist.toFixed(1)} km away</strong></p>` : ''}
       <div class="team-actions">
         <button class="btn btn-primary send-btn">Send My Info</button>
@@ -308,19 +313,20 @@ function renderTeams(teams, userCoords) {
         tooltipAnchor: [0, -22],
         popupAnchor: [0, -54]
       });
+      
+      const teamName = String(team.name || 'Unnamed team');
       const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
+      
       const marker = L.marker([team.lat, team.lon], { icon: faIcon }).addTo(map);
+      
       // Always show the team name above the marker as a permanent tooltip/label
-      marker.bindTooltip(team.name, {
+      marker.bindTooltip(teamName, {
         permanent: true,
         direction: 'top',
         offset: [0, -16],
         opacity: 1,
         className: 'marker-label'
       });
-
-      const teamName = String(team.name || 'Unnamed team');
-
       // index marker by team name for list -> map interactions
       if (!window._teamMarkers) window._teamMarkers = {};
       window._teamMarkers[teamName] = marker;
@@ -341,7 +347,9 @@ function renderTeams(teams, userCoords) {
       });
       const popupContent = `
         <strong>${escapeHTML(teamName)}</strong><br/>
+        ${team.teamNumber ? `FTC ${escapeHTML(team.teamNumber)}<br/>` : ''}
         ${escapeHTML(team.contact || 'Contact unavailable')}<br/>
+        ${team.location ? `${escapeHTML(team.location)}<br/>` : ''}
         ${dist !== null ? `<em>${dist.toFixed(1)} km away</em><br/>` : ''}
         <button class="popup-send-btn btn btn-primary" data-team="${escapeHTML(teamName)}">Send My Info</button>
       `;
@@ -412,7 +420,8 @@ function initTeamsPage() {
   if (!container) return;
 
   const studentRaw = sessionStorage.getItem(STUDENT_KEY);
-  if (!studentRaw) {
+  const serverTeams = Array.isArray(window.__TEAMS__) ? window.__TEAMS__ : null;
+  if (!studentRaw && !serverTeams) {
     const status = document.getElementById('teamsStatus');
     if (status) status.innerHTML = 'No signup info found. <a href="/join-form">Fill the form first</a>.';
     // render sample teams so the page layout and map still appear
@@ -421,11 +430,15 @@ function initTeamsPage() {
   }
 
   // If server provided teams (EJS), use them directly
-  if (window.__TEAMS__) {
-    const teams = window.__TEAMS__;
+  if (serverTeams) {
+    const teams = serverTeams;
     const coords = window.__USER_COORDS__ || null;
     const status = document.getElementById('teamsStatus');
-    if (status) status.textContent = 'Loaded teams from server';
+    if (status) {
+      status.textContent = teams.length
+        ? 'Showing verified teams that are recruiting'
+        : 'No verified teams are currently marked as recruiting';
+    }
     renderTeams(teams, coords);
     return;
   }

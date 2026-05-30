@@ -2,6 +2,8 @@ var express = require("express");
 var router = express.Router();
 const mongoose = require('mongoose');
 const User = require('../models/user');
+const Team = require('../models/team');
+const params = require('../params/params');
 
 function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
@@ -17,6 +19,99 @@ function isDatabaseConnected() {
 
 function databaseErrorMessage() {
     return 'Database is not connected. Start MongoDB or set MONGODB_URI, then try again.';
+}
+
+function toNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+}
+
+function mapTeam(team) {
+    return {
+        teamNumber: team.teamNumber,
+        name: team.name,
+        contact: team.contact,
+        lat: team.lat,
+        lon: team.lon,
+        notes: team.notes,
+        recruiting: team.recruiting,
+        verified: team.verified,
+        location: [team.city, team.state, team.country].filter(Boolean).join(', ')
+    };
+}
+
+function buildAddress(values) {
+    return [values.address, values.city, values.state, values.country].filter(Boolean).join(', ');
+}
+
+async function geocodeAddress(values) {
+    const address = buildAddress(values);
+    if (!address) return null;
+
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
+    const response = await fetch(url, {
+        headers: {
+            'User-Agent': 'FTC-Starter-Hub/1.0',
+            Accept: 'application/json'
+        }
+    });
+
+    if (!response.ok) return null;
+
+    const results = await response.json();
+    const first = Array.isArray(results) ? results[0] : null;
+    if (!first) return null;
+
+    const lat = toNumber(first.lat);
+    const lon = toNumber(first.lon);
+    if (lat === null || lon === null) return null;
+
+    return { lat, lon };
+}
+
+async function verifyFirstTeam(teamNumber) {
+    const username = params.FTC_API_USERNAME;
+    const token = params.FTC_API_TOKEN;
+    const season = process.env.FTC_API_SEASON || '2025';
+
+    if (!username || !token) {
+        return {
+            ok: false,
+            configured: false,
+            error: 'FIRST verification is not configured. Add FTC_API_USERNAME and FTC_API_TOKEN to .env.'
+        };
+    }
+
+    const url = `https://ftc-api.firstinspires.org/v2.0/${season}/teams?teamNumber=${encodeURIComponent(teamNumber)}`;
+    const auth = Buffer.from(`${username}:${token}`).toString('base64');
+    const response = await fetch(url, {
+        headers: {
+            Authorization: `Basic ${auth}`,
+            Accept: 'application/json'
+        }
+    });
+
+    if (!response.ok) {
+        return {
+            ok: false,
+            configured: true,
+            error: `FIRST verification failed with status ${response.status}. Check your API credentials and season.`
+        };
+    }
+
+    const data = await response.json();
+    const teams = Array.isArray(data.teams) ? data.teams : [];
+    const official = teams.find(team => Number(team.teamNumber) === Number(teamNumber));
+
+    if (!official) {
+        return {
+            ok: false,
+            configured: true,
+            error: `Team ${teamNumber} was not found in the FIRST FTC Events database for season ${season}.`
+        };
+    }
+
+    return { ok: true, configured: true, team: official, season };
 }
 
 // Home page
@@ -127,8 +222,93 @@ router.get("/team-org", function(req, res){
     res.render("pages/team-org");
 });
 
-router.get("/teams-nearby", function(req, res){
-    res.render("pages/teams-nearby");
+router.get("/teams-nearby", async function(req, res){
+    try {
+        if (!isDatabaseConnected()) return res.render("pages/teams-nearby", { teams: [] });
+        const teams = await Team.find({ verified: true, recruiting: true })
+            .sort({ teamNumber: 1 })
+            .limit(300)
+            .lean()
+            .exec();
+        res.render("pages/teams-nearby", { teams: teams.map(mapTeam) });
+    } catch (err) {
+        console.error('Failed to load nearby teams:', err);
+        res.render("pages/teams-nearby", { teams: [] });
+    }
+});
+
+router.get('/team-register', function(req, res) {
+    res.render('pages/team-register', { error: null, message: null, values: {} });
+});
+
+router.post('/team-register', async function(req, res) {
+    const values = req.body;
+
+    try {
+        if (!isDatabaseConnected()) {
+            return res.render('pages/team-register', { error: databaseErrorMessage(), message: null, values });
+        }
+
+        const teamNumber = toNumber(values.teamNumber);
+        const contact = normalizeEmail(values.contact);
+
+        if (!teamNumber || !values.name || !contact || !values.address || !values.city || !values.country) {
+            return res.render('pages/team-register', {
+                error: 'Team number, team name, contact email, address, city, and country are required.',
+                message: null,
+                values
+            });
+        }
+
+        const verification = await verifyFirstTeam(teamNumber);
+        if (!verification.ok) {
+            return res.render('pages/team-register', { error: verification.error, message: null, values });
+        }
+
+        const official = verification.team;
+        const officialName = official.nameShort || official.nameFull || values.name;
+        const recruiting = values.recruiting === 'on';
+        const coords = await geocodeAddress(values);
+
+        if (!coords) {
+            return res.render('pages/team-register', {
+                error: 'Could not find that address on the map. Check the address, city, state, and country.',
+                message: null,
+                values
+            });
+        }
+
+        await Team.findOneAndUpdate(
+            { teamNumber },
+            {
+                teamNumber,
+                name: officialName,
+                contact,
+                address: values.address,
+                city: values.city,
+                state: values.state,
+                country: values.country || 'USA',
+                lat: coords.lat,
+                lon: coords.lon,
+                notes: values.notes,
+                recruiting,
+                verified: true,
+                verifiedAt: new Date(),
+                verificationSource: `FIRST FTC Events API ${verification.season}`,
+                updatedAt: new Date()
+            },
+            { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+        ).exec();
+
+        res.render('pages/team-register', {
+            error: null,
+            message: `Team ${teamNumber} verified and saved. Recruiting is ${recruiting ? 'on' : 'off'}.`,
+            values: {}
+        });
+    } catch (err) {
+        console.error('Team registration failed:', err);
+        res.render('pages/team-register', { error: err.message, message: null, values });
+    }
 });
 
 // Account routes
