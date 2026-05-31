@@ -70,6 +70,12 @@
             </div>
         </div>
         
+        <% if (typeof message !== 'undefined' && message) { %>
+            <div class="alert alert-success" style="background: #d1fae5; color: #065f46; border-color: #a7f3d0;">
+                <i class="fa-solid fa-circle-check"></i> <%= message %>
+            </div>
+        <% } %>
+
         <% if (error) { %>
             <div class="alert alert-danger"><%= error %></div>
         <% } %>
@@ -124,6 +130,17 @@
                                     <i class="fa-solid fa-circle-check"></i> Save Changes
                                 </button>
                             </form>
+
+                            <hr style="border-top: 1px solid var(--border-color); margin: 30px 0;">
+                            <div class="danger-zone" style="text-align: left;">
+                                <h4 style="color: #dc2626; font-size: 0.8rem; font-weight: 800; text-transform: uppercase; margin-bottom: 5px;">Danger Zone</h4>
+                                <p class="small text-muted" style="margin-bottom: 15px;">Deleting your team will remove it from the map and recruitment feed. This is permanent.</p>
+                                <form action="/manage-team/delete" method="POST" onsubmit="return confirm('Are you absolutely sure you want to delete your team? This action cannot be undone.');">
+                                    <button type="submit" class="btn btn-tertiary btn-block" style="color: #dc2626 !important; border-color: #fca5a5 !important;">
+                                        <i class="fa-solid fa-trash-can"></i> Delete Team Permanently
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -149,7 +166,7 @@
                                                     <p class="small text-muted" style="margin: 0;"><strong>Background:</strong> <%= recruit.experience %></p>
                                                 </div>
                                                 <div class="col-sm-4 text-right">
-                                                    <a href="mailto:<%= recruit.email %>?subject=Join FTC Team <%= team.teamNumber %>" class="btn btn-success btn-sm">
+                                                    <a href="/manage-team/contact/<%= recruit._id %>" class="btn btn-success btn-sm">
                                                         <i class="fa-solid fa-envelope"></i> Reach Out
                                                     </a>
                                                 </div>

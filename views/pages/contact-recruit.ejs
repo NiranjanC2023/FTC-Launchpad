@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedule Meeting | <%= recruit.name %></title>
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .contact-card { background: var(--surface); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 40px; box-shadow: var(--shadow-lg); max-width: 800px; margin: 40px auto; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 20px; }
+        @media (max-width: 600px) {
+            .form-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body class="dashboard-page">
+    <header></header>
+    <main class="container">
+        <div class="contact-card">
+            <div class="text-left">
+                <a href="/manage-team" class="back-link"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</a>
+                <h1 style="text-align: left; margin-top: 20px;">Contact <%= recruit.name %></h1>
+                <p class="text-muted">Invite this student to a meeting or interview for <strong><%= team.name %></strong>.</p>
+            </div>
+            
+            <form action="/manage-team/contact/<%= recruit._id %>" method="POST" class="text-left" style="margin-top: 30px;">
+                <div class="mb-3">
+                    <label class="form-label">Invitation Message</label>
+                    <textarea name="message" class="form-control" rows="5" required>Hi <%= recruit.name %>, we saw your profile on FTC Starter Hub and we'd love to have you come by for a meeting to see if you'd be a good fit for our team!</textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Proposed Date</label>
+                        <input type="date" name="meetingDate" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Proposed Time</label>
+                        <input type="time" name="meetingTime" class="form-control" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Meeting Location / Method</label>
+                    <input type="text" name="meetingLocation" class="form-control" 
+                           placeholder="e.g., School Library, Zoom Link, or Discord" required>
+                    <p class="small text-muted">Let the student know where or how the meeting will take place.</p>
+                </div>
+
+                <div style="margin-top: 40px;">
+                    <button type="submit" class="btn btn-primary btn-block" style="padding: 18px;">
+                        <i class="fa-solid fa-paper-plane"></i> Send Official Invitation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+    <script src="/assets/js/main.js"></script>
+</body>
+</html>

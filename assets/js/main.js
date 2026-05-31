@@ -413,6 +413,9 @@ function sendToTeam(team) {
 
   // Open mail client with prefilled message
   window.location.href = `mailto:${team.contact}?subject=${subject}&body=${body}`;
+
+  // Show a "Done" popup to confirm the action
+  alert("Done! Your mail app has been opened to send your information to " + (team.name || "the team") + ".");
 }
 
 function initTeamsPage() {
@@ -537,6 +540,10 @@ function loadSiteShells() {
               navItem.style.display = user ? '' : 'none';
             } else if (target === '/manage-team') {
               navItem.style.display = (user && user.hasTeam) ? '' : 'none';
+            } else if (target === '/my-applications' || target === '/join-form') {
+              // Show applications and join form only for students (logged in users without a team)
+              // We hide these if the user is already a team manager
+              navItem.style.display = (user && !user.hasTeam) ? '' : (user ? 'none' : '');
             } else if (target === '/my-team') {
               navItem.style.display = (user && user.teamNumber) ? '' : 'none';
             }

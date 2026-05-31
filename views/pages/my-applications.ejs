@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Applications | FTC Starter Hub</title>
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .dashboard-header { background: var(--surface); border-bottom: 1px solid var(--border-color); padding: 40px 0; margin-bottom: 40px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 40px; }
+        .stat-card { background: var(--surface); padding: 25px; border-radius: var(--radius-md); border: 1px solid var(--border-color); text-align: center; }
+        .profile-section { background: var(--surface); padding: 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); margin-bottom: 30px; }
+        .app-card { background: var(--surface); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .status-badge { padding: 5px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+        .status-pending { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body class="dashboard-page">
+    <header></header>
+
+    <section class="dashboard-header">
+        <div class="container">
+            <h1>Welcome, <%= user.name %>!</h1>
+            <p class="text-muted">Manage your student profile and track your team applications.</p>
+        </div>
+    </section>
+
+    <main class="container">
+        <% if (error) { %>
+            <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="profile-section">
+                    <h3><i class="fa-solid fa-user-graduate"></i> My Profile</h3>
+                    <hr>
+                    <% if (studentProfile) { %>
+                        <p><strong>Experience:</strong> <%= studentProfile.experience %></p>
+                        <p><strong>Interests:</strong> <%= studentProfile.interests %></p>
+                        <p><strong>Phone:</strong> <%= studentProfile.phone %></p>
+                        <a href="/join-form" class="btn btn-outline btn-block" style="margin-top: 20px;">Update Profile</a>
+                    <% } else { %>
+                        <p class="text-muted">You haven't created a recruitment profile yet.</p>
+                        <a href="/join-form" class="btn btn-primary btn-block">Create Profile</a>
+                    <% } %>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="profile-section">
+                    <h3><i class="fa-solid fa-paper-plane"></i> Team Applications & Invitations</h3>
+                    <p class="text-muted">Teams that have contacted you or that you have expressed interest in.</p>
+                    <hr>
+
+                    <% if (applications && applications.length > 0) { %>
+                        <% applications.forEach(app => { %>
+                            <div class="app-card">
+                                <div>
+                                    <h4 style="margin:0;"><%= app.teamName %></h4>
+                                    <p class="small text-muted" style="margin:5px 0 0 0;">Last updated: <%= new Date(app.updatedAt).toLocaleDateString() %></p>
+                                </div>
+                                <span class="status-badge status-pending">Pending Response</span>
+                            </div>
+                        <% }) %>
+                    <% } else { %>
+                        <div class="text-center" style="padding: 40px 0;">
+                            <i class="fa-solid fa-inbox fa-3x text-muted" style="margin-bottom: 20px;"></i>
+                            <p>No active applications yet. Start exploring nearby teams!</p>
+                            <a href="/teams-nearby" class="btn btn-primary">Browse Teams</a>
+                        </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/assets/js/main.js"></script>
+</body>
+</html>

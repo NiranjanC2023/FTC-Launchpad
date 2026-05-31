@@ -1,10 +1,31 @@
-var express = require("express");
-var router = express.Router();
+const express = require("express");
+const router = express.Router();
 const mongoose = require('mongoose');
 const User = require('../models/user');
 const Team = require('../models/team');
+const nodemailer = require('nodemailer');
 const Student = require('../models/student');
 const params = require('../params/params');
+
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER || 'evergreentechatrons.contact@gmail.com',
+        pass: process.env.EMAIL_PASS || 'iftg tyjt luey pqsc'
+    },
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000,
+    socketTimeout: 10000
+});
+
+// Check connection on startup
+transporter.verify((error) => {
+    if (error) {
+        console.error('Nodemailer Config Error (Check .env):', error.message);
+    } else {
+        console.log('Nodemailer: Server is ready to send invitation emails');
+    }
+});
 
 function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
@@ -327,6 +348,23 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         const user = await User.findById(req.session.userId).lean().exec();
         if (!user) return res.redirect('/logout');
 
+        // Handle error messages passed via query string
+        const queryError = req.query.error;
+        let errorMessage = null;
+        
+        if (queryError === 'mail_failed') {
+            errorMessage = 'Failed to send the invitation email. Please check your email configuration.';
+        } else if (queryError === 'update_failed') {
+            errorMessage = 'Failed to update team details.';
+        }
+
+        // Handle success messages
+        const querySuccess = req.query.success;
+        let successMessage = null;
+        if (querySuccess === 'mail_sent') {
+            successMessage = 'Invitation sent successfully!';
+        }
+
         // Find team associated with this user's email
         const team = await Team.findOne({ contact: user.email }).lean().exec();
         
@@ -337,13 +375,44 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             user, 
             team, 
             recruits,
-            error: null 
+            error: errorMessage,
+            success: successMessage
         });
     } catch (err) {
         console.error('Management page error:', err);
         res.render('pages/manage-team', { 
             error: 'Failed to load dashboard',
             user: null, team: null, recruits: [] 
+        });
+    }
+});
+
+// Student Dashboard / My Applications
+router.get('/my-applications', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.render('pages/my-applications', { error: databaseErrorMessage() });
+        
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        // Find the student profile associated with this user's email
+        const studentProfile = await Student.findOne({ email: user.email }).lean().exec();
+        
+        // Placeholder for applications/invitations logic
+        // In a future update, you would query an 'Invitations' model here
+        const applications = []; 
+
+        res.render('pages/my-applications', { 
+            user, 
+            studentProfile,
+            applications,
+            error: null 
+        });
+    } catch (err) {
+        console.error('Applications page error:', err);
+        res.render('pages/my-applications', { 
+            error: 'Failed to load your applications dashboard',
+            user: null, studentProfile: null, applications: [] 
         });
     }
 });
@@ -380,6 +449,106 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
     } catch (err) {
         console.error('Update team error:', err);
         res.redirect('/manage-team?error=update_failed');
+    }
+});
+
+// Delete Team
+router.post('/manage-team/delete', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
+
+        const user = await User.findById(req.session.userId).exec();
+        if (!user) return res.redirect('/logout');
+
+        // Delete the team where the contact email matches the logged-in user
+        const result = await Team.findOneAndDelete({ contact: user.email }).exec();
+
+        if (result) {
+            // Also remove the team association from the user record
+            await User.findByIdAndUpdate(user._id, { $unset: { teamNumber: "" } });
+            res.redirect('/');
+        } else {
+            res.render('pages/manage-team', { 
+                error: 'No team found associated with your account to delete.',
+                user, team: null, recruits: [] 
+            });
+        }
+    } catch (err) {
+        console.error('Delete team error:', err);
+        res.redirect('/manage-team?error=delete_failed');
+    }
+});
+
+// Contact Recruit Page
+router.get('/manage-team/contact/:recruitId', ensureAuthenticated, async function(req, res) {
+    try {
+        const recruit = await Student.findById(req.params.recruitId).lean().exec();
+        const user = await User.findById(req.session.userId).lean().exec();
+        const team = await Team.findOne({ contact: user.email }).lean().exec();
+        
+        if (!recruit || !team) return res.redirect('/manage-team');
+        
+        res.render('pages/contact-recruit', { recruit, team, user, error: null });
+    } catch (err) {
+        res.redirect('/manage-team');
+    }
+});
+
+// Handle Contact Email Submission
+router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async function(req, res) {
+    try {
+        const { message, meetingDate, meetingTime, meetingLocation } = req.body;
+        const recruit = await Student.findById(req.params.recruitId).exec();
+        const user = await User.findById(req.session.userId).lean().exec();
+        const team = await Team.findOne({ contact: user.email }).lean().exec();
+
+        if (!recruit || !team) return res.redirect('/manage-team');
+
+        const formattedDate = meetingDate ? new Date(meetingDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'Not specified';
+        const time = meetingTime || 'Not specified';
+        const location = meetingLocation || 'To be determined';
+
+        const mailOptions = {
+            from: `"${team.name}" <${process.env.EMAIL_USER}>`,
+            replyTo: team.contact,
+            to: recruit.email,
+            subject: `Invitation from FTC Team ${team.teamNumber}: ${team.name}`,
+            html: `
+                <div style="font-family: sans-serif; padding: 20px; color: #333;">
+                    <h2>Hello ${recruit.name}!</h2>
+                    <p>FTC Team <strong>${team.teamNumber} - ${team.name}</strong> has seen your profile on the FTC Starter Hub and would like to connect!</p>
+                    <div style="background: #f4f4f4; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <p style="margin-top:0;"><strong>Message from the team:</strong></p>
+                        <p>${message}</p>
+                    </div>
+                    <div style="margin: 20px 0; border-left: 4px solid #0056b3; padding-left: 15px;">
+                        <p><strong>Suggested Date:</strong> ${formattedDate}</p>
+                        <p><strong>Suggested Time:</strong> ${time}</p>
+                        <p><strong>Location/Method:</strong> ${location}</p>
+                    </div>
+                    <p>Please reply directly to this email (${team.contact}) to coordinate.</p>
+                    <hr>
+                    <p style="font-size: 0.8rem; color: #666;">Sent via FTC Starter Hub Dashboard</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`Invitation successfully sent to ${recruit.email} from ${team.name}`);
+        return res.redirect('/manage-team?success=mail_sent');
+    } catch (err) {
+        console.error('--- NODEMAILER ERROR ---');
+        console.error('Code:', err.code);
+        console.error('Response:', err.response);
+        
+        if (err.code === 'EAUTH') {
+            console.error('EMAIL ERROR: Authentication failed. Verify EMAIL_USER and EMAIL_PASS (App Password) in .env');
+        } else if (err.code === 'ESOCKET') {
+            console.error('EMAIL ERROR: Connection timeout. Check your internet connection.');
+        } else {
+            console.error('Nodemailer Send Error Detail:', err);
+        }
+        res.redirect('/manage-team?error=mail_failed');
     }
 });
 
