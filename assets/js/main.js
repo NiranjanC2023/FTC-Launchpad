@@ -88,6 +88,7 @@ function renderTeams(teams, userCoords) {
   // clear list
   list.innerHTML = '';
   window._teamMarkers = {};
+  window._infoWindowTimer = null;
   window._teamCards = {};
 
   // ensure a map container exists above the list
@@ -141,14 +142,8 @@ function renderTeams(teams, userCoords) {
       el.classList.add('marker-label--dim');
       el.classList.remove('marker-label--active');
     });
-
-    const marker = (window._teamMarkers || {})[teamName];
-    const tooltip = marker && marker.getTooltip ? marker.getTooltip() : null;
-    const tooltipEl = tooltip && tooltip.getElement ? tooltip.getElement() : null;
-    if (tooltipEl) {
-      tooltipEl.classList.remove('marker-label--dim');
-      tooltipEl.classList.add('marker-label--active');
-    }
+    // Google Maps markers handle labels/tooltips differently; 
+    // we focus on card highlighting and InfoWindow state.
   }
 
   function applySearch() {
@@ -161,8 +156,8 @@ function renderTeams(teams, userCoords) {
       if (matches) visibleCount++;
 
       const marker = (window._teamMarkers || {})[card.dataset.team];
-      if (marker && marker.setOpacity) {
-        marker.setOpacity(matches ? 1 : 0.28);
+      if (marker) {
+        marker.setVisible(matches);
       }
     });
 
@@ -197,16 +192,21 @@ function renderTeams(teams, userCoords) {
     if (!marker || !map) return false;
 
     try {
-      const latlng = marker.getLatLng();
+      map.panTo(marker.getPosition());
       const zoom = Math.max(map.getZoom(), options.zoom || 14);
-      if (map.flyTo) {
-        map.flyTo(latlng, zoom, { animate: true, duration: 0.45 });
-      } else {
-        map.setView(latlng, zoom);
+      map.setZoom(zoom);
+
+      if (window._infoWindowTimer) {
+        clearTimeout(window._infoWindowTimer);
+        window._infoWindowTimer = null;
+        // Ensure it's opaque if we interrupted a fade
+        const iw = document.querySelector('.gm-style-iw-t');
+        if (iw) iw.style.opacity = '1';
       }
 
-      if (options.openPopup !== false) {
-        marker.openPopup();
+      if (options.openPopup !== false && window._infoWindow) {
+        window._infoWindow.setContent(marker.popupContent);
+        window._infoWindow.open(map, marker);
       }
       return true;
     } catch (e) {
@@ -243,14 +243,14 @@ function renderTeams(teams, userCoords) {
     card.dataset.search = `${teamName} ${teamNumber} ${contact} ${location} ${notes}`.toLowerCase();
     card.innerHTML = `
       <div class="team-card-head">
-        <div>
-          <h3>${escapeHTML(teamName)}</h3>
-          <span class="team-card-label">${escapeHTML(teamNumber)}${team.verified ? ' · verified' : ''}</span>
+        <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+          <h3 style="margin: 0 0 5px 0; font-size: 1.4em; font-weight: 900; color: #0056b3; line-height: 1.2;">${escapeHTML(teamName)}</h3>
+          <span class="team-card-label" style="display: block; font-size: 1.1em; font-weight: 700; color: #333; margin-bottom: 8px;">${escapeHTML(teamNumber)}${team.verified ? ' · verified' : ''}</span>
         </div>
         <button class="btn btn-link goto-marker" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-location-dot"></i></button>
       </div>
-      <p class="team-card-contact">${escapeHTML(contact)}</p>
-      ${location ? `<p class="team-card-meta">${escapeHTML(location)}</p>` : ''}
+      <p class="team-card-contact" style="margin: 0; font-size: 1em; font-weight: 600; color: #222;">${escapeHTML(contact)}</p>
+      ${location ? `<p class="team-card-meta" style="margin: 2px 0; font-size: 0.9em; font-weight: 500; color: #666;">${escapeHTML(location)}</p>` : ''}
       ${notes ? `<p class="team-card-notes">${escapeHTML(notes)}</p>` : ''}
       ${dist !== null ? `<p class="team-distance"><span>Distance</span><strong>${dist.toFixed(1)} km away</strong></p>` : ''}
       <div class="team-actions">
@@ -268,12 +268,6 @@ function renderTeams(teams, userCoords) {
       focusTeamWhenReady(teamName, { openPopup: true, zoom: 14 });
     });
 
-    card.addEventListener('mouseenter', () => {
-      focusTeamWhenReady(teamName, { openPopup: true, zoom: 14 });
-    });
-    card.addEventListener('focusin', () => {
-      focusTeamWhenReady(teamName, { openPopup: true, zoom: 14 });
-    });
     card.addEventListener('click', event => {
       if (event.target.closest('.send-btn, .goto-marker')) return;
       focusTeamWhenReady(teamName, { openPopup: true, zoom: 14 });
@@ -283,108 +277,143 @@ function renderTeams(teams, userCoords) {
   });
   applySearch();
 
-  // initialize Leaflet map when available
+  // initialize Google Map when available
   function tryInitMap() {
-    if (!window.L) {
+    if (!window.google || !window.google.maps) {
       setTimeout(tryInitMap, 200);
       return;
     }
 
-    // remove existing map instance if any
-    if (window._teamsMapInstance) {
-      try { window._teamsMapInstance.remove(); } catch (e) {}
-      window._teamsMapInstance = null;
-    }
+    const mapOptions = {
+      zoom: 4,
+      center: { lat: 39.5, lng: -98.35 },
+      mapTypeControl: true, // Allow users to switch map types (Roadmap, Satellite, Hybrid)
+      streetViewControl: true, // Enable the Pegman for Street View
+      fullscreenControl: true, // Allow fullscreen map view
+      gestureHandling: 'greedy', // Improves touch/scroll interaction on mobile
+      tilt: 45, // Initial 3D tilt for a more dynamic view
+      heading: 0, // Initial map heading (0 degrees is North)
+      mapTypeId: 'hybrid' // Start in satellite view with labels
+    };
 
-    const map = L.map('teamsMap', { scrollWheelZoom: false });
+    const map = new google.maps.Map(document.getElementById('teamsMap'), mapOptions);
     window._teamsMapInstance = map;
+    window._infoWindow = new google.maps.InfoWindow();
+    window._infoWindowTimer = null;
 
-    const markerCoords = [];
+    const bounds = new google.maps.LatLngBounds();
     teams.forEach(team => {
       if (typeof team.lat !== 'number' || typeof team.lon !== 'number') return;
-      // use a Font Awesome based divIcon so the marker matches the list icon (solid, red)
-        // (removed helper wrappers) marker open logic handled by goto button below
-      const iconHtml = '<i class="fa-solid fa-location-dot"></i>';
-      const faIcon = L.divIcon({
-        className: 'fa-marker-icon',
-        html: iconHtml,
-        iconSize: [48, 48],
-        iconAnchor: [24, 48],
-        tooltipAnchor: [0, -22],
-        popupAnchor: [0, -54]
-      });
       
       const teamName = String(team.name || 'Unnamed team');
       const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
-      
-      const marker = L.marker([team.lat, team.lon], { icon: faIcon }).addTo(map);
-      
-      // Always show the team name above the marker as a permanent tooltip/label
-      marker.bindTooltip(teamName, {
-        permanent: true,
-        direction: 'top',
-        offset: [0, -16],
-        opacity: 1,
-        className: 'marker-label'
+
+      const popupContent = `
+        <div style="padding: 2px 15px 15px 15px; color: #111; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; min-width: 220px; line-height: 1.4;">
+          <h4 style="margin: 0 0 10px 0; font-size: 1.4em; font-weight: 900; color: #0056b3; line-height: 1.2; padding-top: 0;">${escapeHTML(teamName)}</h4>
+          ${team.teamNumber ? `<p style="margin: 0 0 6px 0; font-size: 1.1em; font-weight: 700; color: #333;">FTC ${escapeHTML(team.teamNumber)}</p>` : ''}
+          <div style="margin-bottom: 12px;">
+            <p style="margin: 0; font-size: 0.9em; font-weight: 800; color: #555; text-transform: uppercase;">Contact</p>
+            <p style="margin: 0; font-size: 1em; font-weight: 600; color: #222;">${escapeHTML(team.contact || 'Unavailable')}</p>
+          </div>
+          ${dist !== null ? `<p style="margin: 0 0 15px 0; font-size: 1em; font-weight: 800; color: #d32f2f;">${dist.toFixed(1)} km away</p>` : ''}
+          <button class="popup-send-btn btn btn-primary" style="width: 100%; font-weight: 800; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none;" data-team="${escapeHTML(teamName)}">Send My Info</button>
+        </div>
+      `;
+
+      const marker = new google.maps.Marker({
+        position: { lat: team.lat, lng: team.lon },
+        map: map,
+        title: teamName
       });
-      // index marker by team name for list -> map interactions
+      
+      marker.popupContent = popupContent;
       if (!window._teamMarkers) window._teamMarkers = {};
       window._teamMarkers[teamName] = marker;
 
-      // Open popup on hover and highlight the hovered marker's label while dimming others
-      marker.on('mouseover', function() {
-        try { marker.openPopup(); } catch(e) {}
-        activateMarkerLabel(teamName);
-        highlightTeamCard(teamName);
+      marker.addListener('mouseover', () => {
+        if (window._infoWindowTimer) {
+          clearTimeout(window._infoWindowTimer);
+          window._infoWindowTimer = null;
+        }
+        // Show the info window on hover without moving the map
+        if (window._infoWindow) {
+          window._infoWindow.setContent(marker.popupContent);
+          window._infoWindow.open(map, marker);
+          // Reset opacity for the new window content
+          setTimeout(() => {
+            const iw = document.querySelector('.gm-style-iw-t');
+            if (iw) iw.style.opacity = '1';
+          }, 10);
+        }
       });
 
-      marker.on('mouseout', function() {
-        try { marker.closePopup(); } catch(e) {}
+      marker.addListener('mouseout', () => {
+        // Close the info window after 0.5 seconds if the mouse leaves the marker
+        window._infoWindowTimer = setTimeout(() => {
+          if (window._infoWindow) {
+            const iw = document.querySelector('.gm-style-iw-t');
+            if (iw) {
+              iw.style.opacity = '0';
+              // Wait for the fade to complete before closing the object
+              setTimeout(() => {
+                if (window._infoWindow) window._infoWindow.close();
+                window._infoWindowTimer = null;
+              }, 200);
+            } else {
+              window._infoWindow.close();
+              window._infoWindowTimer = null;
+            }
+          } else {
+            window._infoWindowTimer = null;
+          }
+        }, 500);
       });
 
-      marker.on('click', function() {
-        focusTeam(teamName, { scroll: true, openPopup: true, zoom: 14 });
+      marker.addListener('click', () => {
+        focusTeam(teamName, { scroll: true, openPopup: true });
       });
-      const popupContent = `
-        <strong>${escapeHTML(teamName)}</strong><br/>
-        ${team.teamNumber ? `FTC ${escapeHTML(team.teamNumber)}<br/>` : ''}
-        ${escapeHTML(team.contact || 'Contact unavailable')}<br/>
-        ${team.location ? `${escapeHTML(team.location)}<br/>` : ''}
-        ${dist !== null ? `<em>${dist.toFixed(1)} km away</em><br/>` : ''}
-        <button class="popup-send-btn btn btn-primary" data-team="${escapeHTML(teamName)}">Send My Info</button>
-      `;
-      marker.bindPopup(popupContent, {
-        offset: L.point(0, -12),
-        autoPan: true,
-        autoPanPadding: L.point(24, 24)
-      });
-      markerCoords.push([team.lat, team.lon]);
+
+      bounds.extend(marker.getPosition());
     });
-    applySearch();
 
-    map.on('popupopen', function() {
+    if (teams.length > 0) {
+      map.fitBounds(bounds);
+    }
+
+    google.maps.event.addListener(window._infoWindow, 'domready', () => {
+      const iwContainer = document.querySelector('.gm-style-iw-t');
+      if (iwContainer) {
+        // If mouse enters the bubble, stop the timer so it doesn't disappear
+        iwContainer.addEventListener('mouseenter', () => {
+          if (window._infoWindowTimer) {
+            clearTimeout(window._infoWindowTimer);
+            window._infoWindowTimer = null;
+          }
+          iwContainer.style.opacity = '1';
+        });
+
+        // If mouse leaves the bubble, restart the fade-out timer
+        iwContainer.addEventListener('mouseleave', () => {
+          window._infoWindowTimer = setTimeout(() => {
+            iwContainer.style.opacity = '0';
+            setTimeout(() => {
+              if (window._infoWindow) window._infoWindow.close();
+              window._infoWindowTimer = null;
+            }, 200);
+          }, 500);
+        });
+      }
       const btn = document.querySelector('.popup-send-btn');
       if (btn) {
-        btn.addEventListener('click', () => {
+        btn.onclick = () => {
           const teamName = btn.getAttribute('data-team');
           const team = teams.find(t => t.name === teamName);
           if (team) sendToTeam(team);
-        });
+        };
       }
     });
-
-    if (markerCoords.length > 0) {
-      const bounds = L.latLngBounds(markerCoords);
-      if (userCoords) {
-        map.setView([userCoords.lat, userCoords.lon], 10);
-      } else {
-        map.fitBounds(bounds.pad(0.2));
-      }
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
-    } else {
-      map.setView([39.5, -98.35], 4);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
-    }
+    applySearch();
   }
 
   tryInitMap();
@@ -488,17 +517,13 @@ function loadSiteShells() {
     document.head.insertBefore(link, appStylesheet || document.head.firstChild);
   }
 
-  // inject Leaflet CSS + JS for interactive maps (if not present)
-  if (!document.querySelector('link[href*="leaflet.css"]')) {
-    const llink = document.createElement('link');
-    llink.rel = 'stylesheet';
-    llink.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-    document.head.appendChild(llink);
-  }
-  if (!window.L && !document.querySelector('script[data-leaflet]')) {
+  // inject Google Maps JS for interactive maps
+  if (!window.google && !document.querySelector('script[data-google]')) {
     const lscript = document.createElement('script');
-    lscript.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    lscript.setAttribute('data-leaflet', 'true');
+    lscript.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyCDYUgmHFX_FezspmqvSGdgD-7491w_drE';
+    lscript.setAttribute('data-google', 'true');
+    lscript.async = true;
+    lscript.defer = true;
     document.body.appendChild(lscript);
   }
 

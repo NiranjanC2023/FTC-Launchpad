@@ -1154,6 +1154,11 @@ h3 {
   z-index: 650;
 }
 
+/* Google Maps InfoWindow fade support */
+.gm-style-iw-t {
+  transition: opacity 0.2s ease !important;
+}
+
 .leaflet-tooltip.marker-label::before {
   display: none;
 }
