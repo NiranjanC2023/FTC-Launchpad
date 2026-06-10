@@ -925,6 +925,63 @@ h3 {
   cursor: pointer;
   text-align: left;
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  min-width: 0; /* allow cards to shrink inside grid columns to avoid horizontal overflow */
+}
+
+.team-card.collapsed {
+  min-height: auto;
+  padding: 12px 14px;
+}
+
+.team-card.expanded {
+  padding: 20px;
+}
+
+.team-details-content {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 260ms ease, opacity 200ms ease;
+}
+.team-card.expanded .team-details-content {
+  opacity: 1;
+  max-height: 1000px; /* large enough to allow content; JS sets exact height on open */
+}
+.toggle-details i {
+  transition: transform 0.18s ease;
+}
+.team-card.expanded .toggle-details i {
+  transform: rotate(180deg);
+}
+
+.team-card .team-card-title {
+  margin: 0 0 6px;
+  font-size: clamp(1.6rem, 2.8vw, 2.2rem);
+  font-weight: 900;
+  color: #0056b3;
+  line-height: 1.05;
+}
+
+@media (max-width: 560px) {
+  .team-card .team-card-title {
+    font-size: 1.25rem;
+  }
+}
+
+.toggle-details {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 8px;
+}
+.toggle-details i {
+  transition: transform 0.18s ease;
+}
+.team-card.expanded .toggle-details i {
+  transform: rotate(180deg);
 }
 
 .teams-list {
@@ -933,11 +990,11 @@ h3 {
 }
 
 .teams-list-cards {
-  width: min(100%, 980px);
+  width: 100%; /* Take full width of its container */
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 18px;
-  margin: 22px auto 0;
+  gap: 18px; /* Keep the gap between cards */
+  margin: 0; /* Remove external margin as it's now inside a padded container */
 }
 
 .team-card[hidden] {
@@ -1032,17 +1089,20 @@ h3 {
 }
 
 .teams-search {
-  width: min(100%, 760px);
-  margin: 28px auto 0;
-  display: grid;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto 14px;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  text-align: left;
+  align-items: stretch;
 }
 
 .teams-search label {
   color: var(--text-primary);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 800;
+  margin: 0;
 }
 
 .teams-search-field {
@@ -1050,7 +1110,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 14px;
+  padding: 8px 12px;
   background: var(--surface);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
@@ -1060,16 +1120,18 @@ h3 {
 .teams-search-field i {
   color: var(--accent-secondary);
   font-size: 0.95rem;
+  margin-left: 2px;
 }
 
 .teams-search input {
-  width: 100%;
+  flex: 1 1 auto;
   min-width: 0;
   color: var(--text-primary);
   background: transparent;
   border: 0;
   outline: 0;
   font: inherit;
+  padding: 8px 6px;
 }
 
 .teams-search-count {
@@ -1078,6 +1140,31 @@ h3 {
   font-size: 0.85rem;
   font-weight: 800;
   white-space: nowrap;
+  margin-left: 8px;
+}
+
+/* Make the teams list area scroll independently when there are many cards */
+.teams-list-container {
+  width: 100%;
+  max-width: 980px;
+  margin: 24px auto 0;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 360px);
+}
+
+.teams-list-cards {
+  overflow-y: auto;
+  padding-right: 6px; /* prevent content from hiding behind scrollbar */
+  direction: ltr; /* ensure scrollbar appears on the right */
+  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden; /* prevent horizontal scrolling; keep vertical scrollbar on the right */
 }
 
 .teams-empty {
@@ -1102,6 +1189,8 @@ h3 {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
 }
+
+/* (duplicated block removed) */
 
 .goto-marker {
   min-width: 38px;

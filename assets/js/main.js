@@ -89,6 +89,7 @@ function renderTeams(teams, userCoords) {
   list.innerHTML = '';
   window._teamMarkers = {};
   window._infoWindowTimer = null;
+  window._infoWindow = null; // Reset infoWindow to ensure it's recreated with new map instance
   window._teamCards = {};
 
   // ensure a map container exists above the list
@@ -112,17 +113,23 @@ function renderTeams(teams, userCoords) {
       <span class="teams-search-count" aria-live="polite"></span>
     </div>
   `;
-  list.appendChild(searchWrap);
+
+  const teamsListContainer = document.createElement('div');
+  teamsListContainer.className = 'teams-list-container';
+
+  teamsListContainer.appendChild(searchWrap);
 
   const emptyEl = document.createElement('p');
   emptyEl.className = 'teams-empty';
   emptyEl.hidden = true;
   emptyEl.textContent = 'No teams match your search.';
-  list.appendChild(emptyEl);
+  teamsListContainer.appendChild(emptyEl);
 
   const listEl = document.createElement('div');
   listEl.className = 'teams-list-cards';
-  list.appendChild(listEl);
+  teamsListContainer.appendChild(listEl);
+
+  list.appendChild(teamsListContainer);
 
   const searchInput = searchWrap.querySelector('#teamsSearch');
   const resultCount = searchWrap.querySelector('.teams-search-count');
@@ -242,36 +249,81 @@ function renderTeams(teams, userCoords) {
     card.dataset.team = teamName;
     card.dataset.search = `${teamName} ${teamNumber} ${contact} ${location} ${notes}`.toLowerCase();
     card.innerHTML = `
-      <div class="team-card-head">
-        <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-          <h3 style="margin: 0 0 5px 0; font-size: 1.4em; font-weight: 900; color: #0056b3; line-height: 1.2;">${escapeHTML(teamName)}</h3>
-          <span class="team-card-label" style="display: block; font-size: 1.1em; font-weight: 700; color: #333; margin-bottom: 8px;">${escapeHTML(teamNumber)}${team.verified ? ' · verified' : ''}</span>
+      <div class="team-card-head" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; flex: 1 1 auto;">
+          <h3 class="team-card-title">${escapeHTML(teamName)}</h3>
+          <span class="team-card-label" style="display: block; font-size: 0.95rem; font-weight: 700; color: #333; margin-top: 6px;">${escapeHTML(teamNumber)}${team.verified ? ' · verified' : ''}</span>
         </div>
-        <button class="btn btn-link goto-marker" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-location-dot"></i></button>
+        <div style="display:flex; gap:8px; align-items:center; flex: 0 0 auto;">
+          <button class="btn btn-link goto-marker" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-location-dot"></i></button>
+          <button class="btn btn-link toggle-details" aria-expanded="false" aria-label="Toggle details"><i class="fa-solid fa-chevron-down"></i></button>
+        </div>
       </div>
-      <p class="team-card-contact" style="margin: 0; font-size: 1em; font-weight: 600; color: #222;">${escapeHTML(contact)}</p>
-      ${location ? `<p class="team-card-meta" style="margin: 2px 0; font-size: 0.9em; font-weight: 500; color: #666;">${escapeHTML(location)}</p>` : ''}
-      ${notes ? `<p class="team-card-notes">${escapeHTML(notes)}</p>` : ''}
-      ${dist !== null ? `<p class="team-distance"><span>Distance</span><strong>${dist.toFixed(1)} km away</strong></p>` : ''}
-      <div class="team-actions">
-        <button class="btn btn-primary send-btn">Send My Info</button>
+      <div class="team-details-content" style="margin-top: 12px; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 260ms ease, opacity 200ms ease;">
+        <p class="team-card-contact" style="margin: 0; font-size: 1em; font-weight: 600; color: #222;">${escapeHTML(contact)}</p>
+        ${location ? `<p class="team-card-meta" style="margin: 6px 0 0 0; font-size: 0.9em; font-weight: 500; color: #666;">${escapeHTML(location)}</p>` : ''}
+        ${notes ? `<p class="team-card-notes" style="margin: 8px 0 0 0; color: #444; font-style: italic;">${escapeHTML(notes)}</p>` : ''}
+        ${dist !== null ? `<p class="team-distance" style="margin: 8px 0 0 0;"><span>Distance</span><strong>${dist.toFixed(1)} km away</strong></p>` : ''}
+        <div class="team-actions" style="margin-top: 10px;">
+          <button class="btn btn-primary send-btn">Send My Info</button>
+        </div>
       </div>
     `;
     window._teamCards[teamName] = card;
 
     const sendBtn = card.querySelector('.send-btn');
-    sendBtn.addEventListener('click', () => sendToTeam(team));
+    if (sendBtn) sendBtn.addEventListener('click', (e) => { e.stopPropagation(); sendToTeam(team); });
 
     const gotoBtn = card.querySelector('.goto-marker');
-    gotoBtn.addEventListener('click', event => {
+    if (gotoBtn) gotoBtn.addEventListener('click', event => {
       event.stopPropagation();
       focusTeamWhenReady(teamName, { openPopup: true, zoom: 14 });
     });
 
-    card.addEventListener('click', event => {
-      if (event.target.closest('.send-btn, .goto-marker')) return;
-      focusTeamWhenReady(teamName, { openPopup: true, zoom: 14 });
-    });
+    const toggleBtn = card.querySelector('.toggle-details');
+    const detailsContent = card.querySelector('.team-details-content');
+    // start collapsed by default for a compact list view
+    card.classList.add('collapsed');
+    if (detailsContent) {
+      // prepare for animated collapse via max-height (use display:block so scrollHeight is measurable)
+      detailsContent.style.display = 'block';
+      detailsContent.style.maxHeight = '0px';
+      detailsContent.style.opacity = '0';
+      detailsContent.style.overflow = 'hidden';
+      detailsContent.style.transition = 'max-height 260ms ease, opacity 200ms ease';
+    }
+
+    if (toggleBtn && detailsContent) {
+      toggleBtn.addEventListener('click', event => {
+        event.stopPropagation();
+        const isOpen = card.classList.toggle('expanded');
+        if (isOpen) {
+          card.classList.remove('collapsed');
+          toggleBtn.setAttribute('aria-expanded', 'true');
+          // set maxHeight dynamically to allow transition
+          detailsContent.style.maxHeight = detailsContent.scrollHeight + 'px';
+          detailsContent.style.opacity = '1';
+          // ensure visible in scroll area
+          detailsContent.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+          card.classList.add('collapsed');
+          toggleBtn.setAttribute('aria-expanded', 'false');
+          detailsContent.style.maxHeight = '0px';
+          detailsContent.style.opacity = '0';
+        }
+      });
+
+      // allow clicking the card head to toggle as well (but ignore goto/toggle clicks)
+      const head = card.querySelector('.team-card-head');
+      if (head) {
+        head.addEventListener('click', (e) => {
+          if (e.target.closest('.goto-marker') || e.target.closest('.toggle-details')) return;
+          toggleBtn.click();
+        });
+      }
+    }
+
+    // keep legacy behavior: use goto button to focus/open popup
 
     listEl.appendChild(card);
   });
@@ -310,7 +362,7 @@ function renderTeams(teams, userCoords) {
 
       const popupContent = `
         <div style="padding: 2px 15px 15px 15px; color: #111; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; min-width: 220px; line-height: 1.4;">
-          <h4 style="margin: 0 0 10px 0; font-size: 1.4em; font-weight: 900; color: #0056b3; line-height: 1.2; padding-top: 0;">${escapeHTML(teamName)}</h4>
+          <h4 style="margin: 0 0 10px 0; font-size: 1.8em; font-weight: 900; color: #0056b3; line-height: 1.15; padding-top: 0;">${escapeHTML(teamName)}</h4>
           ${team.teamNumber ? `<p style="margin: 0 0 6px 0; font-size: 1.1em; font-weight: 700; color: #333;">FTC ${escapeHTML(team.teamNumber)}</p>` : ''}
           <div style="margin-bottom: 12px;">
             <p style="margin: 0; font-size: 0.9em; font-weight: 800; color: #555; text-transform: uppercase;">Contact</p>
