@@ -11,9 +11,9 @@
   --accent-secondary: #b46339;
   --accent-soft: #e8d7c7;
   --border-color: #dfd7cb;
-  --navbar-bg: #c9b5a0;
-  --navbar-text: #ffffff;
-  --navbar-link-hover: #5aad8b;
+  --navbar-bg: #ffffff; /* light-mode top bar: white */
+  --navbar-text: #000000; /* light-mode header text: black */
+  --navbar-link-hover: #196619; /* darker green hover for links */
   --shadow-sm: 0 1px 2px rgba(33, 31, 27, 0.06);
   --shadow-md: 0 10px 24px rgba(33, 31, 27, 0.08);
   --shadow-lg: 0 18px 44px rgba(33, 31, 27, 0.12);
@@ -24,24 +24,24 @@
 }
 
 [data-theme="dark"] {
-  --bg-primary: #151412;
-  --bg-secondary: #24211d;
-  --bg-tertiary: #1d1b18;
-  --surface: #211f1b;
-  --surface-soft: #28251f;
-  --text-primary: #f8f3eb;
-  --text-secondary: #d6cec2;
-  --text-muted: #aaa094;
-  --accent-primary: #9bc9bc;
-  --accent-secondary: #e4a071;
-  --accent-soft: #40372f;
-  --border-color: #3d3932;
-  --navbar-bg: #6b5d50;
+  --bg-primary: #000000;
+  --bg-secondary: #040404;
+  --bg-tertiary: #080808;
+  --surface: #060606;
+  --surface-soft: #0a0a0a;
+  --text-primary: #ffffff;
+  --text-secondary: #d8ffd9;
+  --text-muted: #9adaa0;
+  --accent-primary: #00ff66;
+  --accent-secondary: #00b36b;
+  --accent-soft: rgba(0, 255, 102, 0.06);
+  --border-color: rgba(0, 179, 107, 0.12);
+  --navbar-bg: linear-gradient(90deg,#001100 0%, #002200 100%);
   --navbar-text: #ffffff;
-  --navbar-link-hover: #9bc9bc;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
-  --shadow-md: 0 10px 24px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.32);
+  --navbar-link-hover: #66ff99;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.7);
+  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.8);
+  --shadow-lg: 0 22px 48px rgba(0, 0, 0, 0.85);
 }
 
 * {
@@ -60,16 +60,92 @@ body {
 }
 
 body {
-  min-height: 100vh;
+  background-color: var(--bg-primary);  
+  background-image:
+    url('/assets/img/ef7e94a0-ee71-4b63-8ea7-b309581f4b0e.png'),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 340px);
+  background-blend-mode: normal, overlay;
+  background-size: cover, auto;
+  background-position: center center;
+  background-attachment: fixed;
+}
+
+/* Patterned techno background for dark theme */
+[data-theme="dark"] body {
   color: var(--text-primary);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 340px),
-    var(--bg-primary);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 17px;
-  line-height: 1.65;
-  text-rendering: optimizeLegibility;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  background-color: var(--bg-primary);
+  /* Primary background image: place the attached image at assets/img/techno-bg.jpg.
+     If the file is missing, the inline SVG fallback will be used. */
+  background-image:
+    url('/assets/img/796386-3981921764.jpg'),
+    radial-gradient(circle at 12% 18%, rgba(0,255,102,0.06), transparent 12%),
+    radial-gradient(circle at 88% 82%, rgba(0,179,107,0.04), transparent 18%),
+    repeating-linear-gradient(45deg, rgba(0,255,102,0.02) 0 2px, transparent 2px 28px),
+    linear-gradient(180deg, rgba(0,0,0,0.45), transparent 260px);
+  background-blend-mode: normal, normal, screen, screen, overlay, normal;
+  background-size: cover, cover, auto, auto, 48px 48px, auto;
+  background-position: center center;
+  background-attachment: fixed;
+}
+
+[data-theme="dark"] a,
+[data-theme="dark"] .accent,
+[data-theme="dark"] .step-card strong,
+[data-theme="dark"] .card-icon {
+  color: var(--accent-primary) !important;
+}
+
+[data-theme="dark"] header {
+  /* Brightened header: stronger, lighter green gradient */
+  background: linear-gradient(90deg, rgba(180,255,160,0.45), rgba(120,230,110,0.36));
+  color: var(--navbar-text) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  box-shadow: 0 6px 28px rgba(0,0,0,0.32), 0 8px 36px rgba(120,230,120,0.08) inset;
+  backdrop-filter: blur(6px) saturate(1.05);
+  position: relative;
+  z-index: 30;
+}
+
+/* Neon top accent for header */
+[data-theme="dark"] header {
+  position: relative;
+  overflow: visible;
+}
+
+[data-theme="dark"] header::before {
+  /* slightly stronger overlay to lift the header color */
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(180,255,160,0.12), rgba(120,230,110,0.08));
+  box-shadow: 0 8px 28px rgba(0,0,0,0.06), inset 0 0 60px rgba(180,255,160,0.03);
+  pointer-events: none;
+}
+
+[data-theme="dark"] .navbar-header .navbar-brand {
+  color: var(--accent-primary) !important;
+  text-shadow: 0 2px 14px rgba(0,255,102,0.12);
+}
+
+[data-theme="dark"] footer,
+[data-theme="dark"] .site-footer {
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+[data-theme="dark"] .btn-primary {
+  background: var(--accent-primary);
+  border-color: color-mix(in srgb, var(--accent-primary) 60%, black 40%);
+  color: #000 !important;
+}
+
+[data-theme="dark"] .btn-primary:hover,
+[data-theme="dark"] .btn-primary:focus {
+  background: var(--accent-secondary);
+  color: #000 !important;
 }
 
 /* Modern Dashboard Enhancements */
@@ -117,6 +193,35 @@ header {
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(8px);
+}
+
+/* Top-right controls: always visible and use black text/icons for clarity */
+header .navbar-tools,
+.nav.navbar-nav.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  padding: 0;
+  margin-left: 12px;
+}
+
+.nav.navbar-nav.navbar-right > li > a {
+  color: #000000 !important;
+  padding: 6px 8px;
+}
+
+.theme-toggle {
+  color: #000000;
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+/* Force header text elements to black for clarity */
+header .navbar-header .navbar-brand,
+header .creator-badge,
+header .navbar-nav > li > a {
+  color: #000000 !important;
 }
 
 header > .theme-toggle {

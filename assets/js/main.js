@@ -1,6 +1,10 @@
 // Theme Toggle functionality (bind after header injection)
 const html = document.documentElement;
-const savedTheme = localStorage.getItem('theme') || 'light';
+let savedTheme = localStorage.getItem('theme');
+if (!savedTheme) {
+  savedTheme = 'dark';
+  try { localStorage.setItem('theme', savedTheme); } catch (e) { /* ignore storage errors */ }
+}
 html.setAttribute('data-theme', savedTheme);
 
 function bindThemeToggle() {
