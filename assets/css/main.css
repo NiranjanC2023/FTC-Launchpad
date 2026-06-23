@@ -66,7 +66,18 @@ body {
 }
 
 body {
-  min-height: 100vh;
+  background-color: var(--bg-primary);  
+  background-image:
+    url('/assets/img/ef7e94a0-ee71-4b63-8ea7-b309581f4b0e.png'),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 340px);
+  background-blend-mode: normal, overlay;
+  background-size: cover, auto;
+  background-position: center center;
+  background-attachment: fixed;
+}
+
+/* Patterned techno background for dark theme */
+[data-theme="dark"] body {
   color: var(--text-primary);
   background:
     linear-gradient(120deg, transparent 0 16%, var(--bg-field-line) 16.15% 16.55%, transparent 16.7% 100%),
