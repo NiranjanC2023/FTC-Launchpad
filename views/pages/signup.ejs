@@ -4,48 +4,22 @@
   <meta charset="UTF-8" />
   <title>Sign Up - FTC Starter Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="/assets/css/main.css?v=8">
+  <link rel="stylesheet" href="/assets/css/main.css?v=13">
 </head>
 <body class="auth-page">
-  <header>
-    <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode"></button>
-  </header>
+  <header></header>
 
   <main>
     <div class="container">
       <a href="/" class="btn btn-secondary back-button">← Back Home</a>
       <h1>Sign Up</h1>
-      <% if (error) { %>
-        <div class="alert alert-danger"><%= error %></div>
-      <% } %>
-      <form method="POST" action="/signup">
-        <div class="mb-3">
-          <label class="form-label">Full name</label>
-          <input name="name" class="form-control" required />
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Email</label>
-          <input name="email" type="email" class="form-control" required />
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Password</label>
-          <input name="password" type="password" class="form-control" required />
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Age</label>
-          <input name="age" type="number" min="6" class="form-control" />
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Phone</label>
-          <input name="phone" type="tel" class="form-control" />
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Interests / Experience</label>
-          <textarea name="interests" rows="3" class="form-control" placeholder="Robotics, programming, mechanical, outreach..."></textarea>
-        </div>
-        <button class="btn btn-primary" type="submit">Create account</button>
-      </form>
-      <p style="margin-top:14px">Already have an account? <a href="#" data-href="/login">Log in</a></p>
+      <p style="margin-top:12px; margin-bottom:20px; color:var(--text-secondary)">Choose which option best describes you to continue.</p>
+
+      <div class="signup-selection" style="display:flex; gap:18px; flex-wrap:wrap; justify-content:center; margin-top:12px;">
+        <a href="/signup/seeker" class="btn btn-primary" style="min-width:260px; padding:18px 22px; font-size:1.02rem;">Looking to join or make a first team</a>
+        <a href="/signup/manager" class="btn btn-secondary" style="min-width:260px; padding:18px 22px; font-size:1.02rem;">Managing a team</a>
+      </div>
+
     </div>
   </main>
 

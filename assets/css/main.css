@@ -1,47 +1,53 @@
 :root {
-  --bg-primary: #f7f4ef;
-  --bg-secondary: #eee8df;
-  --bg-tertiary: #fffdf9;
-  --surface: #fff5f5;
-  --surface-soft: #faf7f2;
-  --text-primary: #211f1b;
-  --text-secondary: #5f5a52;
-  --text-muted: #817a70;
-  --accent-primary: #1f4f46;
-  --accent-secondary: #b46339;
-  --accent-soft: #e8d7c7;
-  --border-color: #dfd7cb;
-  --navbar-bg: #c9b5a0;
+  --bg-primary: #fbfbfc;
+  --bg-secondary: #f5f7fa;
+  --bg-tertiary: #fbfffd;
+  --surface: #ffffff;
+  --surface-soft: #edfff4;
+  --text-primary: #050805;
+  --text-secondary: #26342c;
+  --text-muted: #596a60;
+  /* Increased green accents (still keep navbar/background intact) */
+  --accent-primary: #007a35; /* primary green */
+  --accent-secondary: #00a86b; /* secondary green */
+  --accent-soft: #caffdd; /* soft green */
+  --border-color: #b8edcb;
+  --navbar-bg: #1b6b4a;
   --navbar-text: #ffffff;
-  --navbar-link-hover: #5aad8b;
-  --shadow-sm: 0 1px 2px rgba(33, 31, 27, 0.06);
-  --shadow-md: 0 10px 24px rgba(33, 31, 27, 0.08);
-  --shadow-lg: 0 18px 44px rgba(33, 31, 27, 0.12);
+  --navbar-link-hover: #cfe6ff;
+  /* Subtle green strips for background pattern (very low opacity) */
+  --accent-green: #00a86b;
+  --accent-green-soft: rgba(0, 168, 107, 0.08);
+  --bg-grid-line: rgba(0, 168, 107, 0.09);
+  --bg-field-line: rgba(0, 168, 107, 0.07);
+  --bg-sheen: rgba(255, 255, 255, 0.72);
+  /* Form input neutralization: use light gray for typing fields, not green */
+  --input-bg: #f3f4f6;
+  --input-border: #e1e6ea;
+  --input-focus-border: #b9c4c9;
+  --input-text: #1f2326;
+  --shadow-sm: 0 1px 2px rgba(0, 12, 4, 0.07);
+  --shadow-md: 0 10px 24px rgba(0, 12, 4, 0.1);
+  --navbar-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 18px 44px rgba(0, 12, 4, 0.14);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
   --content-width: 1120px;
 }
 
-[data-theme="dark"] {
-  --bg-primary: #151412;
-  --bg-secondary: #24211d;
-  --bg-tertiary: #1d1b18;
-  --surface: #211f1b;
-  --surface-soft: #28251f;
-  --text-primary: #f8f3eb;
-  --text-secondary: #d6cec2;
-  --text-muted: #aaa094;
-  --accent-primary: #9bc9bc;
-  --accent-secondary: #e4a071;
-  --accent-soft: #40372f;
-  --border-color: #3d3932;
-  --navbar-bg: #6b5d50;
-  --navbar-text: #ffffff;
-  --navbar-link-hover: #9bc9bc;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
-  --shadow-md: 0 10px 24px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.32);
+/* Dark mode removed: no [data-theme="dark"] variables */
+
+/* Team-finding pages: use blue accents */
+.find-teams,
+.teams-list-container,
+.teams-list,
+#teamsList,
+#teamsContainer {
+  --accent-primary: #0a66ff;
+  --accent-secondary: #5aa0ff;
+  --accent-soft: #d9ecff;
+  --border-color: #cfe6ff;
 }
 
 * {
@@ -63,8 +69,14 @@ body {
   min-height: 100vh;
   color: var(--text-primary);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 340px),
+    linear-gradient(120deg, transparent 0 16%, var(--bg-field-line) 16.15% 16.55%, transparent 16.7% 100%),
+    linear-gradient(300deg, transparent 0 72%, var(--bg-field-line) 72.15% 72.55%, transparent 72.7% 100%),
+    linear-gradient(90deg, var(--bg-grid-line) 1px, transparent 1px),
+    linear-gradient(0deg, var(--bg-grid-line) 1px, transparent 1px),
+    linear-gradient(180deg, var(--bg-sheen), rgba(255, 255, 255, 0) 390px),
     var(--bg-primary);
+  background-size: auto, auto, 44px 44px, 44px 44px, auto, auto;
+  background-attachment: fixed;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 17px;
   line-height: 1.65;
@@ -75,20 +87,23 @@ body {
 /* Modern Dashboard Enhancements */
 .dashboard-page {
   background: 
-    radial-gradient(at 0% 0%, color-mix(in srgb, var(--accent-soft) 10%, transparent) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, color-mix(in srgb, var(--accent-secondary) 5%, transparent) 0px, transparent 50%),
+    linear-gradient(120deg, transparent 0 18%, var(--bg-field-line) 18.15% 18.55%, transparent 18.7% 100%),
+    linear-gradient(300deg, transparent 0 74%, var(--bg-field-line) 74.15% 74.55%, transparent 74.7% 100%),
+    linear-gradient(90deg, var(--bg-grid-line) 1px, transparent 1px),
+    linear-gradient(0deg, var(--bg-grid-line) 1px, transparent 1px),
     var(--bg-primary);
+  background-size: auto, auto, 44px 44px, 44px 44px, auto;
 }
 
 .btn-success {
-  background: #10b981 !important;
-  border-color: #059669 !important;
-  color: white !important;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  background: var(--accent-secondary) !important;
+  border-color: var(--accent-primary) !important;
+  color: #001434 !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-primary) 18%, transparent);
 }
 
 .btn-success:hover {
-  background: #059669 !important;
+  background: var(--accent-primary) !important;
   transform: translateY(-2px);
 }
 
@@ -114,9 +129,37 @@ header {
   padding: 0;
   display: block;
   background: var(--navbar-bg);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: var(--shadow-md);
-  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: var(--navbar-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  position: relative;
+}
+
+header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 8px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.04), rgba(0,0,0,0.02));
+  z-index: 19;
+}
+
+/* Responsive header layout */
+.navbar .container {
+  padding: 0 20px;
+}
+
+@media (max-width: 860px) {
+  .navbar .container {
+    padding: 0 14px;
+  }
+  .navbar-header .navbar-brand {
+    font-size: 1.6rem;
+  }
 }
 
 header > .theme-toggle {
@@ -141,6 +184,12 @@ header .navbar,
 header .navbar-default {
   width: 100%;
   margin: 0;
+}
+
+/* Ensure navbar casts a subtle shadow separate from the page */
+header .navbar {
+  box-shadow: var(--navbar-shadow);
+  z-index: 20;
 }
 
 .navbar .container {
@@ -169,7 +218,7 @@ header .navbar-default {
   height: auto;
   padding: 0;
   margin: 0;
-  color: #ffffff !important;
+  color: var(--navbar-text) !important;
   font-size: 2rem;
   font-weight: 700;
   letter-spacing: -0.5px;
@@ -225,7 +274,7 @@ header .navbar-default {
 .navbar-nav > li > a:focus,
 .navbar-nav > li > a.active {
   color: var(--navbar-text) !important;
-  background: rgba(255, 255, 255, 0.25) !important;
+  background: rgba(255, 255, 255, 0.16) !important;
   opacity: 1;
 }
 
@@ -234,23 +283,97 @@ header .navbar-default {
   align-items: center;
   min-height: 32px;
   padding: 6px 12px;
-  color: rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: 0.3px;
   white-space: nowrap;
-  backdrop-filter: blur(4px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   transition: all 0.18s ease;
   flex: 0 0 auto;
   margin-right: 0;
 }
 
+.creator-badge::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  display: inline-block;
+  margin-right: 8px;
+  box-shadow: none;
+}
+
 .creator-badge:hover {
-  background: rgba(255, 255, 255, 0.22);
-  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+/* Dark-mode clarity overrides: remove backdrop blurs and reduce background noise */
+[data-theme="dark"] header,
+[data-theme="dark"] .creator-badge {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: linear-gradient(180deg, rgba(8,12,9,0.98), rgba(7,11,9,0.96));
+  border-bottom-color: rgba(255,255,255,0.04) !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.55) !important;
+}
+
+[data-theme="dark"] .creator-badge {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: rgba(255,255,255,0.06) !important;
+  color: rgba(255,255,255,0.95) !important;
+}
+
+[data-theme="dark"] .fa-marker-icon i {
+  text-shadow: none !important;
+}
+
+/* Final dark-mode clarity tweaks: simpler background, crisp text, stronger cards */
+[data-theme="dark"] body {
+  background: linear-gradient(180deg, var(--bg-primary), var(--bg-secondary));
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-shadow: none !important;
+}
+
+[data-theme="dark"] .dashboard-page {
+  /* reduce patterned noise in dark mode */
+  background: linear-gradient(180deg, rgba(0,0,0,0.0), rgba(0,0,0,0.02));
+}
+
+[data-theme="dark"] .step-card,
+[data-theme="dark"] .resource-card,
+[data-theme="dark"] .team-card,
+[data-theme="dark"] .form-grid,
+[data-theme="dark"] .teams-list-container,
+[data-theme="dark"] .code-block {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02)), var(--surface);
+  border-color: color-mix(in srgb, var(--border-color) 60%, transparent);
+  box-shadow: var(--shadow-md);
+  text-shadow: none !important;
+}
+
+[data-theme="dark"] .step-card:hover,
+[data-theme="dark"] .resource-card:hover,
+[data-theme="dark"] .team-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-4px) scale(1.01);
+}
+
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] p,
+[data-theme="dark"] a,
+[data-theme="dark"] .btn {
+  text-shadow: none !important;
 }
 
 .navbar-header,
@@ -269,8 +392,8 @@ header .navbar-default {
   justify-content: center;
   flex: 0 0 auto;
   color: rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 999px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   cursor: pointer;
@@ -280,8 +403,8 @@ header .navbar-default {
 .theme-toggle:hover,
 .theme-toggle:focus {
   transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.28);
-  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.34);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
@@ -321,6 +444,28 @@ main {
   display: grid;
   place-items: start center;
   animation: fadeIn 0.5s ease-out;
+}
+
+/* Responsive typography scaling */
+h1 {
+  font-size: clamp(2rem, 5vw, 5rem);
+}
+
+h2 {
+  font-size: clamp(1.2rem, 3vw, 2.4rem);
+}
+
+/* Improve spacing on small screens */
+@media (max-width: 560px) {
+  main {
+    padding: 28px 0 48px;
+  }
+  .hero {
+    padding: 18px 12px;
+  }
+  .hero-card {
+    padding: 12px;
+  }
 }
 
 main > .container,
@@ -433,6 +578,28 @@ h3 {
   list-style: none;
 }
 
+/* Ensure CTA buttons stack nicely on medium screens */
+@media (max-width: 860px) {
+  .cta-buttons {
+    gap: 10px;
+  }
+  .cta-buttons .btn {
+    padding: 10px 14px;
+    font-size: 0.98rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .cta-buttons {
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .cta-buttons .btn {
+    width: 100%;
+  }
+}
+
 .btn {
   min-height: 46px;
   display: inline-flex;
@@ -467,16 +634,16 @@ h3 {
 .btn-primary:hover,
 .btn-primary:focus {
   color: #fff !important;
-  background: #173d36;
-  border-color: #173d36;
+  background: #005925;
+  border-color: #005925;
   box-shadow: var(--shadow-md);
 }
 
 [data-theme="dark"] .btn-primary:hover,
 [data-theme="dark"] .btn-primary:focus {
-  color: #17211d !important;
-  background: #b4ded1;
-  border-color: #b4ded1;
+  color: #001006 !important;
+  background: #8cffb8;
+  border-color: #8cffb8;
 }
 
 .btn-secondary,
@@ -783,9 +950,9 @@ h3 {
   width: 100%;
   min-height: 44px;
   padding: 10px 12px;
-  color: var(--text-primary);
-  background: var(--surface-soft);
-  border: 1px solid var(--border-color);
+  color: var(--input-text);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: var(--radius-sm);
   outline: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
@@ -795,8 +962,8 @@ h3 {
 .form-grid textarea:focus,
 .form-grid select:focus {
   background: var(--surface);
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--input-focus-border) 18%, transparent);
 }
 
 /* Form Controls (Login/Signup) */
@@ -805,8 +972,8 @@ h3 {
   min-height: 44px;
   padding: 11px 14px;
   color: var(--text-primary);
-  background: var(--surface);
-  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: var(--radius-sm);
   font-family: inherit;
   font-size: 1rem;
@@ -816,9 +983,9 @@ h3 {
 }
 
 .form-control:focus {
-  background: var(--surface-soft);
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  background: var(--surface);
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--input-focus-border) 18%, transparent);
 }
 
 .form-label {
@@ -958,7 +1125,7 @@ h3 {
   margin: 0 0 6px;
   font-size: clamp(1.6rem, 2.8vw, 2.2rem);
   font-weight: 900;
-  color: #0056b3;
+  color: var(--accent-primary);
   line-height: 1.05;
 }
 
@@ -995,6 +1162,14 @@ h3 {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 18px; /* Keep the gap between cards */
   margin: 0; /* Remove external margin as it's now inside a padded container */
+}
+
+/* Allow the grid to use smaller min widths on very small screens */
+@media (max-width: 420px) {
+  .teams-list-cards {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
 }
 
 .team-card[hidden] {
@@ -1212,7 +1387,7 @@ h3 {
 }
 
 .fa-marker-icon i {
-  color: #c74d35;
+  color: var(--accent-secondary);
   font-size: 1.75rem;
   line-height: 48px;
   text-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
@@ -1258,9 +1433,9 @@ h3 {
 
 .marker-label--active {
   opacity: 1;
-  border-color: #00d860;
-  color: #0a3a1c;
-  box-shadow: 0 8px 18px rgba(0, 216, 96, 0.22);
+  border-color: var(--accent-secondary);
+  color: #07243e;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent-primary) 22%, transparent);
 }
 
 .leaflet-popup-content-wrapper {
@@ -1392,6 +1567,14 @@ h3 {
 
   #teamsMap {
     min-height: 360px;
+  }
+}
+
+/* Improve map responsiveness on narrow devices */
+@media (max-width: 420px) {
+  #teamsMap {
+    min-height: 260px;
+    height: 40vh;
   }
 }
 
@@ -1565,7 +1748,7 @@ footer p,
 }
 
 .auth-page .form-control {
-  background: var(--surface-soft);
+  background: var(--input-bg);
 }
 
 .auth-page .btn-primary,
