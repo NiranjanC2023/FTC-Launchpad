@@ -12,6 +12,8 @@
 
   <!-- Styles -->
   <link rel="stylesheet" href="/assets/css/main.css?v=13">
+  <link rel="stylesheet" href="/assets/css/first-start.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.3/dist/css/splide.min.css">
 </head>
 <body>
   <header>
@@ -19,66 +21,85 @@
   </header>
 
   <main>
-    <section class="hero">
-      <div class="hero-card">
-        <h1>FTC Starter Hub</h1>
-        <p class="subtitle">
-          A centralized hub for FTC rookie teams, students looking to join a team,
-          or those interested in starting one.
-        </p>
+    <!-- Legacy homepage sections removed. FIRST Start promotional section is shown below. -->
 
-        <div class="cta-buttons">
-          <a href="/start-team" class="btn btn-primary">Start a Team</a>
-          <a href="/join-team" class="btn btn-secondary">Join a Team</a>
-          <a href="/resources" class="btn btn-tertiary">Resources</a>
+    <!-- FIRST Start promotional section (from FIRST Start page) -->
+    <section class="first-hero">
+      <div class="container">
+        <div class="first-start-header">
+          <h1 class="fs-title">FIRST Start</h1>
+          <p class="fs-subtext">Connecting students to teams — learn practical STEM skills, get mentorship, and compete together.</p>
+        </div>
+        <div class="first-hero-inner">
+          <div class="splide" id="fs-carousel-home" role="region" aria-label="FIRST image carousel">
+            <div class="splide__track">
+              <ul class="splide__list">
+                <% if (typeof carouselImages !== 'undefined' && carouselImages.length) { %>
+                  <% carouselImages.forEach(function(item, idx){ %>
+                    <li class="splide__slide">
+                      <img src="<%= item.src %>" <%= item.srcset ? ('srcset="' + item.srcset + '"') : '' %> alt="FIRST image <%= idx+1 %>">
+                    </li>
+                  <% }); %>
+                <% } else { %>
+                  <li class="splide__slide"><img src="/assets/img/Explaining%20FLL.png" alt="FIRST image 1"></li>
+                  <li class="splide__slide"><img src="/assets/img/FIRST%20Fare.png" alt="FIRST image 2"></li>
+                  <li class="splide__slide"><img src="/assets/img/FIRST%20Team.png" alt="FIRST image 3"></li>
+                  <li class="splide__slide"><img src="/assets/img/FLL%20Robot.png" alt="FIRST image 4"></li>
+                <% } %>
+              </ul>
+            </div>
+          </div>
+
+          <div class="why-join">
+            <h3>Why join FIRST</h3>
+            <p class="lead">FIRST builds science, technology, engineering, and math skills through teamwork, mentoring, and hands-on challenges.</p>
+            <ul>
+              <li>Learn practical STEM skills in a fun environment</li>
+              <li>Get mentorship from adults and college students</li>
+              <li>Develop teamwork, project planning, and communication</li>
+              <li>Compete at events and showcase your innovations</li>
+            </ul>
+            
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="find-teams">
+    <section class="connect-graphic">
       <div class="container">
-        <h2>Find and Join FTC Teams Near You</h2>
-        <p>
-          Use our searchable team directory to discover active FTC teams in your area. Filter by
-          location, sponsor type (school, club, community), and activity level. Each team profile
-          includes contact details, meeting days, and roles that are currently open.
-        </p>
+        <h3>Connecting students to teams</h3>
+        <div class="svg-wrap" aria-hidden="true">
+          <div class="connect-stage">
+            <!-- Student icon: drop the provided student image at assets/img/student-icon.png -->
+            <img src="/assets/img/student-icon.png" class="icon student" alt="Student"
+                 onerror="this.style.display='none'; this.nextElementSibling.style.display='block'" />
+            <!-- fallback student SVG (shown if image fails) -->
+            <div class="icon-fallback student" style="display:none;" aria-hidden="true">
+              <svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="32" cy="32" r="30" fill="#dbeffe" />
+                <path d="M32 34c6 0 10 3 10 6v3H22v-3c0-3 4-6 10-6z" fill="#0b74de" />
+                <circle cx="32" cy="22" r="7" fill="#0b74de" />
+              </svg>
+            </div>
 
-        <ul class="features">
-          <li><strong>Search Nearby:</strong> Locate teams by city, ZIP, or distance radius.</li>
-          <li><strong>Filter & Compare:</strong> Narrow results by sponsor type, focus area, and roster size.</li>
-          <li><strong>Direct Contact:</strong> Message team contacts or submit a join request using built-in forms.</li>
-          <li><strong>Guidance & Safety:</strong> Steps for joining a team, sponsor expectations, and recommended resources for new members.</li>
-        </ul>
+            <!-- SVG connector (diagonal) -->
+            <svg class="connector-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <line x1="18" y1="20" x2="82" y2="80" class="connector-line" />
+            </svg>
 
-        <div class="cta-inline">
-          <a href="/teams-nearby" class="btn btn-primary">Search Teams Nearby</a>
-          <a href="/join-team" class="btn btn-secondary">I Want to Join</a>
+              <img src="/assets/img/team-icon.png" class="icon team" alt="Team"
+                onerror="this.style.display='none'; this.nextElementSibling.style.display='block'" />
+            <!-- fallback team SVG (shown if image fails) -->
+            <div class="icon-fallback team" style="display:none;" aria-hidden="true">
+              <svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="32" cy="32" r="30" fill="#ffe6e0" />
+                <path d="M20 44c0-4 4-7 12-7s12 3 12 7v2H20v-2z" fill="#16a34a" />
+                <circle cx="24" cy="26" r="5" fill="#16a34a" />
+                <circle cx="40" cy="26" r="5" fill="#16a34a" />
+              </svg>
+            </div>
+          </div>
         </div>
-      </div>
-    </section>
-
-    <section class="how-it-works">
-      <div class="container">
-        <h3>How It Works</h3>
-        <ol>
-          <li><strong>Search:</strong> Enter your location or browse featured teams.</li>
-          <li><strong>Review:</strong> Open team profiles to see meetings, photos, and mentor info.</li>
-          <li><strong>Contact:</strong> Reach out using the provided contact or use the join form.</li>
-          <li><strong>Join:</strong> Attend a meeting and follow sponsor requirements to become a member.</li>
-        </ol>
-      </div>
-    </section>
-
-    <section class="about-site">
-      <div class="container">
-        <h3>About This Site</h3>
-        <p>
-          FTC Starter Hub is a lightweight community resource built to help students discover and connect with
-          FIRST Tech Challenge teams, find sponsor organizations, and access curated resources and step-by-step
-          guidance for starting or joining a team. We aggregate team profiles, guides, and useful links so aspiring
-          builders and mentors can get started quickly.
-        </p>
       </div>
     </section>
 
@@ -93,5 +114,7 @@
   </main>
 
   <script src="/assets/js/main.js?v=8"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.3/dist/js/splide.min.js"></script>
+  <script src="/assets/js/first-start.js"></script>
 </body>
 </html>

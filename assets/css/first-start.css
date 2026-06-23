@@ -1,0 +1,145 @@
+/* Styles specific to the FIRST Start page */
+.page-title {
+  margin-top: 18px;
+  font-weight: 700;
+}
+
+.first-start-header { text-align: center; margin-bottom: 18px; }
+.fs-title {
+  font-size: 56px;
+  line-height: 1.02;
+  margin: 6px 0 8px 0;
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+.fs-subtext {
+  color: #444;
+  font-size: 18px;
+  margin: 0 0 14px 0;
+}
+
+.first-hero { margin-top: 22px; }
+.first-hero .first-hero-inner {
+  display: flex;
+  gap: 28px;
+  align-items: center;
+  justify-content: center; /* center the two-column block */
+  flex-wrap: wrap;
+}
+
+.first-hero .container {
+  max-width: 1180px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.splide, .carousel {
+  position: relative;
+  width: 60%;
+  min-width: 300px;
+  max-width: 720px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.carousel-track {
+  display: flex;
+  transition: transform 0.5s ease;
+}
+.carousel img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* normalize and crop for consistent fill */
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Give the carousel a fixed aspect ratio so slides have explicit height */
+.carousel { aspect-ratio: 16 / 9; }
+.splide__slide { border-radius: 8px; overflow: hidden; }
+
+/* Splide arrows styling */
+.splide { aspect-ratio: 16 / 9; }
+.splide__arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  border: none;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  z-index: 5;
+}
+.splide__arrow--prev { left: 10px; }
+.splide__arrow--next { right: 10px; }
+
+.why-join {
+  width: 36%;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center; /* center headings and lead */
+}
+.why-join ul { display: inline-block; text-align: left; margin: 0 auto; }
+.why-join .lead {
+  font-size: 1.05rem;
+  margin-bottom: 12px;
+}
+
+.connect-graphic {
+  margin-top: 28px;
+  text-align: center;
+}
+.connect-graphic .container { display: flex; flex-direction: column; align-items: center; }
+.svg-wrap { display: flex; justify-content: center; width: 100%; margin-top: 12px; }
+
+/* Connector stage: diagonal animated dotted line between icons */
+.connect-stage { position: relative; width: 100%; max-width: 600px; height: 160px; margin: 12px auto; }
+.connect-stage .icon { position: absolute; width: 72px; height: 72px; border-radius: 50%; object-fit: cover; box-shadow: 0 6px 18px rgba(0,0,0,0.12); border: 4px solid #fff; }
+.connect-stage .icon.student { left: 6%; top: 12%; transform: rotate(-12deg); }
+.connect-stage .icon.team { right: 6%; bottom: 12%; transform: rotate(10deg); }
+
+/* Fallback SVGs should match icon positioning and style */
+.connect-stage .icon-fallback { position: absolute; width: 72px; height: 72px; border-radius: 50%; box-shadow: 0 6px 18px rgba(0,0,0,0.12); border: 4px solid #fff; display: none; overflow: hidden; }
+.connect-stage .icon-fallback.student { left: 6%; top: 12%; transform: rotate(-12deg); }
+.connect-stage .icon-fallback.team { right: 6%; bottom: 12%; transform: rotate(10deg); }
+.connect-stage .icon-fallback svg { width: 100%; height: 100%; display: block; }
+
+.connector-svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.connector-line { stroke: #0b74de; stroke-width: 8; stroke-linecap: round; stroke-dasharray: 6 10; fill: none; }
+.connector-line { animation: dashMove 1.6s linear infinite; }
+
+@keyframes dashMove {
+  to { stroke-dashoffset: -40; }
+}
+
+/* Ensure icons sit above the connector */
+.connect-stage .icon { z-index: 2; }
+
+@media (max-width: 560px) {
+  .connect-stage { height: 120px; }
+  .connect-stage .icon { width: 56px; height: 56px; }
+  .connect-stage .icon.student { left: 6%; top: 8%; }
+  .connect-stage .icon.team { right: 6%; bottom: 8%; }
+}
+
+@media (max-width: 860px) {
+  .first-hero .first-hero-inner { flex-direction: column; align-items: center; }
+  .carousel, .why-join { width: 100%; }
+  .carousel img { height: auto; }
+  .fs-title { font-size: 34px; }
+  .fs-subtext { font-size: 15px; }
+}
+
+/* Pagination dots */
+.carousel-dots { display:flex; gap:8px; justify-content:center; margin-top:10px; }
+.carousel-dots button { width:10px; height:10px; border-radius:50%; border:none; background:#ccc; padding:0; cursor:pointer; }
+.carousel-dots button.active { background:#222; }
+
+/* Splide slide images fill and crop consistently */
+.splide__slide img { width: 100%; height: 100%; object-fit: cover; display: block; }

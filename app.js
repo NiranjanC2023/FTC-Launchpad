@@ -25,6 +25,7 @@ app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 
 // Connect to MongoDB but don't block static pages if it fails
+console.log('Using DATABASECONNECTION:', params.DATABASECONNECTION);
 mongoose.connect(params.DATABASECONNECTION, {
     dbName: params.DATABASENAME,
     serverSelectionTimeoutMS: 5000

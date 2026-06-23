@@ -6,6 +6,8 @@ const Team = require('../models/team');
 const nodemailer = require('nodemailer');
 const Student = require('../models/student');
 const params = require('../params/params');
+const fs = require('fs');
+const path = require('path');
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -145,8 +147,36 @@ async function verifyFirstTeam(teamNumber) {
 
 // Home page
 router.get("/", function(req, res){
-    res.render("index");
+    let carouselImages = [];
+    try {
+        const dir = path.join(__dirname, '..', 'assets', 'img', 'carousel');
+        if (fs.existsSync(dir)) {
+            const files = fs.readdirSync(dir)
+                .filter(f => /\.(png|jpe?g|webp|gif)$/i.test(f))
+                .sort()
+                .slice(0,4);
+
+            carouselImages = files.map(f => {
+                const ext = path.extname(f);
+                const base = f.slice(0, -ext.length);
+                const hiRes = base + '@2x' + ext;
+                const hiResPath = path.join(dir, hiRes);
+                const src = '/assets/img/carousel/' + encodeURIComponent(f);
+                let srcset = null;
+                if (fs.existsSync(hiResPath)) {
+                    const hi = '/assets/img/carousel/' + encodeURIComponent(hiRes);
+                    srcset = `${src} 1x, ${hi} 2x`;
+                }
+                return { src, srcset };
+            });
+        }
+    } catch (e) {
+        carouselImages = [];
+    }
+
+    res.render("index", { carouselImages: carouselImages });
 });
+
 
 // Start Team routes
 router.get("/start-team", function(req, res){

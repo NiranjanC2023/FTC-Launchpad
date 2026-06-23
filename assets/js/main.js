@@ -1,16 +1,5 @@
-<<<<<<< HEAD
 // Dark mode removed: ensure no `data-theme` attribute remains
 document.documentElement.removeAttribute('data-theme');
-=======
-// Theme Toggle functionality (bind after header injection)
-const html = document.documentElement;
-let savedTheme = localStorage.getItem('theme');
-if (!savedTheme) {
-  savedTheme = 'dark';
-  try { localStorage.setItem('theme', savedTheme); } catch (e) { /* ignore storage errors */ }
-}
-html.setAttribute('data-theme', savedTheme);
->>>>>>> origin/main
 
 // Persist signup intent early so header logic can read it on load
 (function setSignupIntentFromPath() {
