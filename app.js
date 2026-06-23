@@ -52,6 +52,29 @@ app.use(flash());
 app.use("/", require("./routes/web"));
 app.use("/api", require("./routes/api"));
 
-app.listen(app.get("port"), function(){
-    console.log("Server started on port " + app.get("port"));
-})
+const port = app.get("port");
+const server = app.listen(port, function(){
+    console.log("Server started on port " + port);
+});
+
+server.on("error", function(err){
+    if (err && err.code === "EADDRINUSE") {
+        console.error(`Port ${port} is already in use. Please free the port or set PORT env var.`);
+        process.exit(1);
+    } else if (err && err.code === "EACCES") {
+        console.error(`Port ${port} requires elevated privileges.`);
+        process.exit(1);
+    } else {
+        console.error("Server error:", err);
+        process.exit(1);
+    }
+});
+
+process.on("uncaughtException", function(err){
+    console.error("Uncaught exception:", err);
+    process.exit(1);
+});
+
+process.on("unhandledRejection", function(reason){
+    console.error("Unhandled Rejection:", reason);
+});

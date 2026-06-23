@@ -574,14 +574,24 @@ router.get('/signup', function(req, res){
     res.render('pages/signup', { error: null });
 });
 
+// Dedicated pages for each signup mode (selection page links here)
+router.get('/signup/seeker', function(req, res){
+    res.render('pages/signup-seeker', { error: null, values: {} });
+});
+
+router.get('/signup/manager', function(req, res){
+    res.render('pages/signup-manager', { error: null, values: {} });
+});
+
 router.post('/signup', async function(req, res){
+    const mode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
     try {
-        if (!isDatabaseConnected()) return res.render('pages/signup', { error: databaseErrorMessage() });
+        if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {} });
         const { name, email, password, age, phone, interests } = req.body;
         const normalizedEmail = normalizeEmail(email);
-        if (!name || !normalizedEmail || !password) return res.render('pages/signup', { error: 'All fields required' });
+        if (!name || !normalizedEmail || !password) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body });
         const existing = await User.findOne({ email: normalizedEmail }).exec();
-        if (existing) return res.render('pages/signup', { error: 'Email already registered' });
+        if (existing) return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body });
         const user = new User({
             name: name.trim(),
             email: normalizedEmail,
@@ -596,7 +606,8 @@ router.post('/signup', async function(req, res){
         res.redirect('/');
     } catch (err) {
         console.error('Signup failed:', err);
-        res.render('pages/signup', { error: err.message });
+        const renderMode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
+        res.render(`pages/signup-${renderMode}`, { error: err.message, values: req.body || {} });
     }
 });
 

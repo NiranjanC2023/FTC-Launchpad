@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+// Dark mode removed: ensure no `data-theme` attribute remains
+document.documentElement.removeAttribute('data-theme');
+=======
 // Theme Toggle functionality (bind after header injection)
 const html = document.documentElement;
 let savedTheme = localStorage.getItem('theme');
@@ -6,17 +10,22 @@ if (!savedTheme) {
   try { localStorage.setItem('theme', savedTheme); } catch (e) { /* ignore storage errors */ }
 }
 html.setAttribute('data-theme', savedTheme);
+>>>>>>> origin/main
 
-function bindThemeToggle() {
-  const themeToggle = document.getElementById('themeToggle');
-  if (!themeToggle) return;
-  themeToggle.addEventListener('click', () => {
-    const currentTheme = html.getAttribute('data-theme');
-    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-    html.setAttribute('data-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
-  });
-}
+// Persist signup intent early so header logic can read it on load
+(function setSignupIntentFromPath() {
+  try {
+    const p = (window.location && window.location.pathname) || '/';
+    if (p.startsWith('/signup/manager')) {
+      sessionStorage.setItem('signup_intent', 'manager');
+    } else if (p.startsWith('/signup/seeker')) {
+      sessionStorage.setItem('signup_intent', 'seeker');
+    } else if (p === '/signup') {
+      // selection page — clear any previous intent so navbar stays minimal
+      sessionStorage.removeItem('signup_intent');
+    }
+  } catch (e) { /* ignore storage errors */ }
+})();
 
 // Copy code functionality
 function copyCode(button) {
@@ -554,12 +563,54 @@ function initTeamsPage() {
   }
 }
 
+// Signup page: toggle between seeker (join/make) and manager flows
+function initSignupForm() {
+  const form = document.getElementById('signupForm');
+  if (!form) return;
+
+  const modeButtons = document.querySelectorAll('.signup-mode');
+  const modeInput = form.querySelector('#signupMode') || form.querySelector('input[name="signupMode"]');
+  const managerContainer = form.querySelector('.signup-manager-fields');
+  const seekerContainer = form.querySelector('.signup-seeker-fields');
+
+  function setMode(mode) {
+    modeButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
+    if (modeInput) modeInput.value = mode;
+    if (managerContainer) managerContainer.style.display = mode === 'manager' ? '' : 'none';
+    if (seekerContainer) seekerContainer.style.display = mode === 'manager' ? 'none' : '';
+
+    if (managerContainer) {
+      managerContainer.querySelectorAll('input, textarea, select').forEach(el => el.disabled = mode !== 'manager');
+    }
+    if (seekerContainer) {
+      seekerContainer.querySelectorAll('input, textarea, select').forEach(el => el.disabled = mode === 'manager');
+    }
+
+    try { sessionStorage.setItem('signup_intent', mode); } catch (e) {}
+  }
+
+  if (modeButtons && modeButtons.length > 0) {
+    modeButtons.forEach(btn => btn.addEventListener('click', () => setMode(btn.dataset.mode)));
+    // initialize default mode for combined page
+    setMode('seeker');
+  } else if (modeInput) {
+    // standalone seeker/manager pages: respect server-provided hidden input or path
+    const initial = modeInput.value || (window.location.pathname && window.location.pathname.includes('/signup/manager') ? 'manager' : 'seeker');
+    // ensure containers/fields reflect the initial mode without overwriting server values
+    if (managerContainer) managerContainer.style.display = initial === 'manager' ? '' : 'none';
+    if (seekerContainer) seekerContainer.style.display = initial === 'manager' ? 'none' : '';
+    if (managerContainer) managerContainer.querySelectorAll('input, textarea, select').forEach(el => el.disabled = initial !== 'manager');
+    if (seekerContainer) seekerContainer.querySelectorAll('input, textarea, select').forEach(el => el.disabled = initial === 'manager');
+    try { sessionStorage.setItem('signup_intent', initial); } catch (e) {}
+  }
+}
+
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
   loadSiteShells();
-  bindThemeToggle();
   initJoinForm();
   initTeamsPage();
+  initSignupForm();
 });
 
 // Load shared header/footer and Bootstrap stylesheet
@@ -619,6 +670,12 @@ function loadSiteShells() {
               navItem.style.display = user ? 'none' : '';
             } else if (target === '/logout') {
               navItem.style.display = user ? '' : 'none';
+            } else if (target === '/team-register') {
+              // Only show the "Register Team" link when the user is an authenticated team contact
+              // or when the current anonymous session explicitly selected the manager/signup intent.
+              const intent = (() => { try { return sessionStorage.getItem('signup_intent'); } catch (e) { return null; }})();
+              const allowedForUser = user ? !!user.hasTeam : false;
+              navItem.style.display = (allowedForUser || intent === 'manager') ? '' : 'none';
             } else if (target === '/manage-team') {
               navItem.style.display = (user && user.hasTeam) ? '' : 'none';
             } else if (target === '/my-applications' || target === '/join-form') {
@@ -631,9 +688,7 @@ function loadSiteShells() {
           });
         }).catch(() => {});
 
-      // bind theme toggle after header is in DOM
-      bindThemeToggle();
-    }).catch(() => {});
+      }).catch(() => {});
 
   // load footer
     fetch('/assets/partial/footer.html')
