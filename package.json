@@ -14,8 +14,10 @@
   "license": "ISC",
   "author": "Evergreen-Tech-a-Trons",
   "type": "commonjs",
-  "main": "assets/js/main.js",
+  "main": "app.js",
   "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
@@ -29,7 +31,10 @@
     "express": "^4.21.2",
     "express-session": "^1.18.1",
     "mongoose": "^8.10.1",
-    "nodemailer": "^6.10.0",
+    "nodemailer": "^9.0.1",
     "passport": "^0.7.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
   }
 }
