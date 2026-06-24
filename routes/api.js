@@ -68,12 +68,58 @@ router.post('/teams', async function(req, res) {
 	}
 });
 
-// Create student signup
+// Create or update student signup
 router.post('/signups', async function(req, res) {
 	try {
 		const { name, age, experience, email, phone, interests } = req.body;
 		if (!name) return res.status(400).json({ ok: false, error: 'name required' });
-		const student = new Student({ name, age, experience, email, phone, interests });
+		const normalizedEmail = normalizeEmail(email);
+		if (!normalizedEmail) return res.status(400).json({ ok: false, error: 'valid email required' });
+
+		const now = new Date();
+		let student = await Student.findOne({ email: normalizedEmail }).exec();
+
+		if (student) {
+			if (student.applicationStatus === 'accepted' || student.applicationStatus === 'waitlisted') {
+				return res.status(403).json({ ok: false, error: 'You cannot submit another request while your application is accepted or waitlisted.' });
+			}
+
+			const minWaitMs = 1000 * 60 * 60 * 8; // 8 hours between submissions
+			if (student.lastRequestAt && now - student.lastRequestAt < minWaitMs) {
+				const remainingMinutes = Math.ceil((minWaitMs - (now - student.lastRequestAt)) / 60000);
+				return res.status(429).json({ ok: false, error: `Please wait ${remainingMinutes} more minute(s) before submitting again.` });
+			}
+
+			const isRejected = student.applicationStatus === 'rejected';
+			student.name = name;
+			student.age = age;
+			student.experience = experience;
+			student.phone = phone;
+			student.interests = interests;
+			student.email = normalizedEmail;
+			if (isRejected) {
+				student.applicationStatus = undefined;
+				student.applicationTeam = undefined;
+				student.statusMessage = undefined;
+				student.statusUpdatedAt = undefined;
+				student.statusBy = undefined;
+			}
+			student.requestCount = (student.requestCount || 0) + 1;
+			student.lastRequestAt = now;
+			await student.save();
+			return res.json({ ok: true, student });
+		}
+
+		student = new Student({
+			name,
+			age,
+			experience,
+			email: normalizedEmail,
+			phone,
+			interests,
+			requestCount: 1,
+			lastRequestAt: now
+		});
 		await student.save();
 		res.json({ ok: true, student });
 	} catch (err) {
