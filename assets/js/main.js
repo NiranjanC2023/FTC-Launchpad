@@ -326,6 +326,21 @@ function renderTeams(teams, userCoords) {
       }
     }
 
+    let hoverFocusTimer = null;
+    card.addEventListener('mouseenter', (event) => {
+      if (event.target.closest('.goto-marker') || event.target.closest('.toggle-details') || event.target.closest('.send-btn')) return;
+      hoverFocusTimer = setTimeout(() => {
+        focusTeamWhenReady(teamName, { openPopup: true, zoom: 14, scroll: true });
+      }, 2000);
+    });
+
+    card.addEventListener('mouseleave', () => {
+      if (hoverFocusTimer) {
+        clearTimeout(hoverFocusTimer);
+        hoverFocusTimer = null;
+      }
+    });
+
     // keep legacy behavior: use goto button to focus/open popup
 
     listEl.appendChild(card);
@@ -380,10 +395,7 @@ function renderTeams(teams, userCoords) {
       const marker = new google.maps.Marker({
         position: { lat: team.lat, lng: team.lon },
         map: map,
-        title: teamName,
-        icon: {
-          url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
-        }
+        title: teamName
       });
       
       marker.popupContent = popupContent;

@@ -38,8 +38,8 @@ mongoose.connect(params.DATABASECONNECTION, {
 
 setUpPassport();
 
-app.use(bodyParser.urlencoded({extended:false}));
-app.use(express.json());
+app.use(bodyParser.urlencoded({extended:false, limit:'10mb'}));
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use(session({
     secret:"doemlfgddfsoi!gjdsf5684561dsf",

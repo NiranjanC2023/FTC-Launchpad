@@ -36,6 +36,15 @@ function signIn(req, user) {
     req.session.userId = user._id.toString();
 }
 
+function applyRememberMe(req, remember) {
+    if (!req.session) return;
+    if (remember) {
+        req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 30;
+    } else {
+        req.session.cookie.maxAge = null;
+    }
+}
+
 function isDatabaseConnected() {
     return mongoose.connection.readyState === 1;
 }
@@ -749,6 +758,7 @@ router.post('/login', async function(req, res){
     try {
         if (!isDatabaseConnected()) return res.render('pages/login', { error: databaseErrorMessage() });
         const { email, password } = req.body;
+        const remember = req.body && (req.body.remember === '1' || req.body.remember === 'on' || req.body.remember === true);
         const normalizedEmail = normalizeEmail(email);
         if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required' });
         const user = await User.findOne({ email: normalizedEmail }).exec();
@@ -756,6 +766,7 @@ router.post('/login', async function(req, res){
         const ok = await user.validatePassword(password);
         if (!ok) return res.render('pages/login', { error: 'Invalid credentials' });
         signIn(req, user);
+        applyRememberMe(req, remember);
 
         // If the user is a team contact, redirect to management dashboard
         const team = await Team.findOne({ contact: normalizedEmail }).lean().exec();

@@ -27,6 +27,11 @@ function signIn(req, user) {
 	req.session.userId = user._id.toString();
 }
 
+function applyRememberMe(req, remember) {
+	if (!req.session) return;
+	req.session.cookie.maxAge = remember ? 1000 * 60 * 60 * 24 * 30 : null;
+}
+
 function isDatabaseConnected() {
 	return mongoose.connection.readyState === 1;
 }
@@ -119,6 +124,7 @@ router.post('/users/login', async function(req, res) {
 	try {
 		if (!requireDatabase(res)) return;
 		const { email, password } = req.body;
+		const remember = req.body && (req.body.remember === '1' || req.body.remember === 'on' || req.body.remember === true);
 		const normalizedEmail = normalizeEmail(email);
 		if (!normalizedEmail || !password) return res.status(400).json({ ok: false, error: 'email/password required' });
 		const user = await User.findOne({ email: normalizedEmail }).exec();
@@ -126,6 +132,7 @@ router.post('/users/login', async function(req, res) {
 		const ok = await user.validatePassword(password);
 		if (!ok) return res.status(400).json({ ok: false, error: 'invalid credentials' });
 		signIn(req, user);
+		applyRememberMe(req, remember);
 		res.json({ ok: true, user: publicUser(user) });
 	} catch (err) {
 		res.status(500).json({ ok: false, error: err.message });

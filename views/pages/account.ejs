@@ -39,6 +39,52 @@
       border: 4px solid rgba(26, 163, 74, 0.18);
       margin-bottom: 14px;
     }
+    .photo-control {
+      position: relative;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .photo-change {
+      border: 0;
+      background: transparent;
+      color: var(--accent-primary);
+      font-weight: 800;
+      padding: 0;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.18s ease;
+    }
+    .photo-control:hover .photo-change,
+    .photo-control:focus-within .photo-change {
+      opacity: 1;
+    }
+    .photo-menu {
+      width: 100%;
+      display: none;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: var(--shadow-sm);
+    }
+    .photo-control:hover .photo-menu,
+    .photo-control:focus-within .photo-menu {
+      display: grid;
+      gap: 8px;
+    }
+    @media (hover: none) {
+      .photo-menu {
+        display: grid;
+        gap: 8px;
+      }
+    }
+    .photo-menu .form-control {
+      min-height: 40px;
+      padding: 8px 10px;
+    }
     .account-form {
       margin-top: 16px;
       display: grid;
@@ -67,11 +113,15 @@
     <div class="account-grid">
       <div class="account-card">
         <div class="account-pill"><i class="fa-solid fa-user"></i> Profile</div>
-        <% if (user && user.profilePicture) { %>
-          <img class="account-photo" src="<%= user.profilePicture %>" alt="Profile picture">
-        <% } else { %>
-          <div class="account-photo-placeholder"><%= user && user.name ? user.name.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0].toUpperCase()).join('') : 'U' %></div>
-        <% } %>
+        <div class="photo-control">
+          <% if (user && user.profilePicture) { %>
+            <img class="account-photo" id="accountPhotoPreview" src="<%= user.profilePicture %>" alt="Profile picture">
+          <% } else { %>
+            <div class="account-photo-placeholder" id="accountPhotoPreview"><%= user && user.name ? user.name.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0].toUpperCase()).join('') : 'U' %></div>
+          <% } %>
+          <button type="button" class="photo-change" aria-controls="photoMenu">Change</button>
+          <small class="text-muted">Hover to change</small>
+        </div>
         <h2 style="margin-top: 0;"><%= user ? user.name : 'Account' %></h2>
         <p class="text-muted"><%= user ? user.email : '' %></p>
         <ul class="account-list">
@@ -85,8 +135,12 @@
           <a href="/logout" class="btn btn-secondary">Sign out</a>
         </div>
         <form class="account-form" method="POST" action="/account">
-          <label class="form-label" for="profilePicture">Profile picture URL</label>
-          <input class="form-control" type="url" id="profilePicture" name="profilePicture" placeholder="https://example.com/photo.jpg" value="<%= user && user.profilePicture ? user.profilePicture : '' %>">
+          <input type="hidden" id="profilePicture" name="profilePicture" value="<%= user && user.profilePicture ? user.profilePicture : '' %>">
+          <div class="photo-menu" id="photoMenu">
+            <label class="form-label" for="profilePictureFile">Upload photo</label>
+            <input class="form-control" type="file" id="profilePictureFile" accept="image/*">
+            <small class="text-muted">Choose an image and save it to your account.</small>
+          </div>
           <button class="btn btn-primary" type="submit">Save picture</button>
         </form>
       </div>
@@ -110,5 +164,42 @@
   </main>
 
   <script src="/assets/js/main.js"></script>
+  <script>
+    (() => {
+      const fileInput = document.getElementById('profilePictureFile');
+      const hiddenInput = document.getElementById('profilePicture');
+      const photoMenu = document.getElementById('photoMenu');
+      const preview = document.getElementById('accountPhotoPreview');
+      const changeButton = document.querySelector('.photo-change');
+      if (!fileInput || !hiddenInput) return;
+
+      if (changeButton) {
+        changeButton.addEventListener('click', () => fileInput.click());
+      }
+
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = String(reader.result || '');
+          hiddenInput.value = result;
+          if (preview) {
+            if (preview.tagName === 'IMG') {
+              preview.src = result;
+            } else {
+              const img = document.createElement('img');
+              img.className = 'account-photo';
+              img.id = 'accountPhotoPreview';
+              img.src = result;
+              img.alt = 'Profile picture';
+              preview.replaceWith(img);
+            }
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    })();
+  </script>
 </body>
 </html>

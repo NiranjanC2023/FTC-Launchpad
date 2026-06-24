@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function(){
       type: 'loop',
       perPage: 1,
       autoplay: true,
-      interval: 5000,
+      interval: 3000,
       pauseOnHover: true,
       pauseOnFocus: true,
       pagination: true,
