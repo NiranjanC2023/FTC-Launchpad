@@ -132,6 +132,43 @@
                             </form>
 
                             <hr style="border-top: 1px solid var(--border-color); margin: 30px 0;">
+                            <div class="panel-body" style="padding: 0;">
+                                <h4 style="margin: 0 0 18px; font-size: 1rem; font-weight: 700;">Team Managers</h4>
+                                <% if (teamManagers && teamManagers.length > 0) { %>
+                                    <ul style="list-style: none; padding: 0; margin: 0 0 22px 0;">
+                                        <% teamManagers.forEach(function(manager) { %>
+                                            <li style="margin-bottom: 10px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--surface);">
+                                                <strong><%= manager.name %></strong> • <%= manager.email %>
+                                            </li>
+                                        <% }); %>
+                                    </ul>
+                                <% } else { %>
+                                    <p class="text-muted" style="margin-bottom: 18px;">Currently only the primary contact has management access.</p>
+                                <% } %>
+
+                                <form action="/manage-team/managers/add" method="POST" class="text-left">
+                                    <div class="mb-3">
+                                        <label class="form-label">Add team manager</label>
+                                        <% if (managerCandidates && managerCandidates.length > 0) { %>
+                                            <select name="managerUserId" class="form-control" required>
+                                                <option value="">Select a team member</option>
+                                                <% managerCandidates.forEach(function(member) { %>
+                                                    <option value="<%= member._id %>"><%= member.name %> — <%= member.email %></option>
+                                                <% }); %>
+                                            </select>
+                                        <% } else { %>
+                                            <div class="alert alert-info" style="margin: 0;">No eligible team members have signed up yet or they are already managers.</div>
+                                        <% } %>
+                                    </div>
+                                    <% if (managerCandidates && managerCandidates.length > 0) { %>
+                                        <button type="submit" class="btn btn-primary btn-block" style="width: 100%;">
+                                            <i class="fa-solid fa-user-plus"></i> Add Manager
+                                        </button>
+                                    <% } %>
+                                </form>
+                            </div>
+
+                            <hr style="border-top: 1px solid var(--border-color); margin: 30px 0;">
                             <div class="danger-zone" style="text-align: left;">
                                 <h4 style="color: #dc2626; font-size: 0.8rem; font-weight: 800; text-transform: uppercase; margin-bottom: 5px;">Danger Zone</h4>
                                 <p class="small text-muted" style="margin-bottom: 15px;">Deleting your team will remove it from the map and recruitment feed. This is permanent.</p>

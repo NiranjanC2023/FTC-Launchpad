@@ -374,7 +374,7 @@ router.post('/team-register', async function(req, res) {
             });
         }
 
-        await Team.findOneAndUpdate(
+        const savedTeam = await Team.findOneAndUpdate(
             { teamNumber, program },
             {
                 program,
@@ -396,6 +396,13 @@ router.post('/team-register', async function(req, res) {
             },
             { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
         ).exec();
+
+        if (contact) {
+            const contactUser = await User.findOne({ email: contact }).select('_id').lean().exec();
+            if (contactUser && savedTeam) {
+                await Team.findByIdAndUpdate(savedTeam._id, { $addToSet: { managers: contactUser._id } }).exec();
+            }
+        }
 
         res.render('pages/team-register', {
             error: null,
@@ -424,6 +431,10 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             errorMessage = 'Failed to send the invitation email. Please check your email configuration.';
         } else if (queryError === 'update_failed') {
             errorMessage = 'Failed to update team details.';
+        } else if (queryError === 'manager_invalid') {
+            errorMessage = 'Selected member is not eligible to become a manager.';
+        } else if (queryError === 'manager_add_failed') {
+            errorMessage = 'Unable to add the new team manager. Please try again.';
         }
 
         // Handle success messages
@@ -431,10 +442,36 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         let successMessage = null;
         if (querySuccess === 'mail_sent') {
             successMessage = 'Invitation sent successfully!';
+        } else if (querySuccess === 'manager_added') {
+            successMessage = 'Manager added successfully!';
         }
 
-        // Find team associated with this user's email
-        const team = await Team.findOne({ contact: user.email }).lean().exec();
+        // Find team associated with this user's email or manager access
+        const team = await Team.findOne({
+            $or: [
+                { contact: user.email },
+                { managers: user._id }
+            ]
+        }).lean().exec();
+
+        let teamManagers = [];
+        let managerCandidates = [];
+        if (team) {
+            teamManagers = team.managers && team.managers.length
+                ? await User.find({ _id: { $in: team.managers } }).select('name email').lean().exec()
+                : [];
+
+            const teamMembers = await User.find({ teamNumber: team.teamNumber })
+                .select('name email profilePicture')
+                .lean()
+                .exec();
+
+            const managerIds = (team.managers || []).map(id => String(id));
+            managerCandidates = teamMembers.filter(member => {
+                return String(member.email).toLowerCase() !== String(team.contact).toLowerCase()
+                    && !managerIds.includes(String(member._id));
+            });
+        }
         
         // Fetch potential recruits (students who signed up via join-form)
         const recruits = await Student.find({}).sort({ createdAt: -1 }).limit(50).lean().exec();
@@ -442,6 +479,8 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         res.render('pages/manage-team', { 
             user, 
             team, 
+            teamManagers,
+            managerCandidates,
             recruits,
             error: errorMessage,
             success: successMessage
@@ -495,9 +534,14 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
 
         const { notes, recruiting } = req.body;
         
-        // Ensure the user actually owns this team by checking the contact email
+        // Ensure the user actually has management access on this team
         const team = await Team.findOneAndUpdate(
-            { contact: user.email },
+            {
+                $or: [
+                    { contact: user.email },
+                    { managers: user._id }
+                ]
+            },
             { 
                 notes: notes,
                 recruiting: recruiting === 'on',
@@ -517,6 +561,43 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
     } catch (err) {
         console.error('Update team error:', err);
         res.redirect('/manage-team?error=update_failed');
+    }
+});
+
+// Add Team Manager
+router.post('/manage-team/managers/add', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const team = await Team.findOne({
+            $or: [
+                { contact: user.email },
+                { managers: user._id }
+            ]
+        }).exec();
+
+        if (!team) {
+            return res.redirect('/manage-team?error=manager_invalid');
+        }
+
+        const managerUserId = req.body.managerUserId;
+        if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
+            return res.redirect('/manage-team?error=manager_invalid');
+        }
+
+        const candidate = await User.findOne({ _id: managerUserId, teamNumber: team.teamNumber }).exec();
+        if (!candidate) {
+            return res.redirect('/manage-team?error=manager_invalid');
+        }
+
+        await Team.findByIdAndUpdate(team._id, { $addToSet: { managers: candidate._id } }).exec();
+        res.redirect('/manage-team?success=manager_added');
+    } catch (err) {
+        console.error('Add manager error:', err);
+        res.redirect('/manage-team?error=manager_add_failed');
     }
 });
 
@@ -552,7 +633,12 @@ router.get('/manage-team/contact/:recruitId', ensureAuthenticated, async functio
     try {
         const recruit = await Student.findById(req.params.recruitId).lean().exec();
         const user = await User.findById(req.session.userId).lean().exec();
-        const team = await Team.findOne({ contact: user.email }).lean().exec();
+        const team = await Team.findOne({
+            $or: [
+                { contact: user.email },
+                { managers: user._id }
+            ]
+        }).lean().exec();
         
         if (!recruit || !team) return res.redirect('/manage-team');
         
@@ -568,7 +654,12 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
         const { message, meetingDate, meetingTime, meetingLocation } = req.body;
         const recruit = await Student.findById(req.params.recruitId).exec();
         const user = await User.findById(req.session.userId).lean().exec();
-        const team = await Team.findOne({ contact: user.email }).lean().exec();
+        const team = await Team.findOne({
+            $or: [
+                { contact: user.email },
+                { managers: user._id }
+            ]
+        }).lean().exec();
 
         if (!recruit || !team) return res.redirect('/manage-team');
 
@@ -647,13 +738,14 @@ router.get('/account', ensureAuthenticated, async function(req, res) {
         if (!user) return res.redirect('/logout');
 
         const teamByContact = await Team.findOne({ contact: user.email }).lean().exec();
+        const teamByManager = await Team.findOne({ managers: user._id }).lean().exec();
         const teamByNumber = user.teamNumber ? await Team.findOne({ teamNumber: user.teamNumber }).lean().exec() : null;
         const studentProfile = await Student.findOne({ email: user.email }).lean().exec();
 
         res.render('pages/account', {
             error: null,
             user,
-            team: teamByContact || teamByNumber,
+            team: teamByContact || teamByNumber || teamByManager,
             studentProfile
         });
     } catch (err) {
@@ -757,9 +849,14 @@ router.post('/login', async function(req, res){
         if (!ok) return res.render('pages/login', { error: 'Invalid credentials' });
         signIn(req, user);
 
-        // If the user is a team contact, redirect to management dashboard
-        const team = await Team.findOne({ contact: normalizedEmail }).lean().exec();
-        if (team) return res.redirect('/manage-team');
+        // If the user is a team contact or assigned manager, redirect to management dashboard
+        const manageTeam = await Team.findOne({
+            $or: [
+                { contact: normalizedEmail },
+                { managers: user._id }
+            ]
+        }).lean().exec();
+        if (manageTeam) return res.redirect('/manage-team');
 
         // If the user is a member of a team, redirect to their team page
         if (user.teamNumber) return res.redirect('/my-team');
