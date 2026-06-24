@@ -32,6 +32,7 @@
     "express-session": "^1.18.1",
     "mongoose": "^8.10.1",
     "nodemailer": "^9.0.1",
+    "nodemon": "^3.1.14",
     "passport": "^0.7.0"
   },
   "devDependencies": {

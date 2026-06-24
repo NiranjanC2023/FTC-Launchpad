@@ -5,6 +5,7 @@ const TeamSchema = new mongoose.Schema({
   teamNumber: { type: Number, required: true, unique: true },
   name: { type: String, required: true },
   contact: { type: String, required: true, trim: true },
+  managers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   address: { type: String, required: true, trim: true },
   city: { type: String, trim: true },
   state: { type: String, trim: true },
