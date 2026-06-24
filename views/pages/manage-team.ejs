@@ -137,8 +137,12 @@
                                 <% if (teamManagers && teamManagers.length > 0) { %>
                                     <ul style="list-style: none; padding: 0; margin: 0 0 22px 0;">
                                         <% teamManagers.forEach(function(manager) { %>
-                                            <li style="margin-bottom: 10px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--surface);">
-                                                <strong><%= manager.name %></strong> • <%= manager.email %>
+                                            <li style="margin-bottom: 10px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                                                <span><strong><%= manager.name %></strong> • <%= manager.email %></span>
+                                                <form action="/manage-team/managers/remove" method="POST" style="margin:0;">
+                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                    <button type="submit" class="btn btn-tertiary" style="padding: 8px 12px; font-size:0.88rem;">Remove</button>
+                                                </form>
                                             </li>
                                         <% }); %>
                                     </ul>

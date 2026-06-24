@@ -468,6 +468,12 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             errorMessage = 'Failed to update team details.';
         } else if (queryError === 'manager_invalid') {
             errorMessage = 'Selected member is not eligible to become a manager.';
+        } else if (queryError === 'manager_remove_invalid') {
+            errorMessage = 'Selected user is not a manager or cannot be removed.';
+        } else if (queryError === 'manager_remove_denied') {
+            errorMessage = 'You do not have permission to remove managers for this team.';
+        } else if (queryError === 'manager_remove_failed') {
+            errorMessage = 'Unable to remove the manager. Please try again.';
         } else if (queryError === 'manager_add_failed') {
             errorMessage = 'Unable to add the new team manager. Please try again.';
         }
@@ -479,6 +485,8 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             successMessage = 'Invitation sent successfully!';
         } else if (querySuccess === 'manager_added') {
             successMessage = 'Manager added successfully!';
+        } else if (querySuccess === 'manager_removed') {
+            successMessage = 'Manager removed successfully.';
         }
 
         // Find team associated with this user's email or manager access
@@ -633,6 +641,42 @@ router.post('/manage-team/managers/add', ensureAuthenticated, async function(req
     } catch (err) {
         console.error('Add manager error:', err);
         res.redirect('/manage-team?error=manager_add_failed');
+    }
+});
+
+// Remove a team manager
+router.post('/manage-team/managers/remove', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const team = await Team.findOne({
+            $or: [
+                { contact: user.email },
+                { managers: user._id }
+            ]
+        }).exec();
+
+        if (!team) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
+        const managerUserId = req.body.managerUserId;
+        if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
+            return res.redirect('/manage-team?error=manager_remove_invalid');
+        }
+
+        if (!team.managers.some(id => String(id) === String(managerUserId))) {
+            return res.redirect('/manage-team?error=manager_remove_invalid');
+        }
+
+        await Team.findByIdAndUpdate(team._id, { $pull: { managers: managerUserId } }).exec();
+        res.redirect('/manage-team?success=manager_removed');
+    } catch (err) {
+        console.error('Remove manager error:', err);
+        res.redirect('/manage-team?error=manager_remove_failed');
     }
 });
 
