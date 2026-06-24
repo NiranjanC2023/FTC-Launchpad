@@ -35,9 +35,10 @@
 
   <!-- Server-provided teams array (replace on server) -->
   <script>
-    // Expected shape: [{ name, lat, lon, contact, radiusMeters }, ...]
+    // Expected shape: [{ id, name, lat, lon, contact }, ...]
     window.__TEAMS__ = <%- JSON.stringify(typeof teams !== 'undefined' ? teams : null) %>;
     window.__USER_COORDS__ = <%- JSON.stringify(typeof userCoords !== 'undefined' ? userCoords : null) %>;
+    window.__STUDENT_APP__ = <%- JSON.stringify(typeof studentApp !== 'undefined' ? studentApp : null) %>;
   </script>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

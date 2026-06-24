@@ -53,6 +53,39 @@
         .btn-update:hover { background: #173d36; color: white; transform: translateY(-2px); }
 
         .status-pill { padding: 4px 12px; border-radius: 50px; font-size: 0.7rem; font-weight: 900; background: #e0f2fe; color: #0369a1; }
+        .recruit-action-row { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+        .btn-rounded { border-radius: 9999px; }
+        .btn-rounded.btn-sm { padding: 0.5rem 1rem; }
+        .btn-rounded:disabled { opacity: 0.55; cursor: not-allowed; }
+        .status-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: grid;
+            place-items: center;
+            padding: 30px;
+        }
+        .status-modal-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(2px);
+        }
+        .status-modal-panel {
+            position: relative;
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 30px 80px rgba(15,23,42,0.18);
+            width: min(620px, 100%);
+            max-height: min(90vh, 720px);
+            overflow-y: auto;
+            padding: 28px;
+            z-index: 1;
+        }
+        .status-modal.hidden { display: none; }
+        .status-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+        .status-modal-header h2 { margin: 0; font-size: 1.4rem; }
+        .btn-ghost { background: transparent; border: none; color: #475569; font-size: 1.5rem; line-height: 1; cursor: pointer; }
     </style>
 </head>
 <body class="dashboard-page">
@@ -98,6 +131,27 @@
                     <div class="stat-content">
                         <h4>Verification</h4>
                         <p><span class="status-pill">Official FIRST Team</span></p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #fef3c7; color: #b45309;"><i class="fa-solid fa-star"></i></div>
+                    <div class="stat-content">
+                        <h4>Accepted</h4>
+                        <p><%= typeof acceptedCount !== 'undefined' ? acceptedCount : 0 %></p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #ede9fe; color: #7c3aed;"><i class="fa-solid fa-hourglass-half"></i></div>
+                    <div class="stat-content">
+                        <h4>Waitlisted</h4>
+                        <p><%= typeof waitlistCount !== 'undefined' ? waitlistCount : 0 %></p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #fee2e2; color: #b91c1c;"><i class="fa-solid fa-ban"></i></div>
+                    <div class="stat-content">
+                        <h4>Rejected</h4>
+                        <p><%= typeof rejectedCount !== 'undefined' ? rejectedCount : 0 %></p>
                     </div>
                 </div>
                 <div class="stat-card">
@@ -216,17 +270,36 @@
                                         <div class="recruit-card">
                                             <div class="row" style="display: flex; align-items: center;">
                                                 <div class="col-sm-8">
-                                                    <h4 style="margin: 0 0 10px; color: var(--accent-primary); font-weight: 800;"><%= recruit.name %></h4>
+                                                    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+                                                        <h4 style="margin: 0; color: var(--accent-primary); font-weight: 800;"><%= recruit.name %></h4>
+                                                        <% if (recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id)) { %>
+                                                            <span class="status-pill" style="background: <%= recruit.applicationStatus === 'accepted' ? '#dcfce7' : recruit.applicationStatus === 'waitlisted' ? '#eef2ff' : '#fee2e2' %>; color: <%= recruit.applicationStatus === 'accepted' ? '#166534' : recruit.applicationStatus === 'waitlisted' ? '#4338ca' : '#991b1b' %>;">
+                                                                <%= recruit.applicationStatus.charAt(0).toUpperCase() + recruit.applicationStatus.slice(1) %>
+                                                            </span>
+                                                        <% } %>
+                                                    </div>
                                                     <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
                                                         <span class="label label-default" style="font-weight: 800;">Age <%= recruit.age %></span>
                                                         <span class="label label-info" style="background: var(--bg-secondary); color: var(--accent-primary); font-weight: 800;"><%= recruit.interests %></span>
                                                     </div>
                                                     <p class="small text-muted" style="margin: 0;"><strong>Background:</strong> <%= recruit.experience %></p>
                                                 </div>
-                                                <div class="col-sm-4 text-right">
-                                                    <a href="/manage-team/contact/<%= recruit._id %>" class="btn btn-success btn-sm">
-                                                        <i class="fa-solid fa-envelope"></i> Reach Out
-                                                    </a>
+                                                <div class="col-sm-4 text-right recruit-actions">
+                                                    <% const status = (recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id)) ? recruit.applicationStatus : null; %>
+                                                    <% const isFinal = status === 'accepted' || status === 'rejected'; %>
+                                                    <div class="recruit-action-row">
+                                                        <button type="button" class="btn btn-danger btn-sm btn-rounded recruit-action-btn" data-action="reject" data-recruit-id="<%= recruit._id %>" data-recruit-name="<%= recruit.name %>" <%= isFinal ? 'disabled' : '' %>>
+                                                            <i class="fa-solid fa-xmark"></i> Reject
+                                                        </button>
+                                                        <% if (status !== 'waitlisted' && !isFinal) { %>
+                                                            <button type="button" class="btn btn-warning btn-sm btn-rounded recruit-action-btn" data-action="waitlist" data-recruit-id="<%= recruit._id %>" data-recruit-name="<%= recruit.name %>">
+                                                                <i class="fa-solid fa-clock"></i> Waitlist
+                                                            </button>
+                                                        <% } %>
+                                                        <button type="button" class="btn btn-primary btn-sm btn-rounded recruit-action-btn" data-action="accept" data-recruit-id="<%= recruit._id %>" data-recruit-name="<%= recruit.name %>" <%= isFinal ? 'disabled' : '' %>>
+                                                            <i class="fa-solid fa-check"></i> Accept
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -240,8 +313,131 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="dashboard-panel" style="margin-top: 30px;">
+                        <div class="panel-head">
+                            <h3><i class="fa-solid fa-list-check"></i> Waitlist</h3>
+                            <span class="badge" style="background: var(--accent-secondary);"><%= waitlisted.length %> Waiting</span>
+                        </div>
+                        <div class="panel-body">
+                            <% if (waitlisted && waitlisted.length > 0) { %>
+                                <div class="list-group">
+                                    <% waitlisted.forEach(function(waitRecruit) { %>
+                                        <div class="recruit-card" style="margin-bottom: 12px;">
+                                            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                                                <div>
+                                                    <h4 style="margin:0; color: var(--accent-primary); font-weight:800;"><%= waitRecruit.name %></h4>
+                                                    <p class="small text-muted" style="margin:4px 0 0;">Email: <%= waitRecruit.email %></p>
+                                                </div>
+                                                <span class="status-pill" style="background: #eef2ff; color:#4338ca;">Waitlisted</span>
+                                            </div>
+                                        </div>
+                                    <% }); %>
+                                </div>
+                            <% } else { %>
+                                <div class="text-center" style="padding: 40px 0;">
+                                    <p class="text-muted" style="margin:0;">No one is currently on the waitlist.</p>
+                                </div>
+                            <% } %>
+                        </div>
+                    </div>
                 </div>
             </div>
+
+            <div id="statusActionModal" class="status-modal hidden">
+                <div class="status-modal-backdrop"></div>
+                <div class="status-modal-panel">
+                    <div class="status-modal-header">
+                        <h2 id="statusActionTitle">Send team response</h2>
+                        <button type="button" id="statusActionClose" class="btn btn-ghost" aria-label="Close">×</button>
+                    </div>
+                    <p id="statusActionInfo" style="margin:0 0 18px; color:#475569;"></p>
+                    <form id="statusActionForm" method="POST">
+                        <input type="hidden" name="action" value="">
+                        <div class="mb-3 status-custom-group">
+                            <label class="form-label" for="statusCustomMessage">Custom response</label>
+                            <textarea id="statusCustomMessage" name="customMessage" class="form-control" rows="5" placeholder="Add a custom message to the recipient..."></textarea>
+                            <p class="small text-muted" style="margin-top:8px;">This message will be included in the email to the student.</p>
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; gap: 12px; margin-top:18px;">
+                            <button type="button" id="statusActionCancel" class="btn btn-secondary">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Send Email</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <script>
+                (function() {
+                    const modal = document.getElementById('statusActionModal');
+                    const form = document.getElementById('statusActionForm');
+                    const actionTitle = document.getElementById('statusActionTitle');
+                    const actionInfo = document.getElementById('statusActionInfo');
+                    const messageGroup = document.querySelector('.status-custom-group');
+                    const messageField = document.getElementById('statusCustomMessage');
+                    const modalClose = document.getElementById('statusActionClose');
+                    const modalCancel = document.getElementById('statusActionCancel');
+
+                    function closeModal() {
+                        modal.classList.add('hidden');
+                        messageField.value = '';
+                    }
+
+                    function openModal(action, recruitId, recruitName) {
+                        form.action = '/manage-team/recruit/' + recruitId + '/status';
+                        form.querySelector('[name="action"]').value = action;
+                        if (action === 'accept') {
+                            actionTitle.textContent = 'Send Acceptance Email';
+                            actionInfo.textContent = 'Add a custom message to help the student understand next steps.';
+                            messageGroup.style.display = '';
+                        } else if (action === 'waitlist') {
+                            actionTitle.textContent = 'Send Waitlist Email';
+                            actionInfo.textContent = 'Add a custom message to explain the waitlist process and next steps.';
+                            messageGroup.style.display = '';
+                        } else {
+                            actionTitle.textContent = 'Send Rejection Email';
+                            actionInfo.textContent = 'A confirmation will be required before the rejection email is sent.';
+                            messageGroup.style.display = 'none';
+                        }
+                        modal.classList.remove('hidden');
+                        messageField.focus();
+                    }
+
+                    document.querySelectorAll('.recruit-action-btn').forEach(button => {
+                        button.addEventListener('click', function() {
+                            const action = this.dataset.action;
+                            const recruitId = this.dataset.recruitId;
+                            const recruitName = this.dataset.recruitName;
+
+                            if (action === 'reject') {
+                                const confirmed = window.confirm('Send a rejection email to ' + recruitName + '? This cannot be undone.');
+                                if (confirmed) {
+                                    openModal(action, recruitId, recruitName);
+                                    messageGroup.style.display = 'none';
+                                }
+                                return;
+                            }
+
+                            openModal(action, recruitId, recruitName);
+                        });
+                    });
+
+                    modalCancel.addEventListener('click', closeModal);
+                    modalClose.addEventListener('click', closeModal);
+
+                    form.addEventListener('submit', function(event) {
+                        const action = form.querySelector('[name="action"]').value;
+                        const message = messageField.value.trim();
+                        if (action === 'waitlist' || action === 'accept') {
+                            if (!window.confirm('Send this email to the recruit now?')) {
+                                event.preventDefault();
+                                return;
+                            }
+                        }
+                    });
+                })();
+            </script>
+
         <% } else { %>
             <div class="alert alert-info">
                 You haven't registered a team yet. <a href="/team-register" class="alert-link">Register your team now</a> to start managing recruits.

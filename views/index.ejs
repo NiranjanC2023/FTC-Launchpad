@@ -76,22 +76,61 @@
           </a>
 
           <div class="connect-center" aria-hidden="true">
-            <div class="connect-node">
-              <div class="connect-people">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-            </div>
+            <svg class="connect-illustration" viewBox="0 0 760 440" aria-hidden="true">
+              <defs>
+                <linearGradient id="connectNodeFill" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#f7fff9" />
+                  <stop offset="100%" stop-color="#def5e5" />
+                </linearGradient>
+                <linearGradient id="connectLine" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#28a34a" />
+                  <stop offset="100%" stop-color="#0f8a37" />
+                </linearGradient>
+                <linearGradient id="avatarHead" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#ffba76" />
+                  <stop offset="50%" stop-color="#ffc07e" />
+                  <stop offset="50%" stop-color="#f7a764" />
+                  <stop offset="100%" stop-color="#f2a05c" />
+                </linearGradient>
+                <linearGradient id="avatarBody" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#6fa8ff" />
+                  <stop offset="50%" stop-color="#6fa8ff" />
+                  <stop offset="50%" stop-color="#2f86ff" />
+                  <stop offset="100%" stop-color="#2f86ff" />
+                </linearGradient>
+              </defs>
+
+              <line x1="166" y1="112" x2="574" y2="332" class="connect-route" stroke="url(#connectLine)" />
+
+              <g transform="translate(52 4)">
+                <rect x="0" y="0" width="166" height="166" rx="36" fill="url(#connectNodeFill)" stroke="#21a74f" stroke-width="2" />
+                <circle cx="83" cy="52" r="27" fill="url(#avatarHead)" />
+                <path d="M42 146c0-33 18-56 41-56h0c23 0 41 23 41 56" fill="url(#avatarBody)" />
+              </g>
+
+              <g transform="translate(470 244)">
+                <rect x="0" y="0" width="210" height="210" rx="44" fill="url(#connectNodeFill)" stroke="#21a74f" stroke-width="2" />
+                <g transform="translate(34 40)">
+                  <circle cx="18" cy="18" r="14" fill="url(#avatarHead)" />
+                  <path d="M4 96c0-22 10-38 20-38h0c10 0 20 16 20 38" fill="url(#avatarBody)" />
+                </g>
+                <g transform="translate(84 30)">
+                  <circle cx="18" cy="18" r="16" fill="url(#avatarHead)" />
+                  <path d="M2 108c0-26 12-44 22-44h0c10 0 22 18 22 44" fill="url(#avatarBody)" />
+                </g>
+                <g transform="translate(134 40)">
+                  <circle cx="18" cy="18" r="14" fill="url(#avatarHead)" />
+                  <path d="M4 96c0-22 10-38 20-38h0c10 0 20 16 20 38" fill="url(#avatarBody)" />
+                </g>
+              </g>
+
+            </svg>
           </div>
 
           <a class="connect-card connect-card-register" href="/team-register">
             Register a team
             <span>For mentors, coaches, and organizers</span>
           </a>
-
-          <span class="connect-path connect-path-left" aria-hidden="true"></span>
-          <span class="connect-path connect-path-right" aria-hidden="true"></span>
         </div>
       </div>
     </section>

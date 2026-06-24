@@ -93,6 +93,7 @@ function mapTeam(team) {
         : [team.address, team.state, team.country].filter(Boolean).join(', ');
 
     return {
+        id: team._id,
         program: team.program || 'FTC',
         teamNumber: team.teamNumber,
         name: team.name,
@@ -364,7 +365,24 @@ router.get("/teams-nearby", async function(req, res){
             .limit(300)
             .lean()
             .exec();
-        res.render("pages/teams-nearby", { teams: teams.map(mapTeam) });
+
+        let studentApp = null;
+        if (req.session && req.session.userId) {
+            const user = await User.findById(req.session.userId).select('email').lean().exec();
+            if (user && user.email) {
+                const student = await Student.findOne({ email: normalizeEmail(user.email) }).lean().exec();
+                if (student) {
+                    studentApp = {
+                        applicationStatus: student.applicationStatus || null,
+                        requestCount: student.requestCount || 0,
+                        lastRequestAt: student.lastRequestAt ? student.lastRequestAt.toISOString() : null,
+                        blocked: ['accepted', 'waitlisted'].includes(student.applicationStatus)
+                    };
+                }
+            }
+        }
+
+        res.render("pages/teams-nearby", { teams: teams.map(mapTeam), studentApp });
     } catch (err) {
         console.error('Failed to load nearby teams:', err);
         res.render("pages/teams-nearby", { teams: [] });
@@ -496,6 +514,8 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             successMessage = 'Manager added successfully!';
         } else if (querySuccess === 'manager_removed') {
             successMessage = 'Manager removed successfully.';
+        } else if (querySuccess === 'status_updated') {
+            successMessage = 'Status updated and email sent successfully.';
         }
 
         // Find team associated with this user's email or manager access
@@ -524,9 +544,6 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
                     && !managerIds.includes(String(member._id));
             });
         }
-        
-        // Fetch potential recruits (students who signed up via join-form)
-        const recruits = await Student.find({}).sort({ createdAt: -1 }).limit(50).lean().exec();
 
         if (!team) {
             return res.render('pages/manage-team', {
@@ -535,10 +552,24 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
                 teamManagers: [],
                 managerCandidates: [],
                 recruits: [],
+                waitlisted: [],
+                acceptedCount: 0,
+                waitlistCount: 0,
+                rejectedCount: 0,
                 error: 'You are no longer a manager on any team.',
                 success: null
             });
         }
+
+        // Fetch potential recruits (students who signed up via join-form)
+        const allRecruits = await Student.find({}).sort({ createdAt: -1 }).limit(50).lean().exec();
+        const recruits = allRecruits.filter(recruit => {
+            return !recruit.applicationTeam || String(recruit.applicationTeam) === String(team._id);
+        });
+        const waitlisted = recruits.filter(recruit => recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id) && recruit.applicationStatus === 'waitlisted');
+        const acceptedCount = recruits.filter(recruit => recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id) && recruit.applicationStatus === 'accepted').length;
+        const waitlistCount = waitlisted.length;
+        const rejectedCount = recruits.filter(recruit => recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id) && recruit.applicationStatus === 'rejected').length;
 
         res.render('pages/manage-team', { 
             user, 
@@ -546,6 +577,10 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             teamManagers,
             managerCandidates,
             recruits,
+            waitlisted,
+            acceptedCount,
+            waitlistCount,
+            rejectedCount,
             error: errorMessage,
             success: successMessage
         });
@@ -807,6 +842,87 @@ router.get('/manage-team/contact/:recruitId', ensureAuthenticated, async functio
         res.render('pages/contact-recruit', { recruit, team, user, error: null });
     } catch (err) {
         res.redirect('/manage-team');
+    }
+});
+
+// Update recruit application status and send email
+router.post('/manage-team/recruit/:recruitId/status', ensureAuthenticated, async function(req, res) {
+    try {
+        const action = String(req.body.action || '').trim().toLowerCase();
+        const customMessage = String(req.body.customMessage || '').trim();
+        if (!['accept', 'waitlist', 'reject'].includes(action)) {
+            return res.redirect('/manage-team?error=mail_failed');
+        }
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const team = await Team.findOne({
+            $or: [
+                { contact: user.email },
+                { managers: user._id }
+            ]
+        }).lean().exec();
+        if (!team) return res.redirect('/manage-team?error=invite_denied');
+
+        const recruit = await Student.findById(req.params.recruitId).exec();
+        if (!recruit || !recruit.email) return res.redirect('/manage-team?error=mail_failed');
+
+        let subject;
+        let bodyIntro;
+        let status;
+
+        const customBlock = customMessage ? `
+            <div style="margin: 20px 0; padding: 18px; background: #f8fafc; border-radius: 10px;">
+                <p style="margin:0 0 8px; font-weight:700;">Message from ${team.name}:</p>
+                <p style="margin:0;">${customMessage}</p>
+            </div>
+        ` : '';
+
+        if (action === 'reject') {
+            subject = `${team.name} Application Update`;
+            bodyIntro = `Thank you for your interest in joining ${team.name}. After reviewing your profile, we are unable to move forward at this time. We appreciate your interest and wish you the best in your season.`;
+            status = 'rejected';
+        } else if (action === 'waitlist') {
+            subject = `${team.name} Waitlist Notification`;
+            bodyIntro = `Thank you for applying to ${team.name}. We really like your profile and would like to keep you on our waitlist. We will contact you if a spot opens.`;
+            status = 'waitlisted';
+        } else {
+            subject = `${team.name} Application Accepted`;
+            bodyIntro = `Congratulations! ${team.name} would like to invite you to join our team. Please reply to this email and we will share the next steps with you.`;
+            status = 'accepted';
+        }
+
+        const mailOptions = {
+            from: `"${team.name}" <${process.env.EMAIL_USER}>`,
+            replyTo: team.contact,
+            to: recruit.email,
+            subject,
+            html: `
+                <div style="font-family: sans-serif; padding: 20px; color: #333;">
+                    <h2>Hello ${recruit.name || 'there'}!</h2>
+                    <p>${bodyIntro}</p>
+                    ${customBlock}
+                    <p style="margin-top: 20px;">If you have questions, please reply to this message at <strong>${team.contact}</strong>.</p>
+                    <hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;" />
+                    <p style="font-size: 0.85rem; color: #6b7280;">Sent via FTC Starter Hub Command Center</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        recruit.applicationStatus = status;
+        recruit.applicationTeam = team._id;
+        recruit.statusMessage = customMessage || null;
+        recruit.statusUpdatedAt = new Date();
+        recruit.statusBy = user._id;
+        await recruit.save();
+
+        res.redirect('/manage-team?success=status_updated');
+    } catch (err) {
+        console.error('Status update error:', err);
+        res.redirect('/manage-team?error=mail_failed');
     }
 });
 

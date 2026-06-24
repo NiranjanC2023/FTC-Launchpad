@@ -483,6 +483,22 @@ function sendToTeam(team) {
     return;
   }
 
+  if (window.__STUDENT_APP__ && window.__STUDENT_APP__.blocked) {
+    alert(`Your application is currently ${window.__STUDENT_APP__.applicationStatus}. You cannot send more requests through this account.`);
+    return;
+  }
+
+  if (window.__STUDENT_APP__ && window.__STUDENT_APP__.lastRequestAt) {
+    const last = new Date(window.__STUDENT_APP__.lastRequestAt);
+    const minWaitMs = 1000 * 60 * 60 * 8;
+    const remaining = minWaitMs - (Date.now() - last.getTime());
+    if (remaining > 0) {
+      const minutes = Math.ceil(remaining / 60000);
+      alert(`Please wait ${minutes} more minute(s) before sending another request.`);
+      return;
+    }
+  }
+
   const info = JSON.parse(raw);
   const subject = encodeURIComponent(`Student Interested: ${info.name}`);
   const bodyLines = [
@@ -495,58 +511,54 @@ function sendToTeam(team) {
     `Sent from: FTC Starter Hub`,
   ];
   const body = encodeURIComponent(bodyLines.join('\n'));
+  const recipient = team.contact || '';
+  const domain = (recipient.split('@')[1] || '').toLowerCase();
 
-  // Open mail client with prefilled message
-  window.location.href = `mailto:${team.contact}?subject=${subject}&body=${body}`;
+  const providerUrls = {
+    'gmail.com': `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipient)}&su=${subject}&body=${body}`,
+    'googlemail.com': `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipient)}&su=${subject}&body=${body}`,
+    'yahoo.com': `https://compose.mail.yahoo.com/?to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
+    'ymail.com': `https://compose.mail.yahoo.com/?to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
+    'outlook.com': `https://outlook.live.com/owa/?path=/mail/action/compose&to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
+    'hotmail.com': `https://outlook.live.com/owa/?path=/mail/action/compose&to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
+    'live.com': `https://outlook.live.com/owa/?path=/mail/action/compose&to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
+    'msn.com': `https://outlook.live.com/owa/?path=/mail/action/compose&to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
+    'protonmail.com': `https://mail.proton.me/compose?to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
+    'icloud.com': `https://www.icloud.com/mail`,
+    'zoho.com': `https://mail.zoho.com/compose?to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`
+  };
 
-  // Show a "Done" popup to confirm the action
-  alert("Done! Your mail app has been opened to send your information to " + (team.name || "the team") + ".");
+  const providerUrl = providerUrls[domain];
+  if (providerUrl) {
+    window.open(providerUrl, '_blank');
+    alert('Opened webmail for ' + domain + '. Please complete the message in your browser.');
+  } else {
+    window.location.href = `mailto:${recipient}?subject=${subject}&body=${body}`;
+    alert('Opened your default mail client so you can send your information to ' + (team.name || 'the team') + '.');
+  }
 }
 
 function initTeamsPage() {
   const container = document.getElementById('teamsContainer');
   if (!container) return;
 
-  const studentRaw = sessionStorage.getItem(STUDENT_KEY);
-  const serverTeams = Array.isArray(window.__TEAMS__) ? window.__TEAMS__ : null;
-  if (!studentRaw && !serverTeams) {
-    const status = document.getElementById('teamsStatus');
-    if (status) status.innerHTML = 'No signup info found. <a href="/join-form">Fill the form first</a>.';
-    // render sample teams so the page layout and map still appear
-    renderTeams(SAMPLE_TEAMS, null);
-    return;
-  }
-
-  // If server provided teams (EJS), use them directly
-  if (serverTeams) {
-    const teams = serverTeams;
-    const coords = window.__USER_COORDS__ || null;
-    const status = document.getElementById('teamsStatus');
-    if (status) {
-      status.textContent = teams.length
-        ? 'Showing verified teams that are recruiting'
-        : 'No verified teams are currently marked as recruiting';
-    }
-    renderTeams(teams, coords);
-    return;
-  }
-
+  const teams = Array.isArray(window.__TEAMS__) && window.__TEAMS__.length > 0 ? window.__TEAMS__ : SAMPLE_TEAMS;
+  const coords = window.__USER_COORDS__ || null;
   const status = document.getElementById('teamsStatus');
-  // Render a usable view immediately so the page isn't blank while waiting for geolocation
   status.textContent = 'Loading teams…';
-  renderTeams(SAMPLE_TEAMS, null);
+
+  renderTeams(teams, coords);
 
   // Try to get a more accurate list based on user's location, but don't block the UI.
   if (navigator.geolocation) {
     const geoOptions = { maximumAge: 60000, timeout: 2000, enableHighAccuracy: false };
     navigator.geolocation.getCurrentPosition((pos) => {
-      const coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      status.textContent = `Found your location (${coords.lat.toFixed(3)}, ${coords.lon.toFixed(3)})`;
-      const withDist = SAMPLE_TEAMS.map(t => ({ ...t, distance: haversineDistance(coords.lat, coords.lon, t.lat, t.lon) }));
+      const userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      status.textContent = `Found your location (${userCoords.lat.toFixed(3)}, ${userCoords.lon.toFixed(3)})`;
+      const withDist = teams.map(t => ({ ...t, distance: haversineDistance(userCoords.lat, userCoords.lon, t.lat, t.lon) }));
       withDist.sort((a,b) => a.distance - b.distance);
-      renderTeams(withDist, coords);
+      renderTeams(withDist, userCoords);
     }, (err) => {
-      // If geolocation fails or times out, leave the immediate list in place and show a brief notice.
       status.textContent = 'Using nearby teams (location unavailable)';
     }, geoOptions);
   } else {
