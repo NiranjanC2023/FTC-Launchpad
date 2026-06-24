@@ -5,12 +5,10 @@
   <title>Sign Up to Join - FTC Starter Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Google Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 
-  <!-- Styles -->
   <link rel="stylesheet" href="/assets/css/main.css?v=13">
 </head>
 <body>
@@ -23,24 +21,31 @@
       <h1>Sign Up to Join a Team</h1>
       <p class="subtitle">Enter your details and we'll show nearby teams you can contact.</p>
 
+      <% const hasSavedProfile = values && (values.name || values.age || values.email || values.phone || values.interests || values.experience); %>
+      <% if (hasSavedProfile) { %>
+        <div class="alert alert-info" style="margin-bottom: 18px;">
+          We pulled this from your signup profile so you do not need to type it again.
+        </div>
+      <% } %>
+
       <form id="joinForm" class="form-grid">
         <label for="name">Full name</label>
-        <input id="name" name="name" required>
+        <input id="name" name="name" value="<%= values && values.name ? values.name : '' %>" required>
 
         <label for="age">Age</label>
-        <input id="age" name="age" type="number" min="8" max="120">
+        <input id="age" name="age" type="number" min="8" max="120" value="<%= values && values.age ? values.age : '' %>">
 
         <label for="experience">Experience (brief)</label>
-        <input id="experience" name="experience" placeholder="e.g., none, some Java, built RC car">
+        <textarea id="experience" name="experience" rows="4" placeholder="e.g., none, some Java, built RC car"><%= values && values.experience ? values.experience : '' %></textarea>
 
         <label for="interests">Interests / Roles</label>
-        <input id="interests" name="interests" placeholder="programming, mechanical, outreach">
+        <input id="interests" name="interests" placeholder="programming, mechanical, outreach" value="<%= values && values.interests ? values.interests : '' %>">
 
         <label for="email">Email</label>
-        <input id="email" name="email" type="email">
+        <input id="email" name="email" type="email" value="<%= values && values.email ? values.email : '' %>">
 
         <label for="phone">Phone (optional)</label>
-        <input id="phone" name="phone" type="tel">
+        <input id="phone" name="phone" type="tel" value="<%= values && values.phone ? values.phone : '' %>">
 
         <div></div>
         <div>

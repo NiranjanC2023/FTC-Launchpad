@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="/assets/css/first-start.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.3/dist/css/splide.min.css">
 </head>
-<body>
+<body class="home-page">
   <header>
     <div class="creator-badge">Created By FTC 25690</div>
   </header>
@@ -68,37 +68,30 @@
     <section class="connect-graphic">
       <div class="container">
         <h3>Connecting students to teams</h3>
-        <div class="svg-wrap" aria-hidden="true">
-          <div class="connect-stage">
-            <!-- Student icon: drop the provided student image at assets/img/student-icon.png -->
-            <img src="/assets/img/student-icon.png" class="icon student" alt="Student"
-                 onerror="this.style.display='none'; this.nextElementSibling.style.display='block'" />
-            <!-- fallback student SVG (shown if image fails) -->
-            <div class="icon-fallback student" style="display:none;" aria-hidden="true">
-              <svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="32" cy="32" r="30" fill="#dbeffe" />
-                <path d="M32 34c6 0 10 3 10 6v3H22v-3c0-3 4-6 10-6z" fill="#0b74de" />
-                <circle cx="32" cy="22" r="7" fill="#0b74de" />
-              </svg>
-            </div>
+        <p class="connect-subtitle">A simple path to getting involved with FIRST.</p>
+        <div class="connect-stage" aria-label="Connecting students to teams diagram">
+          <a class="connect-card connect-card-join" href="/teams-nearby">
+            Join a team
+            <span>For students who want to get started</span>
+          </a>
 
-            <!-- SVG connector (diagonal) -->
-            <svg class="connector-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              <line x1="18" y1="20" x2="82" y2="80" class="connector-line" />
-            </svg>
-
-              <img src="/assets/img/team-icon.png" class="icon team" alt="Team"
-                onerror="this.style.display='none'; this.nextElementSibling.style.display='block'" />
-            <!-- fallback team SVG (shown if image fails) -->
-            <div class="icon-fallback team" style="display:none;" aria-hidden="true">
-              <svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="32" cy="32" r="30" fill="#ffe6e0" />
-                <path d="M20 44c0-4 4-7 12-7s12 3 12 7v2H20v-2z" fill="#16a34a" />
-                <circle cx="24" cy="26" r="5" fill="#16a34a" />
-                <circle cx="40" cy="26" r="5" fill="#16a34a" />
-              </svg>
+          <div class="connect-center" aria-hidden="true">
+            <div class="connect-node">
+              <div class="connect-people">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
             </div>
           </div>
+
+          <a class="connect-card connect-card-register" href="/team-register">
+            Register a team
+            <span>For mentors, coaches, and organizers</span>
+          </a>
+
+          <span class="connect-path connect-path-left" aria-hidden="true"></span>
+          <span class="connect-path connect-path-right" aria-hidden="true"></span>
         </div>
       </div>
     </section>

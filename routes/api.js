@@ -16,7 +16,9 @@ function publicUser(user) {
 		email: user.email,
 		age: user.age,
 		phone: user.phone,
+		profilePicture: user.profilePicture,
 		interests: user.interests,
+		experience: user.experience,
 		teamNumber: user.teamNumber
 	};
 }
@@ -88,7 +90,7 @@ router.get('/signups', async function(req, res) {
 router.post('/users/signup', async function(req, res) {
 	try {
 		if (!requireDatabase(res)) return;
-		const { name, email, password, age, phone, interests } = req.body;
+		const { name, email, password, age, phone, profilePicture, interests, experience } = req.body;
 		const normalizedEmail = normalizeEmail(email);
 		if (!name || !normalizedEmail || !password) return res.status(400).json({ ok: false, error: 'name/email/password required' });
 		const existing = await User.findOne({ email: normalizedEmail }).exec();
@@ -98,7 +100,9 @@ router.post('/users/signup', async function(req, res) {
 			email: normalizedEmail,
 			age: age ? Number(age) : undefined,
 			phone,
-			interests
+			profilePicture,
+			interests,
+			experience
 		});
 		await user.setPassword(password);
 		await user.save();
@@ -141,7 +145,7 @@ router.get('/users/me', async function(req, res) {
 	try {
 		if (!req.session.userId) return res.json({ ok: true, user: null });
 		if (!requireDatabase(res)) return;
-		const user = await User.findById(req.session.userId).select('name email age phone interests teamNumber createdAt').exec();
+		const user = await User.findById(req.session.userId).select('name email age phone profilePicture interests experience teamNumber createdAt').exec();
 		if (!user) return res.json({ ok: true, user: null });
 
 		const team = await Team.findOne({ contact: user.email }).select('_id').lean().exec();
