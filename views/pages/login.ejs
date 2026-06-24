@@ -17,6 +17,7 @@
         <div class="alert alert-danger"><%= error %></div>
       <% } %>
       <form method="POST" action="/login">
+        <input type="hidden" name="inviteToken" value="<%= inviteToken || '' %>" />
         <div class="mb-3">
           <label class="form-label">Email</label>
           <input name="email" type="email" class="form-control" required />
@@ -30,7 +31,7 @@
         </div>
         <button class="btn btn-primary" type="submit">Log in</button>
       </form>
-      <p style="margin-top:14px">Don't have an account? <a href="#" data-href="/signup">Sign up</a></p>
+      <p style="margin-top:14px">Don't have an account? <a href="/signup/manager?<%= inviteToken ? 'inviteToken=' + encodeURIComponent(inviteToken) : '' %>">Sign up</a></p>
     </div>
   </main>
 

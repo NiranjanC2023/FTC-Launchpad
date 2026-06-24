@@ -3,10 +3,12 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const User = require('../models/user');
 const Team = require('../models/team');
+const ManagerInvite = require('../models/managerInvite');
 const nodemailer = require('nodemailer');
 const Student = require('../models/student');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -34,6 +36,26 @@ function normalizeEmail(email) {
 
 function signIn(req, user) {
     req.session.userId = user._id.toString();
+}
+
+function createInviteToken() {
+    return crypto.randomBytes(24).toString('hex');
+}
+
+async function acceptInviteToken(token, user) {
+    if (!token || !user) return null;
+    const invite = await ManagerInvite.findOne({ token }).exec();
+    if (!invite) return null;
+    if (invite.expiresAt && invite.expiresAt < new Date()) return null;
+    if (normalizeEmail(user.email) !== normalizeEmail(invite.email)) return null;
+
+    const team = await Team.findById(invite.team).exec();
+    if (!team) return null;
+
+    await Team.findByIdAndUpdate(team._id, { $addToSet: { managers: user._id } }).exec();
+    invite.acceptedAt = new Date();
+    await invite.save();
+    return team;
 }
 
 function applyRememberMe(req, remember) {
@@ -438,6 +460,10 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         
         if (queryError === 'mail_failed') {
             errorMessage = 'Failed to send the invitation email. Please check your email configuration.';
+        } else if (queryError === 'invite_invalid') {
+            errorMessage = 'Invalid invitation email or token. Please enter a valid email address.';
+        } else if (queryError === 'invite_denied') {
+            errorMessage = 'You do not have permission to invite managers for this team.';
         } else if (queryError === 'update_failed') {
             errorMessage = 'Failed to update team details.';
         } else if (queryError === 'manager_invalid') {
@@ -449,7 +475,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         // Handle success messages
         const querySuccess = req.query.success;
         let successMessage = null;
-        if (querySuccess === 'mail_sent') {
+        if (querySuccess === 'invite_sent') {
             successMessage = 'Invitation sent successfully!';
         } else if (querySuccess === 'manager_added') {
             successMessage = 'Manager added successfully!';
@@ -610,6 +636,63 @@ router.post('/manage-team/managers/add', ensureAuthenticated, async function(req
     }
 });
 
+// Invite a user by email to become a manager
+router.post('/manage-team/invite', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const team = await Team.findOne({
+            $or: [
+                { contact: user.email },
+                { managers: user._id }
+            ]
+        }).exec();
+
+        if (!team) {
+            return res.redirect('/manage-team?error=invite_denied');
+        }
+
+        const inviteEmail = normalizeEmail(req.body.email);
+        if (!inviteEmail) {
+            return res.redirect('/manage-team?error=invite_invalid');
+        }
+
+        let invite = await ManagerInvite.findOne({ team: team._id, email: inviteEmail, acceptedAt: null }).exec();
+        if (!invite) {
+            const token = createInviteToken();
+            invite = new ManagerInvite({ team: team._id, email: inviteEmail, token });
+            await invite.save();
+        }
+
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const inviteLink = `${baseUrl}/invite/${invite.token}`;
+
+        const mailOptions = {
+            from: `"${team.name}" <${process.env.EMAIL_USER}>`,
+            to: inviteEmail,
+            subject: `Invitation to manage ${team.name}`,
+            html: `
+                <div style="font-family:sans-serif; padding:20px; color:#333;">
+                    <h2>You have been invited to manage ${team.name}</h2>
+                    <p><strong>Team:</strong> ${team.name} (#${team.teamNumber})</p>
+                    <p>Click the link below to accept your management invitation:</p>
+                    <p><a href="${inviteLink}" style="display:inline-block; padding:12px 18px; background:#0369a1; color:#fff; text-decoration:none; border-radius:6px;">Accept invitation</a></p>
+                    <p>If you don’t have an account yet, you’ll be asked to sign up with this email.</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        res.redirect('/manage-team?success=invite_sent');
+    } catch (err) {
+        console.error('Invite send error:', err);
+        res.redirect('/manage-team?error=invite_invalid');
+    }
+});
+
 // Delete Team
 router.post('/manage-team/delete', ensureAuthenticated, async function(req, res) {
     try {
@@ -763,29 +846,73 @@ router.get('/account', ensureAuthenticated, async function(req, res) {
     }
 });
 
+// Invite landing page
+router.get('/invite/:token', async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.render('pages/invite-signup', { error: databaseErrorMessage(), token: req.params.token, email: '', teamName: '' });
+
+        const invite = await ManagerInvite.findOne({ token: req.params.token }).lean().exec();
+        if (!invite) {
+            return res.render('pages/invite-signup', { error: 'This invitation link is invalid or expired.', token: req.params.token, email: '', teamName: '' });
+        }
+
+        const team = await Team.findById(invite.team).lean().exec();
+        if (!team) {
+            return res.render('pages/invite-signup', { error: 'The invited team could not be found.', token: req.params.token, email: invite.email, teamName: '' });
+        }
+
+        if (req.session.userId) {
+            const user = await User.findById(req.session.userId).lean().exec();
+            if (user && normalizeEmail(user.email) === normalizeEmail(invite.email)) {
+                await acceptInviteToken(req.params.token, user);
+                return res.redirect('/manage-team');
+            }
+        }
+
+        res.render('pages/invite-signup', { error: null, token: req.params.token, email: invite.email, teamName: team.name });
+    } catch (err) {
+        console.error('Invite route error:', err);
+        res.render('pages/invite-signup', { error: 'Unable to process the invitation right now.', token: req.params.token, email: '', teamName: '' });
+    }
+});
+
 // Account routes
 router.get('/signup', function(req, res){
-    res.render('pages/signup', { error: null });
+    res.render('pages/signup', { error: null, inviteToken: req.query.inviteToken || null });
 });
 
 // Dedicated pages for each signup mode (selection page links here)
-router.get('/signup/seeker', function(req, res){
-    res.render('pages/signup-seeker', { error: null, values: {} });
+router.get('/signup/seeker', async function(req, res){
+    const values = {};
+    if (req.query.inviteToken) {
+        const invite = await ManagerInvite.findOne({ token: req.query.inviteToken }).lean().exec();
+        if (invite) {
+            values.email = invite.email;
+        }
+    }
+    res.render('pages/signup-seeker', { error: null, values, inviteToken: req.query.inviteToken || null });
 });
 
-router.get('/signup/manager', function(req, res){
-    res.render('pages/signup-manager', { error: null, values: {} });
+router.get('/signup/manager', async function(req, res){
+    const values = {};
+    if (req.query.inviteToken) {
+        const invite = await ManagerInvite.findOne({ token: req.query.inviteToken }).lean().exec();
+        if (invite) {
+            values.email = invite.email;
+        }
+    }
+    res.render('pages/signup-manager', { error: null, values, inviteToken: req.query.inviteToken || null });
 });
 
 router.post('/signup', async function(req, res){
     const mode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
     try {
-        if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {} });
-        const { name, email, password, age, phone, profilePicture, interests, experience } = req.body;
+        if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {}, inviteToken: req.body.inviteToken || null });
+        const { name, email, password, age, phone, profilePicture, interests, experience, inviteToken } = req.body;
         const normalizedEmail = normalizeEmail(email);
-        if (!name || !normalizedEmail || !password) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body });
+        if (!name || !normalizedEmail || !password) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body, inviteToken: inviteToken || null });
         const existing = await User.findOne({ email: normalizedEmail }).exec();
-        if (existing) return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body });
+        if (existing) return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body, inviteToken: inviteToken || null });
         const user = new User({
             name: name.trim(),
             email: normalizedEmail,
@@ -799,11 +926,17 @@ router.post('/signup', async function(req, res){
         await user.save();
         console.log(`User signup saved: ${user.email} -> ${mongoose.connection.name}.${User.collection.name}`);
         signIn(req, user);
+
+        if (inviteToken) {
+            const acceptedTeam = await acceptInviteToken(inviteToken, user);
+            if (acceptedTeam) return res.redirect('/manage-team');
+        }
+
         res.redirect('/account');
     } catch (err) {
         console.error('Signup failed:', err);
         const renderMode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
-        res.render(`pages/signup-${renderMode}`, { error: err.message, values: req.body || {} });
+        res.render(`pages/signup-${renderMode}`, { error: err.message, values: req.body || {}, inviteToken: req.body.inviteToken || null });
     }
 });
 
@@ -843,22 +976,27 @@ router.post('/account', ensureAuthenticated, async function(req, res) {
 });
 
 router.get('/login', function(req, res){
-    res.render('pages/login', { error: null });
+    res.render('pages/login', { error: null, inviteToken: req.query.inviteToken || null });
 });
 
 router.post('/login', async function(req, res){
     try {
-        if (!isDatabaseConnected()) return res.render('pages/login', { error: databaseErrorMessage() });
-        const { email, password } = req.body;
+        if (!isDatabaseConnected()) return res.render('pages/login', { error: databaseErrorMessage(), inviteToken: req.body.inviteToken || null });
+        const { email, password, inviteToken } = req.body;
         const remember = req.body && (req.body.remember === '1' || req.body.remember === 'on' || req.body.remember === true);
         const normalizedEmail = normalizeEmail(email);
-        if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required' });
+        if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required', inviteToken: inviteToken || null });
         const user = await User.findOne({ email: normalizedEmail }).exec();
-        if (!user) return res.render('pages/login', { error: 'Invalid credentials' });
+        if (!user) return res.render('pages/login', { error: 'Invalid credentials', inviteToken: inviteToken || null });
         const ok = await user.validatePassword(password);
-        if (!ok) return res.render('pages/login', { error: 'Invalid credentials' });
+        if (!ok) return res.render('pages/login', { error: 'Invalid credentials', inviteToken: inviteToken || null });
         signIn(req, user);
         applyRememberMe(req, remember);
+
+        if (inviteToken) {
+            const acceptedTeam = await acceptInviteToken(inviteToken, user);
+            if (acceptedTeam) return res.redirect('/manage-team');
+        }
 
         // If the user is a team contact or assigned manager, redirect to management dashboard
         const manageTeam = await Team.findOne({
@@ -874,7 +1012,7 @@ router.post('/login', async function(req, res){
 
         res.redirect('/');
     } catch (err) {
-        res.render('pages/login', { error: err.message });
+        res.render('pages/login', { error: err.message, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null });
     }
 });
 

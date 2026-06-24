@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Invitation Accepted</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/assets/css/main.css?v=13">
+</head>
+<body class="auth-page">
+  <header></header>
+
+  <main>
+    <div class="container">
+      <a href="/" class="btn btn-secondary back-button">← Back Home</a>
+      <h1>Invitation Accepted</h1>
+      <div class="alert alert-success">
+        You are now a manager for <strong><%= team.name %></strong>.
+      </div>
+      <p>Head to your account to continue managing the team.</p>
+      <a href="/manage-team" class="btn btn-primary">Go to dashboard</a>
+    </div>
+  </main>
+
+  <script src="/assets/js/main.js?v=8"></script>
+</body>
+</html>

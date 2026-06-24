@@ -166,6 +166,19 @@
                                         </button>
                                     <% } %>
                                 </form>
+
+                                <hr style="border-top: 1px solid var(--border-color); margin: 30px 24px;">
+
+                                <form action="/manage-team/invite" method="POST" class="text-left" style="margin: 0 24px 24px;">
+                                    <div class="mb-3">
+                                        <label class="form-label">Invite a new manager by email</label>
+                                        <input type="email" name="email" class="form-control" placeholder="Enter their email" required />
+                                        <small class="form-text text-muted">If they don’t have an account yet, they’ll be asked to sign up with this email.</small>
+                                    </div>
+                                    <button type="submit" class="btn btn-secondary btn-block" style="width: 100%;">
+                                        <i class="fa-solid fa-envelope"></i> Send Invitation
+                                    </button>
+                                </form>
                             </div>
 
                             <hr style="border-top: 1px solid var(--border-color); margin: 30px 0;">

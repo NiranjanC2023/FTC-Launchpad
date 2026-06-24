@@ -19,6 +19,7 @@
 
       <form id="signupForm" method="POST" action="/signup">
         <input type="hidden" name="signupMode" value="manager" />
+        <input type="hidden" name="inviteToken" value="<%= inviteToken || '' %>" />
 
         <div class="mb-3">
           <label class="form-label">Full name</label>
