@@ -87,10 +87,35 @@ function toNumber(value) {
     return Number.isFinite(number) ? number : null;
 }
 
+function privacyOffsetCoords(lat, lon, seedParts) {
+    const source = seedParts.filter(Boolean).join('|') || `${lat},${lon}`;
+    let hash = 0;
+
+    for (let index = 0; index < source.length; index++) {
+        hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
+    }
+
+    const angle = (Math.abs(hash) % 360) * Math.PI / 180;
+    const distanceMeters = 250 + (Math.abs(hash >> 8) % 151);
+    const latOffset = distanceMeters * Math.cos(angle) / 111320;
+    const lonOffset = distanceMeters * Math.sin(angle) / (111320 * Math.cos(lat * Math.PI / 180));
+
+    return {
+        lat: lat + latOffset,
+        lon: lon + lonOffset
+    };
+}
+
 function mapTeam(team) {
     const location = team.city
         ? [team.city, team.state, team.country].filter(Boolean).join(', ')
         : [team.address, team.state, team.country].filter(Boolean).join(', ');
+    const displayCoords = privacyOffsetCoords(team.lat, team.lon, [
+        String(team._id || ''),
+        team.program,
+        String(team.teamNumber || ''),
+        team.name
+    ]);
 
     return {
         id: team._id,
@@ -98,8 +123,8 @@ function mapTeam(team) {
         teamNumber: team.teamNumber,
         name: team.name,
         contact: team.contact,
-        lat: team.lat,
-        lon: team.lon,
+        lat: displayCoords.lat,
+        lon: displayCoords.lon,
         notes: team.notes,
         recruiting: team.recruiting,
         verified: team.verified,

@@ -384,6 +384,10 @@ function renderTeams(teams, userCoords) {
       zoom: 4,
       scrollWheelZoom: true
     });
+    const privacyBlurZoom = 16;
+    const updatePrivacyBlur = () => {
+      mapEl.classList.toggle('map-privacy-blur', map.getZoom() >= privacyBlurZoom);
+    };
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -456,6 +460,8 @@ function renderTeams(teams, userCoords) {
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [24, 24] });
     }
+    updatePrivacyBlur();
+    map.on('zoomend', updatePrivacyBlur);
 
     map.on('popupopen', event => {
       const popupEl = event.popup && event.popup.getElement ? event.popup.getElement() : null;

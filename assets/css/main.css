@@ -1469,6 +1469,16 @@ textarea.form-control {
   box-shadow: var(--shadow-md);
 }
 
+#teamsMap .leaflet-tile-pane,
+#teamsMap .leaflet-overlay-pane {
+  transition: filter 180ms ease;
+}
+
+#teamsMap.map-privacy-blur .leaflet-tile-pane,
+#teamsMap.map-privacy-blur .leaflet-overlay-pane {
+  filter: blur(7px);
+}
+
 /* (duplicated block removed) */
 
 .goto-marker {
