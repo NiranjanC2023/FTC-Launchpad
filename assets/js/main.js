@@ -240,7 +240,8 @@ function renderTeams(teams, userCoords) {
   teams.forEach(team => {
     const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
     const teamName = String(team.name || 'Unnamed team');
-    const teamNumber = team.teamNumber ? `FTC ${team.teamNumber}` : 'FTC team';
+    const programLabel = String(team.program || 'FTC');
+    const teamNumber = team.teamNumber ? `${programLabel} ${team.teamNumber}` : `${programLabel} team`;
     const contact = String(team.contact || 'Contact unavailable');
     const location = String(team.location || '').trim();
     const notes = String(team.notes || '').trim();
@@ -360,12 +361,13 @@ function renderTeams(teams, userCoords) {
       if (typeof team.lat !== 'number' || typeof team.lon !== 'number') return;
       
       const teamName = String(team.name || 'Unnamed team');
+      const programLabel = String(team.program || 'FTC');
       const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
 
       const popupContent = `
         <div style="padding: 2px 15px 15px 15px; color: #111; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; min-width: 220px; line-height: 1.4;">
-          <h4 style="margin: 0 0 10px 0; font-size: 1.8em; font-weight: 900; color: #0056b3; line-height: 1.15; padding-top: 0;">${escapeHTML(teamName)}</h4>
-          ${team.teamNumber ? `<p style="margin: 0 0 6px 0; font-size: 1.1em; font-weight: 700; color: #333;">FTC ${escapeHTML(team.teamNumber)}</p>` : ''}
+      <h4 style="margin: 0 0 10px 0; font-size: 1.8em; font-weight: 900; color: #0056b3; line-height: 1.15; padding-top: 0;">${escapeHTML(teamName)}</h4>
+          ${team.teamNumber ? `<p style="margin: 0 0 6px 0; font-size: 1.1em; font-weight: 700; color: #333;">${escapeHTML(programLabel)} ${escapeHTML(team.teamNumber)}</p>` : ''}
           <div style="margin-bottom: 12px;">
             <p style="margin: 0; font-size: 0.9em; font-weight: 800; color: #555; text-transform: uppercase;">Contact</p>
             <p style="margin: 0; font-size: 1em; font-weight: 600; color: #222;">${escapeHTML(team.contact || 'Unavailable')}</p>
@@ -378,7 +380,10 @@ function renderTeams(teams, userCoords) {
       const marker = new google.maps.Marker({
         position: { lat: team.lat, lng: team.lon },
         map: map,
-        title: teamName
+        title: teamName,
+        icon: {
+          url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+        }
       });
       
       marker.popupContent = popupContent;
@@ -651,14 +656,64 @@ function loadSiteShells() {
         .then(data => { 
           const user = data.user;
           const anchors = document.querySelectorAll('[data-href]');
+          const accountMenu = document.querySelector('.account-menu');
+          const accountToggle = document.querySelector('[data-account-toggle]');
+          const accountDropdown = document.querySelector('[data-account-dropdown]');
+          const initialsEl = document.querySelector('[data-account-initials]');
+
+          if (accountMenu) accountMenu.style.display = user ? '' : 'none';
+          if (accountToggle) accountToggle.setAttribute('aria-expanded', 'false');
+          if (accountDropdown) accountDropdown.hidden = true;
+          if (initialsEl && user) {
+            const initials = user.name
+              ? user.name
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map(part => part[0].toUpperCase())
+                .join('') || 'U'
+              : 'U';
+            if (user.profilePicture) {
+              initialsEl.innerHTML = `<img src="${escapeHTML(user.profilePicture)}" alt="Profile picture">`;
+            } else {
+              initialsEl.textContent = initials;
+            }
+          }
+
+          if (accountToggle && !accountToggle.dataset.bound) {
+            accountToggle.dataset.bound = 'true';
+            accountToggle.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const menu = accountToggle.closest('.account-menu');
+              const dropdown = menu && menu.querySelector('[data-account-dropdown]');
+              const expanded = accountToggle.getAttribute('aria-expanded') === 'true';
+              if (dropdown) dropdown.hidden = expanded;
+              accountToggle.setAttribute('aria-expanded', String(!expanded));
+              if (menu) menu.classList.toggle('is-open', !expanded);
+            });
+          }
+
+          if (!window.__accountMenuListenerBound) {
+            window.__accountMenuListenerBound = true;
+            document.addEventListener('click', (event) => {
+              const menu = document.querySelector('.account-menu');
+              if (!menu || !menu.classList.contains('is-open')) return;
+              if (menu.contains(event.target)) return;
+              menu.classList.remove('is-open');
+              const toggle = menu.querySelector('[data-account-toggle]');
+              const dropdown = menu.querySelector('[data-account-dropdown]');
+              if (toggle) toggle.setAttribute('aria-expanded', 'false');
+              if (dropdown) dropdown.hidden = true;
+            });
+          }
+
           anchors.forEach(a => {
             // Toggle visibility based on auth status
             const target = a.getAttribute('data-href');
             const navItem = a.closest('li') || a;
             if (target === '/login' || target === '/signup') {
               navItem.style.display = user ? 'none' : '';
-            } else if (target === '/logout') {
-              navItem.style.display = user ? '' : 'none';
             } else if (target === '/team-register') {
               // Only show the "Register Team" link when the user is an authenticated team contact
               // or when the current anonymous session explicitly selected the manager/signup intent.

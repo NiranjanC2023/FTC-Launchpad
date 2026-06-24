@@ -42,8 +42,30 @@
         </div>
 
         <div class="mb-3">
-          <label class="form-label">Interests / Experience</label>
-          <textarea name="interests" id="interests" rows="3" class="form-control" placeholder="Robotics, programming, mechanical, outreach..."><%= values && values.interests ? values.interests : '' %></textarea>
+          <label class="form-label">Profile picture URL</label>
+          <input name="profilePicture" type="url" class="form-control" value="<%= values && values.profilePicture ? values.profilePicture : '' %>" placeholder="https://example.com/photo.jpg" />
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label" for="interests">Interests / Roles</label>
+          <input
+            name="interests"
+            id="interests"
+            class="form-control"
+            value="<%= values && values.interests ? values.interests : '' %>"
+            placeholder="Example: programming, CAD, mechanical, driving, outreach"
+          />
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label" for="experience">Experience</label>
+          <textarea
+            name="experience"
+            id="experience"
+            class="form-control"
+            rows="4"
+            placeholder="Example: beginner, 1 year in FTC, built robots before"
+          ><%= values && values.experience ? values.experience : '' %></textarea>
         </div>
 
         <button class="btn btn-primary" type="submit">Create account</button>

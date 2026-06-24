@@ -16,6 +16,7 @@ var setUpPassport = require("./setuppassport");
 var app = express();
 
 app.set("port", process.env.PORT || 3000);
+app.set("host", process.env.HOST || "127.0.0.1");
 
 // Static files - serve FIRST before setting up routes/views
 app.use("/assets", express.static(path.join(__dirname, "assets")));
@@ -54,8 +55,9 @@ app.use("/", require("./routes/web"));
 app.use("/api", require("./routes/api"));
 
 const port = app.get("port");
-const server = app.listen(port, function(){
-    console.log("Server started on port " + port);
+const host = app.get("host");
+const server = app.listen(port, host, function(){
+    console.log(`Server started at http://${host}:${port}`);
 });
 
 server.on("error", function(err){

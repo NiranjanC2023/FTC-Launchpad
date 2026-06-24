@@ -7,7 +7,9 @@ const UserSchema = new mongoose.Schema({
   passwordHash: { type: String, required: true },
   age: { type: Number },
   phone: { type: String, trim: true },
+  profilePicture: { type: String, trim: true },
   interests: { type: String, trim: true },
+  experience: { type: String, trim: true },
   teamNumber: { type: Number },
   createdAt: { type: Date, default: Date.now }
 }, {

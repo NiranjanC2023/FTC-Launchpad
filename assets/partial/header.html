@@ -9,7 +9,7 @@
     <ul class="nav navbar-nav">
       <li><a href="#" data-href="/">Home</a></li>
       <li><a href="#" data-href="/start-team">Start Team</a></li>
-      <li><a href="#" data-href="/join-team">Join Team</a></li>
+      <li><a href="#" data-href="/teams-nearby">Join Team</a></li>
       <li><a href="#" data-href="/team-register">Register Team</a></li>
       <li><a href="#" data-href="/resources">Resources</a></li>
       <li><a href="#" data-href="/programming">Programming</a></li>
@@ -19,7 +19,17 @@
     <ul class="nav navbar-nav navbar-right">
       <li style="display: none;"><a href="#" data-href="/login">Log In</a></li>
       <li style="display: none;"><a href="#" data-href="/signup">Sign Up</a></li>
-      <li style="display: none;"><a href="#" data-href="/logout">Sign Out</a></li>
+      <li class="account-menu" style="display: none;">
+        <button type="button" class="account-toggle" aria-haspopup="true" aria-expanded="false" data-account-toggle>
+          <span class="account-avatar" data-account-initials>U</span>
+          <span class="account-label">Account</span>
+          <span class="account-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="account-dropdown" data-account-dropdown hidden>
+          <a href="#" data-href="/account">Settings</a>
+          <a href="#" data-href="/logout">Sign Out</a>
+        </div>
+      </li>
     </ul>
     <div class="navbar-tools">
       

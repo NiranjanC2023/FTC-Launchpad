@@ -5,7 +5,6 @@ const User = require('../models/user');
 const Team = require('../models/team');
 const nodemailer = require('nodemailer');
 const Student = require('../models/student');
-const params = require('../params/params');
 const fs = require('fs');
 const path = require('path');
 
@@ -59,6 +58,7 @@ function toNumber(value) {
 
 function mapTeam(team) {
     return {
+        program: team.program || 'FTC',
         teamNumber: team.teamNumber,
         name: team.name,
         contact: team.contact,
@@ -100,49 +100,66 @@ async function geocodeAddress(values) {
     return { lat, lon };
 }
 
-async function verifyFirstTeam(teamNumber) {
-    const username = params.FTC_API_USERNAME;
-    const token = params.FTC_API_TOKEN;
-    const season = process.env.FTC_API_SEASON || '2025';
+const FIRST_SEARCH_ENDPOINT = 'https://3dl2fnsh51.execute-api.us-east-1.amazonaws.com/prod/first-search';
 
-    if (!username || !token) {
-        return {
-            ok: false,
-            configured: false,
-            error: 'FIRST verification is not configured. Add FTC_API_USERNAME and FTC_API_TOKEN to .env.'
-        };
-    }
+const PROGRAM_LABELS = {
+    FTC: 'FIRST Tech Challenge',
+    FRC: 'FIRST Robotics Competition',
+    'FLL Challenge': 'FIRST LEGO League Challenge',
+    'FLL Explore': 'FIRST LEGO League Explore'
+};
 
-    const url = `https://ftc-api.firstinspires.org/v2.0/${season}/teams?teamNumber=${encodeURIComponent(teamNumber)}`;
-    const auth = Buffer.from(`${username}:${token}`).toString('base64');
-    const response = await fetch(url, {
-        headers: {
-            Authorization: `Basic ${auth}`,
-            Accept: 'application/json'
+function normalizeProgram(program) {
+    const value = String(program || '').trim();
+    return PROGRAM_LABELS[value] ? value : 'FTC';
+}
+
+async function verifyFirstTeam(teamNumber, program) {
+    const normalizedProgram = normalizeProgram(program);
+    const query = {
+        index: 'teams_*',
+        query: {
+            size: 25,
+            query: {
+                bool: {
+                    must: [
+                        { term: { team_number_yearly: String(teamNumber) } },
+                        { term: { ff_program_moniker: normalizedProgram } }
+                    ]
+                }
+            }
         }
+    };
+
+    const response = await fetch(FIRST_SEARCH_ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(query)
     });
 
     if (!response.ok) {
         return {
             ok: false,
             configured: true,
-            error: `FIRST verification failed with status ${response.status}. Check your API credentials and season.`
+            error: `FIRST lookup failed with status ${response.status}.`
         };
     }
 
     const data = await response.json();
-    const teams = Array.isArray(data.teams) ? data.teams : [];
-    const official = teams.find(team => Number(team.teamNumber) === Number(teamNumber));
+    const teams = Array.isArray(data.results) ? data.results : [];
+    const official = teams.find(team => String(team.team_number_yearly) === String(teamNumber) && team.ff_program_moniker === normalizedProgram);
 
     if (!official) {
         return {
             ok: false,
             configured: true,
-            error: `Team ${teamNumber} was not found in the FIRST FTC Events database for season ${season}.`
+            error: `Team ${teamNumber} was not found in ${PROGRAM_LABELS[normalizedProgram]} on the FIRST team search.`
         };
     }
 
-    return { ok: true, configured: true, team: official, season };
+    return { ok: true, configured: true, team: official, program: normalizedProgram };
 }
 
 // Home page
@@ -224,8 +241,27 @@ router.get("/join-team", function(req, res){
     res.render("pages/join-team");
 });
 
-router.get("/join-form", function(req, res){
-    res.render("pages/join-form");
+router.get("/join-form", async function(req, res){
+    try {
+        if (!isDatabaseConnected() || !req.session.userId) {
+            return res.render("pages/join-form", { values: {} });
+        }
+
+        const user = await User.findById(req.session.userId).select('name age experience email phone interests').lean().exec();
+        const values = user ? {
+            name: user.name || '',
+            age: user.age || '',
+            experience: user.experience || '',
+            email: user.email || '',
+            phone: user.phone || '',
+            interests: user.interests || ''
+        } : {};
+
+        res.render("pages/join-form", { values });
+    } catch (err) {
+        console.error('Failed to load join form profile:', err);
+        res.render("pages/join-form", { values: {} });
+    }
 });
 
 // Resources routes
@@ -309,23 +345,24 @@ router.post('/team-register', async function(req, res) {
         }
 
         const teamNumber = toNumber(values.teamNumber);
+        const program = normalizeProgram(values.program);
         const contact = normalizeEmail(values.contact);
 
         if (!teamNumber || !values.name || !contact || !values.address || !values.city || !values.country) {
             return res.render('pages/team-register', {
-                error: 'Team number, team name, contact email, address, city, and country are required.',
+                error: 'Program, team number, team name, contact email, address, city, and country are required.',
                 message: null,
                 values
             });
         }
 
-        const verification = await verifyFirstTeam(teamNumber);
+        const verification = await verifyFirstTeam(teamNumber, program);
         if (!verification.ok) {
             return res.render('pages/team-register', { error: verification.error, message: null, values });
         }
 
         const official = verification.team;
-        const officialName = official.nameShort || official.nameFull || values.name;
+        const officialName = official.team_nickname || official.team_name_calc || official.team_name || values.name;
         const recruiting = values.recruiting === 'on';
         const coords = await geocodeAddress(values);
 
@@ -338,8 +375,9 @@ router.post('/team-register', async function(req, res) {
         }
 
         await Team.findOneAndUpdate(
-            { teamNumber },
+            { teamNumber, program },
             {
+                program,
                 teamNumber,
                 name: officialName,
                 contact,
@@ -353,7 +391,7 @@ router.post('/team-register', async function(req, res) {
                 recruiting,
                 verified: true,
                 verifiedAt: new Date(),
-                verificationSource: `FIRST FTC Events API ${verification.season}`,
+                verificationSource: `FIRST ${PROGRAM_LABELS[program]} search`,
                 updatedAt: new Date()
             },
             { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
@@ -361,7 +399,7 @@ router.post('/team-register', async function(req, res) {
 
         res.render('pages/team-register', {
             error: null,
-            message: `Team ${teamNumber} verified and saved. Recruiting is ${recruiting ? 'on' : 'off'}.`,
+            message: `${PROGRAM_LABELS[program]} team ${teamNumber} verified and saved. Recruiting is ${recruiting ? 'on' : 'off'}.`,
             values: {}
         });
     } catch (err) {
@@ -542,11 +580,11 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
             from: `"${team.name}" <${process.env.EMAIL_USER}>`,
             replyTo: team.contact,
             to: recruit.email,
-            subject: `Invitation from FTC Team ${team.teamNumber}: ${team.name}`,
+            subject: `Invitation from ${team.program || 'FIRST'} Team ${team.teamNumber}: ${team.name}`,
             html: `
                 <div style="font-family: sans-serif; padding: 20px; color: #333;">
                     <h2>Hello ${recruit.name}!</h2>
-                    <p>FTC Team <strong>${team.teamNumber} - ${team.name}</strong> has seen your profile on the FTC Starter Hub and would like to connect!</p>
+                    <p>${team.program || 'FIRST'} Team <strong>${team.teamNumber} - ${team.name}</strong> has seen your profile on the FTC Starter Hub and would like to connect!</p>
                     <div style="background: #f4f4f4; padding: 15px; border-radius: 8px; margin: 20px 0;">
                         <p style="margin-top:0;"><strong>Message from the team:</strong></p>
                         <p>${message}</p>
@@ -599,6 +637,31 @@ router.get('/my-team', ensureAuthenticated, async function(req, res) {
     }
 });
 
+router.get('/account', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) {
+            return res.render('pages/account', { error: databaseErrorMessage(), user: null, studentProfile: null, team: null });
+        }
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const teamByContact = await Team.findOne({ contact: user.email }).lean().exec();
+        const teamByNumber = user.teamNumber ? await Team.findOne({ teamNumber: user.teamNumber }).lean().exec() : null;
+        const studentProfile = await Student.findOne({ email: user.email }).lean().exec();
+
+        res.render('pages/account', {
+            error: null,
+            user,
+            team: teamByContact || teamByNumber,
+            studentProfile
+        });
+    } catch (err) {
+        console.error('Failed to load account page:', err);
+        res.render('pages/account', { error: 'Unable to load account page right now.', user: null, studentProfile: null, team: null });
+    }
+});
+
 // Account routes
 router.get('/signup', function(req, res){
     res.render('pages/signup', { error: null });
@@ -617,7 +680,7 @@ router.post('/signup', async function(req, res){
     const mode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
     try {
         if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {} });
-        const { name, email, password, age, phone, interests } = req.body;
+        const { name, email, password, age, phone, profilePicture, interests, experience } = req.body;
         const normalizedEmail = normalizeEmail(email);
         if (!name || !normalizedEmail || !password) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body });
         const existing = await User.findOne({ email: normalizedEmail }).exec();
@@ -627,17 +690,54 @@ router.post('/signup', async function(req, res){
             email: normalizedEmail,
             age: age ? Number(age) : undefined,
             phone,
-            interests
+            profilePicture,
+            interests,
+            experience
         });
         await user.setPassword(password);
         await user.save();
         console.log(`User signup saved: ${user.email} -> ${mongoose.connection.name}.${User.collection.name}`);
         signIn(req, user);
-        res.redirect('/');
+        res.redirect('/account');
     } catch (err) {
         console.error('Signup failed:', err);
         const renderMode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
         res.render(`pages/signup-${renderMode}`, { error: err.message, values: req.body || {} });
+    }
+});
+
+router.post('/account', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) {
+            return res.render('pages/account', { error: databaseErrorMessage(), user: null, studentProfile: null, team: null });
+        }
+
+        const profilePicture = String(req.body.profilePicture || '').trim();
+        const update = profilePicture
+            ? { $set: { profilePicture } }
+            : { $unset: { profilePicture: "" } };
+        const updatedUser = await User.findByIdAndUpdate(
+            req.session.userId,
+            update,
+            { new: true, runValidators: true }
+        ).lean().exec();
+
+        if (!updatedUser) return res.redirect('/logout');
+
+        const teamByContact = await Team.findOne({ contact: updatedUser.email }).lean().exec();
+        const teamByNumber = updatedUser.teamNumber ? await Team.findOne({ teamNumber: updatedUser.teamNumber }).lean().exec() : null;
+        const studentProfile = await Student.findOne({ email: updatedUser.email }).lean().exec();
+
+        res.render('pages/account', {
+            error: null,
+            success: 'Profile picture updated.',
+            user: updatedUser,
+            team: teamByContact || teamByNumber,
+            studentProfile
+        });
+    } catch (err) {
+        console.error('Failed to update account:', err);
+        res.render('pages/account', { error: err.message, user: null, studentProfile: null, team: null });
     }
 });
 
