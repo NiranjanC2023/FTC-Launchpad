@@ -43,11 +43,11 @@
         <label for="contact">Contact email</label>
         <input id="contact" name="contact" type="email" required value="<%= values.contact || '' %>" />
 
-        <label for="address">Address</label>
-        <input id="address" name="address" required placeholder="Street address or meeting location" value="<%= values.address || '' %>" />
+        <label for="address">City or street</label>
+        <input id="address" name="address" placeholder="City, street, or meeting area" value="<%= values.address || '' %>" />
 
         <label for="city">City</label>
-        <input id="city" name="city" required value="<%= values.city || '' %>" />
+        <input id="city" name="city" value="<%= values.city || '' %>" />
 
         <label for="state">State</label>
         <input id="state" name="state" value="<%= values.state || '' %>" />
@@ -78,6 +78,6 @@
     </div>
   </main>
 
-  <script src="/assets/js/main.js?v=8"></script>
+  <script src="/assets/js/main.js?v=9"></script>
 </body>
 </html>

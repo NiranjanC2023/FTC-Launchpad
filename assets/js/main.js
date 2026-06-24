@@ -151,8 +151,7 @@ function renderTeams(teams, userCoords) {
       el.classList.add('marker-label--dim');
       el.classList.remove('marker-label--active');
     });
-    // Google Maps markers handle labels/tooltips differently; 
-    // we focus on card highlighting and InfoWindow state.
+    // Circle focus is handled through the matching card and map popup.
   }
 
   function applySearch() {
@@ -164,10 +163,7 @@ function renderTeams(teams, userCoords) {
       card.hidden = !matches;
       if (matches) visibleCount++;
 
-      const marker = (window._teamMarkers || {})[card.dataset.team];
-      if (marker) {
-        marker.setVisible(matches);
-      }
+      setTeamLayerVisible(card.dataset.team, matches);
     });
 
     resultCount.textContent = `${visibleCount} team${visibleCount === 1 ? '' : 's'}`;
@@ -201,9 +197,13 @@ function renderTeams(teams, userCoords) {
     if (!marker || !map) return false;
 
     try {
-      map.panTo(marker.getPosition());
-      const zoom = Math.max(map.getZoom(), options.zoom || 14);
-      map.setZoom(zoom);
+      if (marker.getLatLng && map.setView) {
+        map.setView(marker.getLatLng(), Math.max(map.getZoom(), options.zoom || 12));
+      } else if (marker.getPosition && map.panTo) {
+        map.panTo(marker.getPosition());
+        const zoom = Math.max(map.getZoom(), options.zoom || 14);
+        map.setZoom(zoom);
+      }
 
       if (window._infoWindowTimer) {
         clearTimeout(window._infoWindowTimer);
@@ -213,7 +213,9 @@ function renderTeams(teams, userCoords) {
         if (iw) iw.style.opacity = '1';
       }
 
-      if (options.openPopup !== false && window._infoWindow) {
+      if (options.openPopup !== false && marker.openPopup) {
+        marker.openPopup();
+      } else if (options.openPopup !== false && window._infoWindow) {
         window._infoWindow.setContent(marker.popupContent);
         window._infoWindow.open(map, marker);
       }
@@ -236,6 +238,25 @@ function renderTeams(teams, userCoords) {
   }
 
   searchInput.addEventListener('input', applySearch);
+
+  function setTeamLayerVisible(teamName, visible) {
+    const marker = (window._teamMarkers || {})[teamName];
+    const map = window._teamsMapInstance;
+    if (!marker) return;
+
+    if (marker.setVisible) {
+      marker.setVisible(visible);
+      return;
+    }
+
+    if (map && map.hasLayer && map.addLayer && map.removeLayer) {
+      if (visible && !map.hasLayer(marker)) {
+        marker.addTo(map);
+      } else if (!visible && map.hasLayer(marker)) {
+        map.removeLayer(marker);
+      }
+    }
+  }
 
   teams.forEach(team => {
     const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
@@ -347,42 +368,47 @@ function renderTeams(teams, userCoords) {
   });
   applySearch();
 
-  // initialize Google Map when available
+  // initialize Leaflet map when available
   function tryInitMap() {
-    if (!window.google || !window.google.maps) {
+    if (!window.L) {
       setTimeout(tryInitMap, 200);
       return;
     }
 
-    const mapOptions = {
-      zoom: 4,
-      center: { lat: 39.5, lng: -98.35 },
-      mapTypeControl: true, // Allow users to switch map types (Roadmap, Satellite, Hybrid)
-      streetViewControl: true, // Enable the Pegman for Street View
-      fullscreenControl: true, // Allow fullscreen map view
-      gestureHandling: 'greedy', // Improves touch/scroll interaction on mobile
-      tilt: 45, // Initial 3D tilt for a more dynamic view
-      heading: 0, // Initial map heading (0 degrees is North)
-      mapTypeId: 'hybrid' // Start in satellite view with labels
-    };
+    if (window._teamsMapInstance && window._teamsMapInstance.remove) {
+      window._teamsMapInstance.remove();
+    }
 
-    const map = new google.maps.Map(document.getElementById('teamsMap'), mapOptions);
+    const map = L.map('teamsMap', {
+      center: [39.5, -98.35],
+      zoom: 4,
+      scrollWheelZoom: true
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
     window._teamsMapInstance = map;
-    window._infoWindow = new google.maps.InfoWindow();
     window._infoWindowTimer = null;
 
-    const bounds = new google.maps.LatLngBounds();
+    const bounds = L.latLngBounds();
     teams.forEach(team => {
       if (typeof team.lat !== 'number' || typeof team.lon !== 'number') return;
       
       const teamName = String(team.name || 'Unnamed team');
       const programLabel = String(team.program || 'FTC');
       const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
+      const location = String(team.location || '').trim();
+      const radiusMeters = Number(team.radiusMeters) || 1000;
 
       const popupContent = `
         <div style="padding: 2px 15px 15px 15px; color: #111; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; min-width: 220px; line-height: 1.4;">
       <h4 style="margin: 0 0 10px 0; font-size: 1.8em; font-weight: 900; color: #0056b3; line-height: 1.15; padding-top: 0;">${escapeHTML(teamName)}</h4>
           ${team.teamNumber ? `<p style="margin: 0 0 6px 0; font-size: 1.1em; font-weight: 700; color: #333;">${escapeHTML(programLabel)} ${escapeHTML(team.teamNumber)}</p>` : ''}
+          ${location ? `<p style="margin: 0 0 10px 0; font-size: 0.95em; font-weight: 600; color: #444;">${escapeHTML(location)}</p>` : ''}
+          <p style="margin: 0 0 12px 0; font-size: 0.95em; font-weight: 700; color: #0056b3;">Approximate ${escapeHTML(radiusMeters)}-meter area</p>
           <div style="margin-bottom: 12px;">
             <p style="margin: 0; font-size: 0.9em; font-weight: 800; color: #555; text-transform: uppercase;">Contact</p>
             <p style="margin: 0; font-size: 1em; font-weight: 600; color: #222;">${escapeHTML(team.contact || 'Unavailable')}</p>
@@ -392,90 +418,48 @@ function renderTeams(teams, userCoords) {
         </div>
       `;
 
-      const marker = new google.maps.Marker({
-        position: { lat: team.lat, lng: team.lon },
-        map: map,
-        title: teamName
-      });
-      
-      marker.popupContent = popupContent;
+      const marker = L.circle([team.lat, team.lon], {
+        radius: radiusMeters,
+        color: '#0056b3',
+        weight: 2,
+        opacity: 0.85,
+        fillColor: '#2f80ed',
+        fillOpacity: 0.18
+      }).addTo(map);
+
+      marker.bindPopup(popupContent, { maxWidth: 320 });
       if (!window._teamMarkers) window._teamMarkers = {};
       window._teamMarkers[teamName] = marker;
 
-      marker.addListener('mouseover', () => {
+      marker.on('mouseover', () => {
         if (window._infoWindowTimer) {
           clearTimeout(window._infoWindowTimer);
           window._infoWindowTimer = null;
         }
-        // Show the info window on hover without moving the map
-        if (window._infoWindow) {
-          window._infoWindow.setContent(marker.popupContent);
-          window._infoWindow.open(map, marker);
-          // Reset opacity for the new window content
-          setTimeout(() => {
-            const iw = document.querySelector('.gm-style-iw-t');
-            if (iw) iw.style.opacity = '1';
-          }, 10);
-        }
+        marker.openPopup();
       });
 
-      marker.addListener('mouseout', () => {
-        // Close the info window after 0.5 seconds if the mouse leaves the marker
+      marker.on('mouseout', () => {
         window._infoWindowTimer = setTimeout(() => {
-          if (window._infoWindow) {
-            const iw = document.querySelector('.gm-style-iw-t');
-            if (iw) {
-              iw.style.opacity = '0';
-              // Wait for the fade to complete before closing the object
-              setTimeout(() => {
-                if (window._infoWindow) window._infoWindow.close();
-                window._infoWindowTimer = null;
-              }, 200);
-            } else {
-              window._infoWindow.close();
-              window._infoWindowTimer = null;
-            }
-          } else {
-            window._infoWindowTimer = null;
-          }
+          marker.closePopup();
+          window._infoWindowTimer = null;
         }, 500);
       });
 
-      marker.addListener('click', () => {
+      marker.on('click', () => {
         focusTeam(teamName, { scroll: true, openPopup: true });
       });
 
-      bounds.extend(marker.getPosition());
+      bounds.extend(marker.getBounds());
     });
 
-    if (teams.length > 0) {
-      map.fitBounds(bounds);
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [24, 24] });
     }
 
-    google.maps.event.addListener(window._infoWindow, 'domready', () => {
-      const iwContainer = document.querySelector('.gm-style-iw-t');
-      if (iwContainer) {
-        // If mouse enters the bubble, stop the timer so it doesn't disappear
-        iwContainer.addEventListener('mouseenter', () => {
-          if (window._infoWindowTimer) {
-            clearTimeout(window._infoWindowTimer);
-            window._infoWindowTimer = null;
-          }
-          iwContainer.style.opacity = '1';
-        });
-
-        // If mouse leaves the bubble, restart the fade-out timer
-        iwContainer.addEventListener('mouseleave', () => {
-          window._infoWindowTimer = setTimeout(() => {
-            iwContainer.style.opacity = '0';
-            setTimeout(() => {
-              if (window._infoWindow) window._infoWindow.close();
-              window._infoWindowTimer = null;
-            }, 200);
-          }, 500);
-        });
-      }
-      const btn = document.querySelector('.popup-send-btn');
+    map.on('popupopen', event => {
+      const popupEl = event.popup && event.popup.getElement ? event.popup.getElement() : null;
+      const btn = popupEl ? popupEl.querySelector('.popup-send-btn') : null;
       if (btn) {
         btn.onclick = () => {
           const teamName = btn.getAttribute('data-team');
@@ -484,6 +468,7 @@ function renderTeams(teams, userCoords) {
         };
       }
     });
+
     applySearch();
   }
 
@@ -628,16 +613,6 @@ function loadSiteShells() {
     link.href = 'https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css';
     const appStylesheet = document.querySelector('link[href*="/assets/css/main.css"], link[href*="assets/css/main.css"]');
     document.head.insertBefore(link, appStylesheet || document.head.firstChild);
-  }
-
-  // inject Google Maps JS for interactive maps
-  if (!window.google && !document.querySelector('script[data-google]')) {
-    const lscript = document.createElement('script');
-    lscript.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyCDYUgmHFX_FezspmqvSGdgD-7491w_drE';
-    lscript.setAttribute('data-google', 'true');
-    lscript.async = true;
-    lscript.defer = true;
-    document.body.appendChild(lscript);
   }
 
   // prefix not used; removed to clean up

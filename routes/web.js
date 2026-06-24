@@ -88,6 +88,10 @@ function toNumber(value) {
 }
 
 function mapTeam(team) {
+    const location = team.city
+        ? [team.city, team.state, team.country].filter(Boolean).join(', ')
+        : [team.address, team.state, team.country].filter(Boolean).join(', ');
+
     return {
         program: team.program || 'FTC',
         teamNumber: team.teamNumber,
@@ -98,12 +102,16 @@ function mapTeam(team) {
         notes: team.notes,
         recruiting: team.recruiting,
         verified: team.verified,
-        location: [team.city, team.state, team.country].filter(Boolean).join(', ')
+        radiusMeters: 1000,
+        location
     };
 }
 
 function buildAddress(values) {
-    return [values.address, values.city, values.state, values.country].filter(Boolean).join(', ');
+    return [values.address, values.city, values.state, values.country]
+        .map(value => (value || '').trim())
+        .filter(Boolean)
+        .join(', ');
 }
 
 async function geocodeAddress(values) {
@@ -378,10 +386,11 @@ router.post('/team-register', async function(req, res) {
         const teamNumber = toNumber(values.teamNumber);
         const program = normalizeProgram(values.program);
         const contact = normalizeEmail(values.contact);
+        const hasLocation = Boolean([values.address, values.city].some(value => (value || '').trim()));
 
-        if (!teamNumber || !values.name || !contact || !values.address || !values.city || !values.country) {
+        if (!teamNumber || !values.name || !contact || !hasLocation || !values.country) {
             return res.render('pages/team-register', {
-                error: 'Program, team number, team name, contact email, address, city, and country are required.',
+                error: 'Program, team number, team name, contact email, city or street, and country are required.',
                 message: null,
                 values
             });
@@ -399,7 +408,7 @@ router.post('/team-register', async function(req, res) {
 
         if (!coords) {
             return res.render('pages/team-register', {
-                error: 'Could not find that address on the map. Check the address, city, state, and country.',
+                error: 'Could not find that city or street on the map. Check the location, state, and country.',
                 message: null,
                 values
             });
@@ -412,7 +421,7 @@ router.post('/team-register', async function(req, res) {
                 teamNumber,
                 name: officialName,
                 contact,
-                address: values.address,
+                address: values.address || values.city,
                 city: values.city,
                 state: values.state,
                 country: values.country || 'USA',
