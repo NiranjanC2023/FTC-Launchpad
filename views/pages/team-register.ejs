@@ -15,7 +15,7 @@
     <div class="container">
       <a href="/" class="btn btn-secondary back-button">&larr; Back Home</a>
       <h1>Register Your Team</h1>
-      <p class="subtitle">Verified teams can choose whether they appear for students looking nearby.</p>
+      <p class="subtitle">Verified FIRST teams can choose whether they appear for students looking nearby.</p>
 
       <% if (error) { %>
         <div class="alert alert-danger"><%= error %></div>
@@ -25,7 +25,16 @@
       <% } %>
 
       <form method="POST" action="/team-register" class="form-grid">
-        <label for="teamNumber">FTC team number</label>
+        <label for="program">FIRST program</label>
+        <select id="program" name="program" required>
+          <% const selectedProgram = values.program || 'FTC'; %>
+          <option value="FTC" <%= selectedProgram === 'FTC' ? 'selected' : '' %>>FIRST Tech Challenge</option>
+          <option value="FRC" <%= selectedProgram === 'FRC' ? 'selected' : '' %>>FIRST Robotics Competition</option>
+          <option value="FLL Challenge" <%= selectedProgram === 'FLL Challenge' ? 'selected' : '' %>>FIRST LEGO League Challenge</option>
+          <option value="FLL Explore" <%= selectedProgram === 'FLL Explore' ? 'selected' : '' %>>FIRST LEGO League Explore</option>
+        </select>
+
+        <label for="teamNumber">Team number</label>
         <input id="teamNumber" name="teamNumber" type="number" min="1" required value="<%= values.teamNumber || '' %>" />
 
         <label for="name">Team name</label>

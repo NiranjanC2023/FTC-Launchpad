@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const TeamSchema = new mongoose.Schema({
+  program: { type: String, required: true, trim: true, default: 'FTC' },
   teamNumber: { type: Number, required: true, unique: true },
   name: { type: String, required: true },
   contact: { type: String, required: true, trim: true },
