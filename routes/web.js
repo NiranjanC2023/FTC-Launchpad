@@ -519,6 +519,18 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         // Fetch potential recruits (students who signed up via join-form)
         const recruits = await Student.find({}).sort({ createdAt: -1 }).limit(50).lean().exec();
 
+        if (!team) {
+            return res.render('pages/manage-team', {
+                user,
+                team: null,
+                teamManagers: [],
+                managerCandidates: [],
+                recruits: [],
+                error: 'You are no longer a manager on any team.',
+                success: null
+            });
+        }
+
         res.render('pages/manage-team', { 
             user, 
             team, 
@@ -673,6 +685,11 @@ router.post('/manage-team/managers/remove', ensureAuthenticated, async function(
         }
 
         await Team.findByIdAndUpdate(team._id, { $pull: { managers: managerUserId } }).exec();
+
+        if (String(managerUserId) === String(user._id)) {
+            return res.redirect('/account?success=self_removed');
+        }
+
         res.redirect('/manage-team?success=manager_removed');
     } catch (err) {
         console.error('Remove manager error:', err);

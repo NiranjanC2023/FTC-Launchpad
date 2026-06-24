@@ -62,7 +62,11 @@
             <div class="row">
                 <div class="col-sm-8">
                     <h1>Command Center</h1>
-                    <p class="subtitle" style="text-align: left; margin: 0;">Managing <strong><%= team.name %></strong> · Team #<%= team.teamNumber %></p>
+                    <% if (team) { %>
+                        <p class="subtitle" style="text-align: left; margin: 0;">Managing <strong><%= team.name %></strong> · Team #<%= team.teamNumber %></p>
+                    <% } else { %>
+                        <p class="subtitle" style="text-align: left; margin: 0;">You are not currently managing a team.</p>
+                    <% } %>
                 </div>
                 <div class="col-sm-4 text-right" style="padding-top: 25px;">
                     <a href="/teams-nearby" class="btn btn-secondary"><i class="fa-solid fa-earth-americas"></i> View Listing</a>
