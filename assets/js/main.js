@@ -135,10 +135,10 @@ function createUserLocationMarker(map, userCoords, bounds) {
     })
   }).addTo(map);
 
-  marker.bindTooltip('Your location', {
+  marker.bindTooltip(`<div class="user-location-tooltip-content"><span>Your location</span></div>`, {
     permanent: true,
     direction: 'top',
-    offset: [0, -16],
+    offset: [0, -28],
     opacity: 1,
     className: 'marker-label marker-label--active user-location-tooltip'
   });
@@ -174,6 +174,22 @@ function renderTeams(teams, userCoords) {
 
   // create a simple accessible list alongside the map
   const programOptions = ['All', 'FTC', 'FRC', 'FLL Challenge', 'FLL Explore'];
+  const distanceUnitPreference = getDistanceUnitPreference();
+  const distanceFilterOptions = distanceUnitPreference === 'imperial'
+    ? [
+        { value: 'all', label: 'Any distance' },
+        { value: '5', label: 'Within 5 mi' },
+        { value: '10', label: 'Within 10 mi' },
+        { value: '25', label: 'Within 25 mi' },
+        { value: '50', label: 'Within 50 mi' }
+      ]
+    : [
+        { value: 'all', label: 'Any distance' },
+        { value: '5', label: 'Within 5 km' },
+        { value: '10', label: 'Within 10 km' },
+        { value: '25', label: 'Within 25 km' },
+        { value: '50', label: 'Within 50 km' }
+      ];
   const searchWrap = document.createElement('div');
   searchWrap.className = 'teams-search';
   searchWrap.innerHTML = `
@@ -251,22 +267,6 @@ function renderTeams(teams, userCoords) {
   const yearsFilter = searchWrap.querySelector('#teamsYearsFilter');
   const advancementFilter = searchWrap.querySelector('#teamsAdvancementFilter');
   const distanceFilter = searchWrap.querySelector('#teamsDistanceFilter');
-  const distanceUnitPreference = getDistanceUnitPreference();
-  const distanceFilterOptions = distanceUnitPreference === 'imperial'
-    ? [
-        { value: 'all', label: 'Any distance' },
-        { value: '5', label: 'Within 5 mi' },
-        { value: '10', label: 'Within 10 mi' },
-        { value: '25', label: 'Within 25 mi' },
-        { value: '50', label: 'Within 50 mi' }
-      ]
-    : [
-        { value: 'all', label: 'Any distance' },
-        { value: '5', label: 'Within 5 km' },
-        { value: '10', label: 'Within 10 km' },
-        { value: '25', label: 'Within 25 km' },
-        { value: '50', label: 'Within 50 km' }
-      ];
   const filterMenu = searchWrap.querySelector('.teams-filter-menu');
   const filterButton = searchWrap.querySelector('.teams-filter-button');
   const filterDropdown = searchWrap.querySelector('.teams-filter-dropdown');
@@ -936,7 +936,7 @@ function initTeamsPage() {
     const geoOptions = { maximumAge: 60000, timeout: 2000, enableHighAccuracy: false };
     navigator.geolocation.getCurrentPosition((pos) => {
       const userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      status.textContent = `Found your location (${userCoords.lat.toFixed(3)}, ${userCoords.lon.toFixed(3)})`;
+      status.textContent = 'Found your location';
       const withDist = teams.map(t => ({ ...t, distance: haversineDistance(userCoords.lat, userCoords.lon, t.lat, t.lon) }));
       withDist.sort((a,b) => a.distance - b.distance);
       renderTeams(withDist, userCoords);
