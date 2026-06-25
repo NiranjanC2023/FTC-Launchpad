@@ -29,7 +29,7 @@
 
         .dashboard-panel { 
             background: var(--surface); border: 1px solid var(--border-color); border-radius: var(--radius-lg); 
-            overflow: hidden; box-shadow: var(--shadow-md); height: 100%;
+            overflow: visible; box-shadow: var(--shadow-md); height: 100%;
         }
         .panel-head { 
             padding: 24px; background: var(--surface-soft); border-bottom: 1px solid var(--border-color);
@@ -213,8 +213,8 @@
                                 <% if (teamManagers && teamManagers.length > 0) { %>
                                     <ul style="list-style: none; padding: 0; margin: 0 0 22px 0;">
                                         <% teamManagers.forEach(function(manager) { %>
-                                            <li style="margin-bottom: 10px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-                                                <div>
+                                            <li class="manager-card" style="position: relative; margin-bottom: 10px; padding: 12px 14px 20px 14px; padding-right: 56px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--surface); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                                                <div class="manager-card-main">
                                                     <strong><%= manager.name %></strong>
                                                     <% if (manager.primary) { %>
                                                         <span class="status-pill" style="background: #fee2e2; color: #b91c1c; margin-left: 8px;"><i class="fa-solid fa-star" style="margin-right:4px;"></i>Primary</span>
@@ -223,27 +223,33 @@
                                                         <span class="status-pill" style="background: #ede9fe; color: #7c3aed; margin-left: 8px;">Captain</span>
                                                     <% } %>
                                                 </div>
-                                                <div style="display:flex; gap: 8px; align-items:center;">
-                                                    <% const isSelf = (user && manager && String(manager._id) === String(user._id)); %>
-                                                    <% if (isPrimary) { %>
-                                                        <form action="/manage-team/managers/captain" method="POST" style="margin:0; display:inline-flex;">
-                                                            <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
-                                                            <button type="submit" class="btn btn-tertiary" style="padding: 8px 12px; font-size:0.78rem; white-space: nowrap;">
-                                                                <% if (manager.role && String(manager.role).trim().toLowerCase() === 'captain') { %>
-                                                                    Remove Captain
-                                                                <% } else { %>
-                                                                    Set as Captain
-                                                                <% } %>
-                                                            </button>
-                                                        </form>
-                                                    <% } %>
-                                                    <% if (!manager.primary && (isPrimary || isSelf || isCaptain)) { %>
-                                                        <form action="/manage-team/managers/remove" method="POST" style="margin:0; display:inline-flex;">
-                                                            <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
-                                                            <button type="submit" class="btn btn-tertiary" style="padding: 8px 12px; font-size:0.88rem;">Remove</button>
-                                                        </form>
-                                                    <% } %>
-                                                </div>
+                                                <% const isSelf = (user && manager && String(manager._id) === String(user._id)); %>
+                                                <% const hasAction = isPrimary || isSelf || isCaptain; %>
+                                                <% if (hasAction) { %>
+                                                    <details class="manager-actions-dropdown">
+                                                        <summary aria-label="Toggle manager actions" role="button"><span aria-hidden="true">▾</span></summary>
+                                                        <div class="actions-menu">
+                                                            <% if (isPrimary) { %>
+                                                                <form action="/manage-team/managers/captain" method="POST">
+                                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                                    <button type="submit" class="btn btn-tertiary action-button">
+                                                                        <% if (manager.role && String(manager.role).trim().toLowerCase() === 'captain') { %>
+                                                                            Remove Captain
+                                                                        <% } else { %>
+                                                                            Set as Captain
+                                                                        <% } %>
+                                                                    </button>
+                                                                </form>
+                                                            <% } %>
+                                                            <% if (!manager.primary && (isPrimary || isSelf || isCaptain)) { %>
+                                                                <form action="/manage-team/managers/remove" method="POST">
+                                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                                    <button type="submit" class="btn btn-tertiary action-button">Remove</button>
+                                                                </form>
+                                                            <% } %>
+                                                        </div>
+                                                    </details>
+                                                <% } %>
                                             </li>
                                         <% }); %>
                                     </ul>
@@ -494,6 +500,21 @@
             </div>
         <% } %>
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.manager-actions-dropdown').forEach(function(dropdown) {
+                dropdown.addEventListener('toggle', function() {
+                    var card = dropdown.closest('.manager-card');
+                    if (!card) return;
+                    if (dropdown.open) {
+                        card.classList.add('manager-card-open');
+                    } else {
+                        card.classList.remove('manager-card-open');
+                    }
+                });
+            });
+        });
+    </script>
     <script src="/assets/js/main.js"></script>
 </body>
 </html>

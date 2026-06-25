@@ -896,6 +896,114 @@ h3 {
   color: var(--accent-secondary) !important;
 }
 
+.manager-card {
+  position: relative;
+  align-items: flex-start;
+  overflow: visible;
+  z-index: 0;
+}
+
+.manager-card.manager-card-open {
+  z-index: 200000;
+}
+
+.manager-card .manager-actions-dropdown {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: auto;
+  z-index: 100000;
+}
+
+.manager-card.manager-card-open .manager-actions-dropdown {
+  z-index: 200001;
+}
+
+.manager-actions-dropdown summary {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 200002;
+}
+
+.manager-actions-dropdown[open] .actions-menu {
+  z-index: 200001;
+}
+
+.manager-card-main {
+  margin-right: 40px;
+}
+
+.manager-card-main > strong,
+.manager-card-main > .status-pill {
+  display: inline-flex;
+  align-items: center;
+}
+
+.manager-card-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.manager-actions-dropdown summary {
+  position: relative;
+  top: 0;
+  right: 0;
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-weight: 700;
+  transition: transform 120ms ease, background 120ms ease;
+  z-index: 3;
+}
+
+.manager-actions-dropdown summary:hover,
+.manager-actions-dropdown summary:focus {
+  background: var(--surface-soft);
+}
+
+.manager-actions-dropdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.manager-actions-dropdown[open] summary {
+  transform: rotate(180deg);
+}
+
+.manager-actions-dropdown .actions-menu {
+  position: absolute;
+  top: 48px;
+  right: 12px;
+  left: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 180px;
+  max-width: min(220px, calc(100% - 28px));
+  z-index: 2;
+}
+
+.manager-actions-dropdown .action-button {
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+}
+
 .btn-link {
   min-height: 0;
   padding: 0;
