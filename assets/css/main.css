@@ -776,6 +776,22 @@ h3 {
   margin: 0 0 28px;
 }
 
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0 0 28px;
+  align-items: center;
+}
+
+.button-group .btn {
+  margin: 0;
+}
+
+.button-group .back-button {
+  margin-bottom: 0;
+}
+
 .back-link {
   display: inline-flex;
   color: var(--accent-primary);
