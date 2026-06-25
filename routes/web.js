@@ -38,6 +38,26 @@ function signIn(req, user) {
     req.session.userId = user._id.toString();
 }
 
+async function getPostLoginRedirect(user) {
+    const normalizedEmail = normalizeEmail(user.email);
+    const teamAccessConditions = [
+        { contact: normalizedEmail },
+        { managers: user._id }
+    ];
+
+    const managedTeam = await Team.findOne({ $or: teamAccessConditions }).select('_id').lean().exec();
+    if (managedTeam) return '/manage-team';
+
+    if (user.teamNumber) {
+        teamAccessConditions.push({ teamNumber: user.teamNumber });
+    }
+
+    const affiliatedTeam = await Team.findOne({ $or: teamAccessConditions }).select('_id').lean().exec();
+    if (!affiliatedTeam) return '/my-applications';
+
+    return '/';
+}
+
 function createInviteToken() {
     return crypto.randomBytes(24).toString('hex');
 }
@@ -1469,7 +1489,7 @@ router.post('/login', async function(req, res){
             if (acceptedTeam) return res.redirect('/manage-team');
         }
 
-        res.redirect('/');
+        res.redirect(await getPostLoginRedirect(user));
     } catch (err) {
         res.render('pages/login', { error: err.message, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null });
     }
