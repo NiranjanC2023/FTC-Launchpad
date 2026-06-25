@@ -1416,6 +1416,11 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             student.interests = interests;
             student.phone = phone;
             student.email = normalizedEmail;
+            student.applicationTeam = undefined;
+            student.applicationStatus = undefined;
+            student.statusMessage = undefined;
+            student.statusUpdatedAt = undefined;
+            student.statusBy = undefined;
             await student.save();
         }
 

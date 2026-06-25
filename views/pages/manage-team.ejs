@@ -88,6 +88,41 @@
         .status-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
         .status-modal-header h2 { margin: 0; font-size: 1.4rem; }
         .btn-ghost { background: transparent; border: none; color: #475569; font-size: 1.5rem; line-height: 1; cursor: pointer; }
+        .recruit-name-button {
+            appearance: none;
+            background: transparent;
+            border: 0;
+            color: var(--accent-primary);
+            cursor: pointer;
+            font: inherit;
+            font-weight: 800;
+            padding: 0;
+            text-align: left;
+        }
+        .recruit-name-button:hover,
+        .recruit-name-button:focus {
+            text-decoration: underline;
+        }
+        .recruit-info-grid {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 12px 18px;
+        }
+        .recruit-info-grid dt {
+            color: #64748b;
+            font-weight: 800;
+            margin: 0;
+        }
+        .recruit-info-grid dd {
+            color: #0f172a;
+            margin: 0;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+        }
+        @media (max-width: 640px) {
+            .recruit-info-grid { grid-template-columns: 1fr; gap: 4px 0; }
+            .recruit-info-grid dd { margin-bottom: 10px; }
+        }
     </style>
 </head>
 <body class="dashboard-page">
@@ -327,7 +362,18 @@
                                             <div class="row" style="display: flex; align-items: center;">
                                                 <div class="col-sm-8">
                                                     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
-                                                        <h4 style="margin: 0; color: var(--accent-primary); font-weight: 800;"><%= recruit.name %></h4>
+                                                        <h4 style="margin: 0;">
+                                                            <button
+                                                                type="button"
+                                                                class="recruit-name-button"
+                                                                data-recruit-info
+                                                                data-name="<%= recruit.name || '' %>"
+                                                                data-age="<%= recruit.age || '' %>"
+                                                                data-email="<%= recruit.email || '' %>"
+                                                                data-phone="<%= recruit.phone || '' %>"
+                                                                data-interests="<%= recruit.interests || '' %>"
+                                                                data-experience="<%= recruit.experience || '' %>"><%= recruit.name %></button>
+                                                        </h4>
                                                         <% if (recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id)) { %>
                                                             <span class="status-pill" style="background: <%= recruit.applicationStatus === 'accepted' ? '#dcfce7' : recruit.applicationStatus === 'waitlisted' ? '#eef2ff' : '#fee2e2' %>; color: <%= recruit.applicationStatus === 'accepted' ? '#166534' : recruit.applicationStatus === 'waitlisted' ? '#4338ca' : '#991b1b' %>;">
                                                                 <%= recruit.applicationStatus.charAt(0).toUpperCase() + recruit.applicationStatus.slice(1) %>
@@ -382,7 +428,18 @@
                                         <div class="recruit-card" style="margin-bottom: 12px;">
                                             <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
                                                 <div>
-                                                    <h4 style="margin:0; color: var(--accent-primary); font-weight:800;"><%= waitRecruit.name %></h4>
+                                                    <h4 style="margin:0;">
+                                                        <button
+                                                            type="button"
+                                                            class="recruit-name-button"
+                                                            data-recruit-info
+                                                            data-name="<%= waitRecruit.name || '' %>"
+                                                            data-age="<%= waitRecruit.age || '' %>"
+                                                            data-email="<%= waitRecruit.email || '' %>"
+                                                            data-phone="<%= waitRecruit.phone || '' %>"
+                                                            data-interests="<%= waitRecruit.interests || '' %>"
+                                                            data-experience="<%= waitRecruit.experience || '' %>"><%= waitRecruit.name %></button>
+                                                    </h4>
                                                     <p class="small text-muted" style="margin:4px 0 0;">Email: <%= waitRecruit.email %></p>
                                                 </div>
                                                 <span class="status-pill" style="background: #eef2ff; color:#4338ca;">Waitlisted</span>
@@ -420,6 +477,28 @@
                             <button type="submit" class="btn btn-primary">Send Email</button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <div id="recruitInfoModal" class="status-modal hidden">
+                <div class="status-modal-backdrop"></div>
+                <div class="status-modal-panel">
+                    <div class="status-modal-header">
+                        <h2 id="recruitInfoTitle">Applicant Info</h2>
+                        <button type="button" id="recruitInfoClose" class="btn btn-ghost" aria-label="Close">×</button>
+                    </div>
+                    <dl class="recruit-info-grid">
+                        <dt>Age</dt>
+                        <dd id="recruitInfoAge"></dd>
+                        <dt>Email</dt>
+                        <dd id="recruitInfoEmail"></dd>
+                        <dt>Phone</dt>
+                        <dd id="recruitInfoPhone"></dd>
+                        <dt>Interests</dt>
+                        <dd id="recruitInfoInterests"></dd>
+                        <dt>Background</dt>
+                        <dd id="recruitInfoExperience"></dd>
+                    </dl>
                 </div>
             </div>
 
@@ -491,6 +570,40 @@
                             }
                         }
                     });
+
+                    const infoModal = document.getElementById('recruitInfoModal');
+                    const infoClose = document.getElementById('recruitInfoClose');
+                    const infoFields = {
+                        title: document.getElementById('recruitInfoTitle'),
+                        age: document.getElementById('recruitInfoAge'),
+                        email: document.getElementById('recruitInfoEmail'),
+                        phone: document.getElementById('recruitInfoPhone'),
+                        interests: document.getElementById('recruitInfoInterests'),
+                        experience: document.getElementById('recruitInfoExperience')
+                    };
+
+                    function fillInfoField(key, value) {
+                        infoFields[key].textContent = value && value.trim() ? value : 'Not provided';
+                    }
+
+                    function closeInfoModal() {
+                        infoModal.classList.add('hidden');
+                    }
+
+                    document.querySelectorAll('[data-recruit-info]').forEach(button => {
+                        button.addEventListener('click', function() {
+                            infoFields.title.textContent = this.dataset.name || 'Applicant Info';
+                            fillInfoField('age', this.dataset.age || '');
+                            fillInfoField('email', this.dataset.email || '');
+                            fillInfoField('phone', this.dataset.phone || '');
+                            fillInfoField('interests', this.dataset.interests || '');
+                            fillInfoField('experience', this.dataset.experience || '');
+                            infoModal.classList.remove('hidden');
+                        });
+                    });
+
+                    infoClose.addEventListener('click', closeInfoModal);
+                    infoModal.querySelector('.status-modal-backdrop').addEventListener('click', closeInfoModal);
                 })();
             </script>
 
