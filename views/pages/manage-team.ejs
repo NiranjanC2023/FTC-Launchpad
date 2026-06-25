@@ -26,6 +26,7 @@
         }
         .stat-content h4 { margin: 0; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
         .stat-content p { margin: 0; font-size: 1.3rem; font-weight: 800; color: var(--text-primary); }
+        .stat-content .location-value { font-size: 1.05rem; line-height: 1.25; overflow-wrap: anywhere; }
 
         .dashboard-panel { 
             background: var(--surface); border: 1px solid var(--border-color); border-radius: var(--radius-lg); 
@@ -153,17 +154,17 @@
         <% if (team) { %>
             <div class="stats-grid">
                 <div class="stat-card">
+                    <div class="stat-icon" style="background: #fff7ed; color: #ea580c;"><i class="fa-solid fa-location-crosshairs"></i></div>
+                    <div class="stat-content">
+                        <h4>Base Location</h4>
+                        <p class="location-value"><%= [team.city, team.state].filter(Boolean).join(', ') || team.country || 'Not set' %></p>
+                    </div>
+                </div>
+                <div class="stat-card">
                     <div class="stat-icon"><i class="fa-solid fa-users-viewfinder"></i></div>
                     <div class="stat-content">
                         <h4>Total Recruits</h4>
                         <p><%= recruits ? recruits.length : 0 %></p>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: #ecfdf5; color: #059669;"><i class="fa-solid fa-shield-halved"></i></div>
-                    <div class="stat-content">
-                        <h4>Verification</h4>
-                        <p><span class="status-pill">Official FIRST Team</span></p>
                     </div>
                 </div>
                 <div class="stat-card">
@@ -185,13 +186,6 @@
                     <div class="stat-content">
                         <h4>Rejected</h4>
                         <p><%= typeof rejectedCount !== 'undefined' ? rejectedCount : 0 %></p>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: #fff7ed; color: #ea580c;"><i class="fa-solid fa-location-crosshairs"></i></div>
-                    <div class="stat-content">
-                        <h4>Base Location</h4>
-                        <p><%= team.city %>, <%= team.state %></p>
                     </div>
                 </div>
             </div>
