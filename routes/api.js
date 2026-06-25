@@ -208,7 +208,26 @@ router.get('/users/me', async function(req, res) {
 				{ managers: user._id }
 			]
 		}).select('_id').lean().exec();
-		res.json({ ok: true, user: { ...publicUser(user), hasTeam: !!team } });
+
+		let applicationUpdate = null;
+		const student = await Student.findOne({ email: normalizedEmail })
+			.populate('applicationTeam', 'name teamNumber')
+			.lean()
+			.exec();
+		if (student && student.applicationStatus && student.applicationTeam) {
+			applicationUpdate = {
+				status: student.applicationStatus,
+				message: student.statusMessage || '',
+				updatedAt: student.statusUpdatedAt || null,
+				team: {
+					id: student.applicationTeam._id,
+					name: student.applicationTeam.name,
+					teamNumber: student.applicationTeam.teamNumber
+				}
+			};
+		}
+
+		res.json({ ok: true, user: { ...publicUser(user), hasTeam: !!team, applicationUpdate } });
 	} catch (err) {
 		res.status(500).json({ ok: false, error: err.message });
 	}

@@ -1,6 +1,16 @@
 // Dark mode removed: ensure no `data-theme` attribute remains
 document.documentElement.removeAttribute('data-theme');
 
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+}
+
 // Persist signup intent early so header logic can read it on load
 (function setSignupIntentFromPath() {
   try {
@@ -788,17 +798,42 @@ function loadSiteShells() {
           const inboxCountEls = document.querySelectorAll('[data-inbox-count]');
           const inboxLinks = inboxDropdown ? inboxDropdown.querySelectorAll('a') : [];
           const accountLinks = accountDropdown ? accountDropdown.querySelectorAll('a') : [];
-          const notificationStorageKey = user ? `inbox_unread_${user.id || user.email || 'current'}` : null;
+          const applicationUpdate = user && user.applicationUpdate ? user.applicationUpdate : null;
+          const applicationUpdatedAt = applicationUpdate && applicationUpdate.updatedAt ? applicationUpdate.updatedAt : 'current';
+          const applicationTeamId = applicationUpdate && applicationUpdate.team ? (applicationUpdate.team.id || applicationUpdate.team.name) : 'team';
+          const notificationStorageKey = user && applicationUpdate
+            ? `inbox_recruitment_${user.id || user.email || 'current'}_${applicationTeamId}_${applicationUpdate.status}_${applicationUpdatedAt}`
+            : null;
+
+          function applicationStatusLabel(status) {
+            if (status === 'accepted') return 'accepted';
+            if (status === 'waitlisted') return 'waitlisted';
+            if (status === 'rejected') return 'rejected';
+            return 'updated';
+          }
+
+          function applicationStatusTitle(status) {
+            if (status === 'accepted') return 'Application accepted';
+            if (status === 'waitlisted') return 'Application waitlisted';
+            if (status === 'rejected') return 'Application rejected';
+            return 'Application updated';
+          }
+
+          function applicationStatusSummary(update) {
+            const teamName = update && update.team && update.team.name ? update.team.name : 'A team';
+            const label = applicationStatusLabel(update && update.status);
+            return `${teamName} ${label} your recruitment application.`;
+          }
 
           function getUnreadCount() {
             if (!notificationStorageKey) return 0;
             try {
               const stored = sessionStorage.getItem(notificationStorageKey);
-              if (stored === null) return 3;
+              if (stored === null) return 1;
               const parsed = Number(stored);
-              return Number.isFinite(parsed) && parsed >= 0 ? parsed : 3;
+              return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1;
             } catch (e) {
-              return 3;
+              return 1;
             }
           }
 
@@ -840,19 +875,23 @@ function loadSiteShells() {
             if (accountLabelEl) accountLabelEl.textContent = 'Account';
             setUnreadCount(getUnreadCount());
             if (inboxLinks[0]) {
-              inboxLinks[0].setAttribute('href', '/account');
-              inboxLinks[0].setAttribute('data-href', '/account');
-              inboxLinks[0].innerHTML = '<strong>Profile updated</strong><span>Your account settings are ready to review.</span>';
+              if (applicationUpdate) {
+                inboxLinks[0].hidden = false;
+                inboxLinks[0].setAttribute('href', '/my-applications?mail=application-status');
+                inboxLinks[0].setAttribute('data-href', '/my-applications?mail=application-status');
+                inboxLinks[0].innerHTML = `<strong>${escapeHTML(applicationStatusTitle(applicationUpdate.status))}</strong><span>${escapeHTML(applicationStatusSummary(applicationUpdate))}</span>`;
+              } else {
+                inboxLinks[0].hidden = false;
+                inboxLinks[0].setAttribute('href', '/my-applications');
+                inboxLinks[0].setAttribute('data-href', '/my-applications');
+                inboxLinks[0].innerHTML = '<strong>No recruitment updates</strong><span>Your application inbox is all caught up.</span>';
+              }
             }
             if (inboxLinks[1]) {
-              inboxLinks[1].setAttribute('href', '/manage-team');
-              inboxLinks[1].setAttribute('data-href', '/manage-team');
-              inboxLinks[1].innerHTML = '<strong>Recruitment activity</strong><span>You have new team updates waiting.</span>';
+              inboxLinks[1].hidden = true;
             }
             if (inboxLinks[2]) {
-              inboxLinks[2].setAttribute('href', '/my-team');
-              inboxLinks[2].setAttribute('data-href', '/my-team');
-              inboxLinks[2].innerHTML = '<strong>Team message</strong><span>Check the latest updates from your team space.</span>';
+              inboxLinks[2].hidden = true;
             }
             if (accountLinks[0]) {
               accountLinks[0].setAttribute('href', '/account');

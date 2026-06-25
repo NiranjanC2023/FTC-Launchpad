@@ -336,13 +336,6 @@
                                         <i class="fa-solid fa-trash-can"></i> Delete Team Permanently
                                     </button>
                                 </form>
-                                <% if (isPrimary || isCaptain) { %>
-                                    <form action="/manage-team/recruitment/clear" method="POST" onsubmit="return confirm('Clear the recruitment feed for testing? This cannot be undone.');" style="margin-top: 16px;">
-                                        <button type="submit" class="btn btn-tertiary btn-block" style="color: #7c3aed !important; border-color: #c4b5fd !important;">
-                                            <i class="fa-solid fa-broom"></i> Clear Recruitment Feed (Test Only)
-                                        </button>
-                                    </form>
-                                <% } %>
                             </div>
                         </div>
                     </div>
@@ -352,7 +345,16 @@
                     <div class="dashboard-panel">
                         <div class="panel-head">
                             <h3><i class="fa-solid fa-user-plus"></i> Recruitment Feed</h3>
-                            <span class="badge" style="background: var(--accent-secondary);"><%= recruits.length %> Recent</span>
+                            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+                                <% if (isPrimary || isCaptain) { %>
+                                    <form action="/manage-team/recruitment/clear" method="POST" onsubmit="return confirm('Clear every recruit currently shown in the recruitment feed? This testing action cannot be undone.');" style="margin:0;">
+                                        <button type="submit" class="btn btn-tertiary btn-sm" style="color:#7c3aed !important; border-color:#c4b5fd !important;">
+                                            <i class="fa-solid fa-broom"></i> Clear Feed
+                                        </button>
+                                    </form>
+                                <% } %>
+                                <span class="badge" style="background: var(--accent-secondary);"><%= recruits.length %> Recent</span>
+                            </div>
                         </div>
                         <div class="panel-body">
                             <div class="list-group" style="margin: 0;">

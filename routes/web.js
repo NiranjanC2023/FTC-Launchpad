@@ -683,11 +683,22 @@ router.get('/my-applications', ensureAuthenticated, async function(req, res) {
         if (!user) return res.redirect('/logout');
 
         // Find the student profile associated with this user's email
-        const studentProfile = await Student.findOne({ email: user.email }).lean().exec();
-        
-        // Placeholder for applications/invitations logic
-        // In a future update, you would query an 'Invitations' model here
-        const applications = []; 
+        const studentProfile = await Student.findOne({ email: normalizeEmail(user.email) })
+            .populate('applicationTeam', 'name teamNumber contact')
+            .lean()
+            .exec();
+
+        const applications = [];
+        if (studentProfile && studentProfile.applicationTeam && studentProfile.applicationStatus) {
+            applications.push({
+                teamName: studentProfile.applicationTeam.name,
+                teamNumber: studentProfile.applicationTeam.teamNumber,
+                teamContact: studentProfile.applicationTeam.contact,
+                status: studentProfile.applicationStatus,
+                message: studentProfile.statusMessage || '',
+                updatedAt: studentProfile.statusUpdatedAt || studentProfile.createdAt
+            });
+        }
 
         res.render('pages/my-applications', { 
             user, 
@@ -931,10 +942,13 @@ router.post('/manage-team/recruitment/clear', ensureAuthenticated, async functio
             return res.redirect('/manage-team?error=manager_remove_denied');
         }
 
-        await Student.updateMany(
-            { applicationTeam: team._id },
-            { $unset: { applicationTeam: '', applicationStatus: '', statusMessage: '', statusUpdatedAt: '', statusBy: '' } }
-        ).exec();
+        await Student.deleteMany({
+            $or: [
+                { applicationTeam: { $exists: false } },
+                { applicationTeam: null },
+                { applicationTeam: team._id }
+            ]
+        }).exec();
 
         res.redirect('/manage-team?success=recruitment_cleared');
     } catch (err) {

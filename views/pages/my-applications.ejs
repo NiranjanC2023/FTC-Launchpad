@@ -11,9 +11,27 @@
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 40px; }
         .stat-card { background: var(--surface); padding: 25px; border-radius: var(--radius-md); border: 1px solid var(--border-color); text-align: center; }
         .profile-section { background: var(--surface); padding: 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); margin-bottom: 30px; }
-        .app-card { background: var(--surface); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .app-card { background: var(--surface); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+        .app-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
         .status-badge { padding: 5px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
         .status-pending { background: #fff3cd; color: #856404; }
+        .status-accepted { background: #dcfce7; color: #166534; }
+        .status-waitlisted { background: #eef2ff; color: #4338ca; }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
+        .mail-modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 24px; }
+        .mail-modal.hidden { display: none; }
+        .mail-modal-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.54); }
+        .mail-modal-panel { position: relative; width: min(620px, 100%); background: #fff; border-radius: 12px; box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24); overflow: hidden; }
+        .mail-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 22px 24px; border-bottom: 1px solid var(--border-color); }
+        .mail-modal-header h2 { margin: 0; font-size: 1.45rem; }
+        .mail-modal-header p { margin: 6px 0 0; color: var(--text-muted); }
+        .mail-modal-close { border: 0; background: transparent; font-size: 1.8rem; line-height: 1; color: var(--text-muted); cursor: pointer; }
+        .mail-modal-body { padding: 24px; }
+        .mail-message { margin-top: 18px; padding: 16px; background: #f8fafc; border-radius: 10px; color: var(--text-primary); line-height: 1.6; white-space: pre-wrap; }
+        @media (max-width: 640px) {
+            .app-card { align-items: flex-start; flex-direction: column; }
+            .app-actions { justify-content: flex-start; }
+        }
     </style>
 </head>
 <body class="dashboard-page">
@@ -55,13 +73,17 @@
                     <hr>
 
                     <% if (applications && applications.length > 0) { %>
-                        <% applications.forEach(app => { %>
+                        <% applications.forEach((app, index) => { %>
+                            <% const statusText = app.status === 'accepted' ? 'Accepted' : app.status === 'waitlisted' ? 'Waitlisted' : app.status === 'rejected' ? 'Rejected' : 'Pending Response'; %>
                             <div class="app-card">
                                 <div>
-                                    <h4 style="margin:0;"><%= app.teamName %></h4>
+                                    <h4 style="margin:0;"><%= app.teamName %><% if (app.teamNumber) { %> <span class="small text-muted">#<%= app.teamNumber %></span><% } %></h4>
                                     <p class="small text-muted" style="margin:5px 0 0 0;">Last updated: <%= new Date(app.updatedAt).toLocaleDateString() %></p>
                                 </div>
-                                <span class="status-badge status-pending">Pending Response</span>
+                                <div class="app-actions">
+                                    <span class="status-badge status-<%= app.status || 'pending' %>"><%= statusText %></span>
+                                    <button type="button" class="btn btn-secondary btn-sm" data-mail-index="<%= index %>">View Mail</button>
+                                </div>
                             </div>
                         <% }) %>
                     <% } else { %>
@@ -76,6 +98,80 @@
         </div>
     </main>
 
+    <div id="applicationMailModal" class="mail-modal hidden" aria-hidden="true">
+        <div class="mail-modal-backdrop" data-mail-close></div>
+        <div class="mail-modal-panel" role="dialog" aria-modal="true" aria-labelledby="applicationMailTitle">
+            <div class="mail-modal-header">
+                <div>
+                    <h2 id="applicationMailTitle">Application update</h2>
+                    <p id="applicationMailMeta"></p>
+                </div>
+                <button type="button" class="mail-modal-close" aria-label="Close" data-mail-close>&times;</button>
+            </div>
+            <div class="mail-modal-body">
+                <span id="applicationMailStatus" class="status-badge status-pending">Pending Response</span>
+                <div id="applicationMailMessage" class="mail-message"></div>
+                <p id="applicationMailContact" class="small text-muted" style="margin:18px 0 0;"></p>
+            </div>
+        </div>
+    </div>
+
     <script src="/assets/js/main.js"></script>
+    <script>
+        (function() {
+            const applications = <%- JSON.stringify(applications || []).replace(/</g, '\\u003c') %>;
+            const modal = document.getElementById('applicationMailModal');
+            if (!modal || !applications.length) return;
+
+            const title = document.getElementById('applicationMailTitle');
+            const meta = document.getElementById('applicationMailMeta');
+            const status = document.getElementById('applicationMailStatus');
+            const message = document.getElementById('applicationMailMessage');
+            const contact = document.getElementById('applicationMailContact');
+
+            function statusLabel(value) {
+                if (value === 'accepted') return 'Accepted';
+                if (value === 'waitlisted') return 'Waitlisted';
+                if (value === 'rejected') return 'Rejected';
+                return 'Pending Response';
+            }
+
+            function defaultMessage(app) {
+                if (app.status === 'accepted') return app.teamName + ' accepted your recruitment application. Please contact the team for next steps.';
+                if (app.status === 'waitlisted') return app.teamName + ' added you to their waitlist. They may contact you if a spot opens.';
+                if (app.status === 'rejected') return app.teamName + ' is unable to move forward with your application at this time.';
+                return 'Your application is still waiting for a team response.';
+            }
+
+            function openMail(index) {
+                const app = applications[index] || applications[0];
+                if (!app) return;
+                title.textContent = app.teamName + ' application update';
+                meta.textContent = 'Last updated ' + new Date(app.updatedAt).toLocaleDateString();
+                status.className = 'status-badge status-' + (app.status || 'pending');
+                status.textContent = statusLabel(app.status);
+                message.textContent = app.message || defaultMessage(app);
+                contact.textContent = app.teamContact ? 'Questions? Contact ' + app.teamContact + '.' : '';
+                modal.classList.remove('hidden');
+                modal.setAttribute('aria-hidden', 'false');
+            }
+
+            function closeMail() {
+                modal.classList.add('hidden');
+                modal.setAttribute('aria-hidden', 'true');
+            }
+
+            document.querySelectorAll('[data-mail-index]').forEach((button) => {
+                button.addEventListener('click', () => openMail(Number(button.dataset.mailIndex || 0)));
+            });
+            modal.querySelectorAll('[data-mail-close]').forEach((el) => el.addEventListener('click', closeMail));
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') closeMail();
+            });
+
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('mail') === 'application-status') openMail(0);
+        })();
+    </script>
 </body>
 </html>
