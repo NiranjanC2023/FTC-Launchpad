@@ -1340,7 +1340,8 @@ router.post('/login', async function(req, res){
         // If the user is a member of a team, redirect to their team page
         if (user.teamNumber) return res.redirect('/my-team');
 
-        res.redirect('/');
+        // If the user is not currently registered with a team, send them to their applications page
+        res.redirect('/my-applications');
     } catch (err) {
         res.render('pages/login', { error: err.message, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null });
     }
