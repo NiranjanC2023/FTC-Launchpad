@@ -24,6 +24,29 @@
                 <hr class="my-4">
                 <p><strong>Location:</strong> <%= team.city %>, <%= team.state %>, <%= team.country %></p>
                 <p><strong>Contact Info:</strong> <%= team.contact %></p>
+                <p><strong>Years in Program:</strong> <%= team.yearsInProgram || 'Not listed yet.' %></p>
+                <p><strong>Awards:</strong> <%= team.awards || 'No awards listed.' %></p>
+                <p><strong>Advancement:</strong> <%= team.advancementLevels && team.advancementLevels.length ? team.advancementLevels.join(', ') : 'No advancement listed.' %></p>
+                <p><strong>Awards Achieved:</strong></p>
+                <% if (team.awardHistory && team.awardHistory.length) { %>
+                    <ul>
+                        <% team.awardHistory.forEach(function(entry) { %>
+                            <li>🏅 <%= entry %></li>
+                        <% }) %>
+                    </ul>
+                <% } else { %>
+                    <p>No award history listed.</p>
+                <% } %>
+                <p><strong>Advancement History:</strong></p>
+                <% if (team.advancementHistory && team.advancementHistory.length) { %>
+                    <ul>
+                        <% team.advancementHistory.forEach(function(entry) { %>
+                            <li>🏁 <%= entry %></li>
+                        <% }) %>
+                    </ul>
+                <% } else { %>
+                    <p>No advancement history listed.</p>
+                <% } %>
                 <p><strong>Notes:</strong> <%= team.notes || 'No notes available.' %></p>
             </div>
         <% } else { %>

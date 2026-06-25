@@ -210,6 +210,47 @@
                                     <small class="text-muted">This bio appears on the public map.</small>
                                 </div>
                                 <div class="mb-3">
+                                    <label class="form-label">Years in Program</label>
+                                    <input type="number" name="yearsInProgram" class="form-control" min="0" step="1" value="<%= team.yearsInProgram || '' %>" placeholder="Example: 3">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Awards</label>
+                                    <input type="text" name="awards" class="form-control" value="<%= team.awards || '' %>" placeholder="Example: Inspire, Think, Finalist">
+                                    <small class="text-muted">FTC teams auto-refresh this from FTC Scout when available.</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Advancement</label>
+                                    <div class="team-history-panel" style="margin: 0;"><%= team.advancementLevels && team.advancementLevels.length ? team.advancementLevels.join(', ') : 'No advancement listed yet.' %></div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Awards Achieved</label>
+                                    <div class="team-history-panel" style="margin: 0;">
+                                        <% if (team.awardHistory && team.awardHistory.length) { %>
+                                            <ul style="margin: 0; padding-left: 18px;">
+                                                <% team.awardHistory.forEach(function(entry) { %>
+                                                    <li>🏅 <%= entry %></li>
+                                                <% }) %>
+                                            </ul>
+                                        <% } else { %>
+                                            No award history listed yet.
+                                        <% } %>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Advancement History</label>
+                                    <div class="team-history-panel" style="margin: 0;">
+                                        <% if (team.advancementHistory && team.advancementHistory.length) { %>
+                                            <ul style="margin: 0; padding-left: 18px;">
+                                                <% team.advancementHistory.forEach(function(entry) { %>
+                                                    <li>🏁 <%= entry %></li>
+                                                <% }) %>
+                                            </ul>
+                                        <% } else { %>
+                                            No advancement history listed yet.
+                                        <% } %>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
                                     <label class="checkbox" style="margin: 0; padding: 15px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; display: block;">
                                         <input type="checkbox" name="recruiting" <%= team.recruiting ? 'checked' : '' %>>
                                         <span style="margin-left: 8px; font-weight: 800;">Actively Recruiting</span>

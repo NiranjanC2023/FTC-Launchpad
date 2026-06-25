@@ -93,6 +93,37 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+function createUserLocationMarker(map, userCoords, bounds) {
+  if (!map || !userCoords || typeof userCoords.lat !== 'number' || typeof userCoords.lon !== 'number') return null;
+
+  const marker = L.marker([userCoords.lat, userCoords.lon], {
+    interactive: false,
+    keyboard: false,
+    title: 'Your location',
+    icon: L.divIcon({
+      className: 'user-location-marker-icon',
+      html: '<span class="user-location-marker-pin" aria-hidden="true"><i class="fa-solid fa-location-dot"></i></span>',
+      iconSize: [36, 36],
+      iconAnchor: [18, 32],
+      popupAnchor: [0, -48]
+    })
+  }).addTo(map);
+
+  marker.bindTooltip('Your location', {
+    permanent: true,
+    direction: 'top',
+    offset: [0, -16],
+    opacity: 1,
+    className: 'marker-label marker-label--active user-location-tooltip'
+  });
+
+  if (bounds) {
+    bounds.extend([userCoords.lat, userCoords.lon]);
+  }
+
+  return marker;
+}
+
 function renderTeams(teams, userCoords) {
   const list = document.getElementById('teamsList');
   if (!list) return;
@@ -100,6 +131,7 @@ function renderTeams(teams, userCoords) {
   // clear list
   list.innerHTML = '';
   window._teamMarkers = {};
+  window._userLocationMarker = null;
   window._infoWindowTimer = null;
   window._infoWindow = null; // Reset infoWindow to ensure it's recreated with new map instance
   window._teamCards = {};
@@ -134,6 +166,31 @@ function renderTeams(teams, userCoords) {
             <select id="teamsProgramFilter" class="teams-program-filter" aria-label="Filter teams by FIRST program">
               ${programOptions.map(program => `<option value="${escapeHTML(program)}">${program === 'All' ? 'All programs' : escapeHTML(program)}</option>`).join('')}
             </select>
+            <label for="teamsAwardsFilter">Awards</label>
+            <select id="teamsAwardsFilter" class="teams-program-filter" aria-label="Filter teams by awards">
+              <option value="all">All teams</option>
+              <option value="has-awards">Has awards listed</option>
+              <option value="no-awards">No awards listed</option>
+            </select>
+            <label for="teamsYearsFilter">Years in program</label>
+            <select id="teamsYearsFilter" class="teams-program-filter" aria-label="Filter teams by years in program">
+              <option value="all">All years</option>
+              <option value="rookie">Rookie (1-2 years)</option>
+              <option value="mid">3-5 years</option>
+              <option value="veteran">6+ years</option>
+              <option value="unknown">Unknown</option>
+            </select>
+            <label for="teamsAdvancementFilter">Advancement</label>
+            <select id="teamsAdvancementFilter" class="teams-program-filter" aria-label="Filter teams by advancement level">
+              <option value="all">All advancement</option>
+              <option value="Qualifier">Qualifiers</option>
+              <option value="Regional">Regionals</option>
+              <option value="Worlds">Worlds</option>
+              <option value="unknown">Unknown</option>
+            </select>
+            <div class="teams-filter-actions">
+              <button type="button" class="teams-filter-clear">Clear filters</button>
+            </div>
           </div>
         </div>
       </div>
@@ -160,9 +217,13 @@ function renderTeams(teams, userCoords) {
 
   const searchInput = searchWrap.querySelector('#teamsSearch');
   const programFilter = searchWrap.querySelector('#teamsProgramFilter');
+  const awardsFilter = searchWrap.querySelector('#teamsAwardsFilter');
+  const yearsFilter = searchWrap.querySelector('#teamsYearsFilter');
+  const advancementFilter = searchWrap.querySelector('#teamsAdvancementFilter');
   const filterMenu = searchWrap.querySelector('.teams-filter-menu');
   const filterButton = searchWrap.querySelector('.teams-filter-button');
   const filterDropdown = searchWrap.querySelector('.teams-filter-dropdown');
+  const clearFiltersButton = searchWrap.querySelector('.teams-filter-clear');
   const resultCount = searchWrap.querySelector('.teams-search-count');
 
   function escapeHTML(value) {
@@ -186,11 +247,28 @@ function renderTeams(teams, userCoords) {
   function applySearch() {
     const query = searchInput.value.trim().toLowerCase();
     const selectedProgram = programFilter ? programFilter.value : 'All';
+    const selectedAwards = awardsFilter ? awardsFilter.value : 'all';
+    const selectedYears = yearsFilter ? yearsFilter.value : 'all';
+    const selectedAdvancement = advancementFilter ? advancementFilter.value : 'all';
     let visibleCount = 0;
 
     Object.values(window._teamCards).forEach(card => {
       const matchesProgram = selectedProgram === 'All' || card.dataset.program === selectedProgram;
-      const matches = matchesProgram && (!query || card.dataset.search.includes(query));
+      const hasAwards = card.dataset.hasAwards === 'true';
+      const yearsInProgram = Number(card.dataset.yearsInProgram || '');
+      const advancementLevels = String(card.dataset.advancementLevels || '').split('|').filter(Boolean);
+      const matchesAwards = selectedAwards === 'all'
+        || (selectedAwards === 'has-awards' && hasAwards)
+        || (selectedAwards === 'no-awards' && !hasAwards);
+      const matchesYears = selectedYears === 'all'
+        || (selectedYears === 'unknown' && !Number.isFinite(yearsInProgram))
+        || (selectedYears === 'rookie' && Number.isFinite(yearsInProgram) && yearsInProgram >= 1 && yearsInProgram <= 2)
+        || (selectedYears === 'mid' && Number.isFinite(yearsInProgram) && yearsInProgram >= 3 && yearsInProgram <= 5)
+        || (selectedYears === 'veteran' && Number.isFinite(yearsInProgram) && yearsInProgram >= 6);
+      const matchesAdvancement = selectedAdvancement === 'all'
+        || (selectedAdvancement === 'unknown' && advancementLevels.length === 0)
+        || advancementLevels.includes(selectedAdvancement);
+      const matches = matchesProgram && matchesAwards && matchesYears && matchesAdvancement && (!query || card.dataset.search.includes(query));
       card.hidden = !matches;
       if (matches) visibleCount++;
 
@@ -269,14 +347,42 @@ function renderTeams(teams, userCoords) {
   }
 
   searchInput.addEventListener('input', applySearch);
-  if (programFilter) {
-    programFilter.addEventListener('change', () => {
+  function closeFilterDropdown() {
+    if (!filterButton || !filterDropdown || !filterMenu) return;
+    filterButton.setAttribute('aria-expanded', 'false');
+    filterDropdown.hidden = true;
+    filterMenu.classList.remove('is-open');
+  }
+
+  function openFilterDropdown() {
+    if (!filterButton || !filterDropdown || !filterMenu) return;
+    filterButton.setAttribute('aria-expanded', 'true');
+    filterDropdown.hidden = false;
+    filterMenu.classList.add('is-open');
+  }
+
+  function resetFilters() {
+    if (searchInput) searchInput.value = '';
+    if (programFilter) programFilter.value = 'All';
+    if (awardsFilter) awardsFilter.value = 'all';
+    if (yearsFilter) yearsFilter.value = 'all';
+    if (advancementFilter) advancementFilter.value = 'all';
+    applySearch();
+    closeFilterDropdown();
+    searchInput.focus();
+  }
+
+  [programFilter, awardsFilter, yearsFilter, advancementFilter].filter(Boolean).forEach((filterEl) => {
+    filterEl.addEventListener('change', () => {
       applySearch();
-      if (filterButton && filterDropdown && filterMenu) {
-        filterButton.setAttribute('aria-expanded', 'false');
-        filterDropdown.hidden = true;
-        filterMenu.classList.remove('is-open');
-      }
+      closeFilterDropdown();
+    });
+  });
+  if (clearFiltersButton) {
+    clearFiltersButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      resetFilters();
     });
   }
   if (filterButton && filterDropdown && filterMenu) {
@@ -284,16 +390,21 @@ function renderTeams(teams, userCoords) {
       event.preventDefault();
       event.stopPropagation();
       const expanded = filterButton.getAttribute('aria-expanded') === 'true';
-      filterButton.setAttribute('aria-expanded', String(!expanded));
-      filterDropdown.hidden = expanded;
-      filterMenu.classList.toggle('is-open', !expanded);
+      if (expanded) {
+        closeFilterDropdown();
+      } else {
+        openFilterDropdown();
+      }
     });
 
     document.addEventListener('click', (event) => {
       if (filterMenu.contains(event.target)) return;
-      filterButton.setAttribute('aria-expanded', 'false');
-      filterDropdown.hidden = true;
-      filterMenu.classList.remove('is-open');
+      closeFilterDropdown();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      closeFilterDropdown();
     });
   }
 
@@ -347,30 +458,64 @@ function renderTeams(teams, userCoords) {
     const contact = String(team.contact || 'Contact unavailable');
     const location = String(team.location || '').trim();
     const notes = String(team.notes || '').trim();
+    const awards = String(team.awards || '').trim();
+    const awardHistory = Array.isArray(team.awardHistory) ? team.awardHistory.filter(Boolean) : [];
+    const yearsInProgram = Number(team.yearsInProgram);
+    const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.filter(Boolean) : [];
+    const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(Boolean) : [];
 
     const card = document.createElement('div');
     card.className = 'team-card';
     // attach team name to the DOM card for easy lookup from marker events
     card.dataset.team = teamName;
     card.dataset.program = programLabel;
-    card.dataset.search = `${teamName} ${teamNumber} ${contact} ${location} ${notes}`.toLowerCase();
+    card.dataset.hasAwards = awards ? 'true' : 'false';
+    card.dataset.yearsInProgram = Number.isFinite(yearsInProgram) ? String(yearsInProgram) : '';
+    card.dataset.advancementLevels = advancementLevels.join('|');
+    card.dataset.search = `${teamName} ${teamNumber} ${contact} ${location} ${notes} ${awards} ${awardHistory.join(' ')} ${advancementLevels.join(' ')} ${advancementHistory.join(' ')}`.toLowerCase();
     card.innerHTML = `
-      <div class="team-card-head" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; flex: 1 1 auto;">
+      <div class="team-card-head">
+        <div class="team-card-heading">
           <h3 class="team-card-title">${escapeHTML(teamName)}</h3>
-          <span class="team-card-label" style="display: block; font-size: 0.95rem; font-weight: 700; color: #333; margin-top: 6px;">${escapeHTML(teamNumber)}${team.verified ? ' · verified' : ''}</span>
+          <span class="team-card-label">${escapeHTML(teamNumber)}${team.verified ? ' · verified' : ''}</span>
         </div>
-        <div style="display:flex; gap:8px; align-items:center; flex: 0 0 auto;">
-          <button class="btn btn-link goto-marker" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-location-dot"></i></button>
-          <button class="btn btn-link toggle-details" aria-expanded="false" aria-label="Toggle details"><i class="fa-solid fa-chevron-down"></i></button>
+        <div class="team-card-toolbar">
+          <button class="btn btn-link goto-marker team-card-icon-button" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-location-dot"></i></button>
+          <button class="btn btn-link toggle-details team-card-icon-button" aria-expanded="false" aria-label="Toggle details"><i class="fa-solid fa-chevron-down"></i></button>
         </div>
       </div>
       <div class="team-details-content" style="margin-top: 12px; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 260ms ease, opacity 200ms ease;">
-        <p class="team-card-contact" style="margin: 0; font-size: 1em; font-weight: 600; color: #222;">${escapeHTML(contact)}</p>
-        ${location ? `<p class="team-card-meta" style="margin: 6px 0 0 0; font-size: 0.9em; font-weight: 500; color: #666;">${escapeHTML(location)}</p>` : ''}
-        ${notes ? `<p class="team-card-notes" style="margin: 8px 0 0 0; color: #444; font-style: italic;">${escapeHTML(notes)}</p>` : ''}
-        ${dist !== null ? `<p class="team-distance" style="margin: 8px 0 0 0;"><span>Distance</span><strong>${dist.toFixed(1)} km away</strong></p>` : ''}
-        <div class="team-actions" style="margin-top: 10px;">
+        <p class="team-card-contact">${escapeHTML(contact)}</p>
+        ${location ? `<p class="team-card-meta">${escapeHTML(location)}</p>` : ''}
+        ${Number.isFinite(yearsInProgram) ? `
+          <div class="team-card-stats">
+            ${Number.isFinite(yearsInProgram) ? `
+              <div class="team-card-stat">
+                <span class="team-card-stat-icon" aria-hidden="true"><i class="fa-regular fa-calendar"></i></span>
+                <span class="team-card-stat-text">${escapeHTML(String(yearsInProgram))} year${yearsInProgram === 1 ? '' : 's'} in program</span>
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
+        ${awardHistory.length ? `
+          <div class="team-card-award-history">
+            <strong><i class="fa-solid fa-medal" aria-hidden="true"></i> Awards achieved</strong>
+            <ul>
+              ${awardHistory.map((entry) => `<li>${escapeHTML(entry)}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+        ${advancementHistory.length ? `
+          <div class="team-card-award-history">
+            <strong><i class="fa-solid fa-flag-checkered" aria-hidden="true"></i> Advancement</strong>
+            <ul>
+              ${advancementHistory.map((entry) => `<li>${escapeHTML(entry)}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+        ${notes ? `<p class="team-card-notes">${escapeHTML(notes)}</p>` : ''}
+        ${dist !== null ? `<p class="team-distance"><span>Distance</span><strong>${dist.toFixed(1)} km away</strong></p>` : ''}
+        <div class="team-actions">
           <button class="btn btn-primary send-btn">Send My Info</button>
         </div>
       </div>
@@ -409,8 +554,10 @@ function renderTeams(teams, userCoords) {
           // set maxHeight dynamically to allow transition
           detailsContent.style.maxHeight = detailsContent.scrollHeight + 'px';
           detailsContent.style.opacity = '1';
-          // ensure visible in scroll area
-          detailsContent.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          // bring the whole card into view after layout expands
+          setTimeout(() => {
+            card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 40);
         } else {
           card.classList.add('collapsed');
           toggleBtn.setAttribute('aria-expanded', 'false');
@@ -531,8 +678,11 @@ function renderTeams(teams, userCoords) {
     window._infoWindowTimer = null;
     window._teamMapLayers = {};
     window._teamMarkers = {};
+    window._userLocationMarker = null;
 
     const bounds = L.latLngBounds();
+    window._userLocationMarker = createUserLocationMarker(map, userCoords, bounds);
+
     teams.forEach(team => {
       if (typeof team.lat !== 'number' || typeof team.lon !== 'number') return;
       
@@ -618,6 +768,8 @@ function renderTeams(teams, userCoords) {
 
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [24, 24] });
+    } else if (window._userLocationMarker && userCoords) {
+      map.setView([userCoords.lat, userCoords.lon], 13);
     }
     updatePrivacyBlur();
     updateTeamZoomNotifiers();
@@ -734,7 +886,7 @@ function initTeamsPage() {
     const geoOptions = { maximumAge: 60000, timeout: 2000, enableHighAccuracy: false };
     navigator.geolocation.getCurrentPosition((pos) => {
       const userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      status.textContent = `Found your location (${userCoords.lat.toFixed(3)}, ${userCoords.lon.toFixed(3)})`;
+    status.textContent = `Found your location (${userCoords.lat.toFixed(3)}, ${userCoords.lon.toFixed(3)})`;
       const withDist = teams.map(t => ({ ...t, distance: haversineDistance(userCoords.lat, userCoords.lon, t.lat, t.lon) }));
       withDist.sort((a,b) => a.distance - b.distance);
       renderTeams(withDist, userCoords);

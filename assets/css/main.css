@@ -38,16 +38,18 @@
 
 /* Dark mode removed: no [data-theme="dark"] variables */
 
-/* Team-finding pages: use blue accents */
+/* Team-finding pages: keep the same green family, just slightly brighter */
 .find-teams,
 .teams-list-container,
 .teams-list,
 #teamsList,
 #teamsContainer {
-  --accent-primary: #0a66ff;
-  --accent-secondary: #5aa0ff;
-  --accent-soft: #d9ecff;
-  --border-color: #cfe6ff;
+  --accent-primary: #116a43;
+  --accent-secondary: #2b8a57;
+  --accent-soft: #def5e7;
+  --border-color: #cfe5d7;
+  --surface-soft: #f5fbf7;
+  --bg-tertiary: #f8fcf9;
 }
 
 * {
@@ -1473,15 +1475,19 @@ textarea.form-control {
   text-align: left;
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
   min-width: 0; /* allow cards to shrink inside grid columns to avoid horizontal overflow */
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247,251,248,0.98));
+  border: 1px solid #d7e6dc;
+  border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(16, 38, 24, 0.08);
 }
 
 .team-card.collapsed {
   min-height: auto;
-  padding: 12px 14px;
+  padding: 16px 18px;
 }
 
 .team-card.expanded {
-  padding: 20px;
+  padding: 22px;
 }
 
 .team-details-content {
@@ -1503,10 +1509,12 @@ textarea.form-control {
 
 .team-card .team-card-title {
   margin: 0 0 6px;
-  font-size: clamp(1.6rem, 2.8vw, 2.2rem);
-  font-weight: 900;
-  color: var(--accent-primary);
-  line-height: 1.05;
+  font-family: "Segoe UI Variable Display", "Aptos Display", Inter, "Segoe UI", sans-serif;
+  font-size: clamp(1.45rem, 2.4vw, 1.95rem);
+  font-weight: 800;
+  color: #173429;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
 }
 
 @media (max-width: 560px) {
@@ -1568,10 +1576,10 @@ textarea.form-control {
 
 .team-card:hover,
 .team-card.is-active {
-  transform: translateY(-5px) scale(1.015);
-  border-color: var(--accent-primary);
-  background: var(--bg-tertiary);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-4px);
+  border-color: #b7d1c0;
+  background: linear-gradient(180deg, rgba(255,255,255,1), rgba(242,248,244,1));
+  box-shadow: 0 20px 40px rgba(16, 38, 24, 0.14);
 }
 
 .team-card.is-active::before {
@@ -1582,7 +1590,19 @@ textarea.form-control {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
+}
+
+.team-card-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.team-card-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 .team-card h3 {
@@ -1593,19 +1613,108 @@ textarea.form-control {
 
 .team-card-label {
   display: block;
-  color: var(--text-muted);
-  font-size: 0.78rem;
+  margin-top: 6px;
+  color: #677a70;
+  font-size: 0.74rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   line-height: 1.2;
   text-transform: uppercase;
 }
 
 .team-card-contact {
   margin: 0;
-  color: var(--text-primary);
-  font-size: clamp(1rem, 1.6vw, 1.2rem);
-  line-height: 1.35;
+  color: #21342a;
+  font-size: clamp(1rem, 1.35vw, 1.08rem);
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.team-card-meta {
+  margin: 6px 0 0;
+  color: #6b7b72;
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.team-card-stats {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.team-card-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 13px;
+  background: #f6fbf7;
+  border: 1px solid #dbe8df;
+  border-radius: 14px;
+}
+
+.team-card-stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(43, 138, 87, 0.12);
+  color: #1d6a45;
+  flex: 0 0 auto;
+}
+
+.team-card-stat-text {
+  color: #2d4036;
+  font-size: 0.94rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.team-card-award-history {
+  margin-top: 10px;
+  padding: 14px 15px;
+  background: linear-gradient(180deg, rgba(252, 248, 238, 0.96), rgba(247, 242, 228, 0.96));
+  border: 1px solid rgba(181, 151, 84, 0.24);
+  border-radius: 14px;
+}
+
+.team-card-award-history strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  color: #7c5b1f;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.team-card-award-history ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #3f3b30;
+  font-size: 0.93rem;
+  line-height: 1.5;
+}
+
+.team-card-award-history li + li {
+  margin-top: 5px;
+}
+
+.team-history-panel {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: #304238;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.team-history-panel ul {
+  color: inherit;
 }
 
 .team-distance {
@@ -1614,14 +1723,14 @@ textarea.form-control {
   justify-content: space-between;
   gap: 12px;
   margin: 0;
-  padding: 10px 12px;
-  background: var(--surface-soft);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  padding: 12px 13px;
+  background: #f6f8f6;
+  border: 1px solid #dde6df;
+  border-radius: 14px;
 }
 
 .team-distance span {
-  color: var(--text-muted);
+  color: #708077;
   font-size: 0.8rem;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -1629,18 +1738,45 @@ textarea.form-control {
 }
 
 .team-distance strong {
-  color: var(--accent-primary);
+  color: #173429;
   font-size: 0.95rem;
+  font-weight: 800;
 }
 
 .team-card .team-actions {
   width: 100%;
   margin-top: auto;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .team-card .btn-primary {
-  min-width: 150px;
+  min-width: 156px;
+  border-radius: 999px;
+  font-weight: 800;
+  box-shadow: 0 10px 22px rgba(17, 106, 67, 0.18);
+}
+
+.team-card-icon-button {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #d8e4dc;
+  border-radius: 999px;
+  background: #f7faf8;
+  color: #496356;
+  text-decoration: none;
+  transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+}
+
+.team-card-icon-button:hover,
+.team-card-icon-button:focus {
+  transform: translateY(-1px);
+  border-color: #b7d1c0;
+  background: #eef7f0;
+  color: #173429;
 }
 
 .teams-search {
@@ -1674,9 +1810,9 @@ textarea.form-control {
   gap: 10px;
   padding: 8px 12px;
   background: var(--surface);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid #d7e6dc;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(16, 38, 24, 0.07);
 }
 
 .teams-search-field:focus-within {
@@ -1685,7 +1821,7 @@ textarea.form-control {
 }
 
 .teams-search-field i {
-  color: var(--accent-secondary);
+  color: #6e8478;
   font-size: 0.95rem;
   margin-left: 2px;
 }
@@ -1712,10 +1848,10 @@ textarea.form-control {
   gap: 8px;
   min-height: 36px;
   padding: 8px 14px;
-  border: 1px solid var(--border-color);
+  border: 1px solid #d7e6dc;
   border-radius: 999px;
-  background: var(--surface-soft);
-  color: var(--text-primary);
+  background: #f4f8f5;
+  color: #21342a;
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -1724,8 +1860,8 @@ textarea.form-control {
 
 .teams-filter-button:hover,
 .teams-filter-button:focus {
-  background: rgba(26, 163, 74, 0.08);
-  border-color: rgba(26, 163, 74, 0.28);
+  background: #eef6f0;
+  border-color: #bfd5c6;
   transform: translateY(-1px);
 }
 
@@ -1737,11 +1873,15 @@ textarea.form-control {
   min-width: 220px;
   padding: 14px;
   background: var(--surface);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-md);
+  border: 1px solid #d7e6dc;
+  border-radius: 16px;
+  box-shadow: 0 18px 40px rgba(16, 38, 24, 0.12);
   display: grid;
   gap: 8px;
+}
+
+.teams-filter-dropdown[hidden] {
+  display: none !important;
 }
 
 .teams-filter-dropdown label {
@@ -1753,8 +1893,8 @@ textarea.form-control {
 .teams-program-filter {
   width: 100%;
   color: var(--text-primary);
-  background: var(--surface-soft);
-  border: 1px solid var(--border-color);
+  background: #f5f8f6;
+  border: 1px solid #d7e6dc;
   border-radius: 12px;
   outline: 0;
   font: inherit;
@@ -1762,36 +1902,54 @@ textarea.form-control {
   appearance: none;
 }
 
+.teams-filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.teams-filter-clear {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #116a43;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.teams-filter-clear:hover,
+.teams-filter-clear:focus {
+  text-decoration: underline;
+}
+
 .teams-search-count {
   flex: 0 0 auto;
-  color: var(--text-muted);
-  font-size: 0.85rem;
+  color: #5d7065;
+  font-size: 0.9rem;
   font-weight: 800;
   white-space: nowrap;
 }
 
-/* Make the teams list area scroll independently when there are many cards */
 .teams-list-container {
   width: 100%;
   max-width: 980px;
   margin: 24px auto 0;
-  padding: 20px;
+  padding: 24px;
   background: var(--surface);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
+  border: 1px solid #d7e6dc;
+  border-radius: 22px;
+  box-shadow: 0 18px 42px rgba(16, 38, 24, 0.1);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  max-height: calc(100vh - 360px);
+  gap: 16px;
 }
 
 .teams-list-cards {
-  overflow-y: auto;
-  padding-right: 6px; /* prevent content from hiding behind scrollbar */
-  direction: ltr; /* ensure scrollbar appears on the right */
-  -webkit-overflow-scrolling: touch;
-  overflow-x: hidden; /* prevent horizontal scrolling; keep vertical scrollbar on the right */
+  overflow: visible;
+  padding-right: 0;
+  direction: ltr;
 }
 
 .teams-empty {
@@ -1867,6 +2025,79 @@ textarea.form-control {
 .leaflet-marker-icon:focus .team-zoom-notifier {
   transform: translateY(-3px) rotate(-45deg);
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.22);
+}
+
+.user-location-marker-icon {
+  background: transparent;
+  border: none;
+  width: 36px !important;
+  height: 36px !important;
+}
+
+.user-location-marker-icon .user-location-marker-pin {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  background: linear-gradient(180deg, #39b073 0%, #1f8b57 55%, #176d46 100%);
+  border: 3px solid #ffffff;
+  border-radius: 50% 50% 50% 0;
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transform: rotate(-45deg);
+}
+
+.user-location-marker-icon .user-location-marker-pin::before {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  background: rgba(43, 138, 87, 0.16);
+  border-radius: 50% 50% 50% 0;
+  z-index: -1;
+}
+
+.user-location-marker-icon .user-location-marker-pin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 2px solid rgba(23, 109, 70, 0.18);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.user-location-marker-icon .user-location-marker-pin i {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.86rem;
+  position: relative;
+  z-index: 1;
+  transform: rotate(45deg);
+}
+
+.user-location-tooltip {
+  margin-top: -2px;
+  padding: 5px 11px;
+  background: linear-gradient(180deg, #f3fbf6 0%, #e7f5ec 100%);
+  border: 1px solid #c9e3d1;
+  border-radius: 999px;
+  color: #0f6b43;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.10);
+}
+
+.user-location-tooltip::before {
+  display: none;
 }
 
 /* (duplicated block removed) */
