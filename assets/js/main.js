@@ -240,8 +240,31 @@ function renderTeams(teams, userCoords) {
   searchInput.addEventListener('input', applySearch);
 
   function setTeamLayerVisible(teamName, visible) {
+    const layerSet = (window._teamMapLayers || {})[teamName];
     const marker = (window._teamMarkers || {})[teamName];
     const map = window._teamsMapInstance;
+    if (layerSet) {
+      layerSet.visible = visible;
+      [layerSet.circle, layerSet.privacyBlur].forEach(layer => {
+        if (!layer || !map || !map.hasLayer || !map.addLayer || !map.removeLayer) return;
+        if (visible && !map.hasLayer(layer)) {
+          layer.addTo(map);
+        } else if (!visible && map.hasLayer(layer)) {
+          map.removeLayer(layer);
+        }
+      });
+      if (!visible && layerSet.notifier && map && map.hasLayer(layerSet.notifier)) {
+        map.removeLayer(layerSet.notifier);
+      }
+      if (visible && typeof window._updateTeamZoomNotifiers === 'function') {
+        window._updateTeamZoomNotifiers();
+      }
+      if (typeof window._updatePrivacyBlur === 'function') {
+        window._updatePrivacyBlur();
+      }
+      return;
+    }
+
     if (!marker) return;
 
     if (marker.setVisible) {
@@ -385,6 +408,7 @@ function renderTeams(teams, userCoords) {
       scrollWheelZoom: true
     });
     const privacyBlurZoom = 16;
+    const notifierMaxZoom = 10;
     const privacyBlurLayers = [];
     const PrivacyBlurCircle = L.Layer.extend({
       initialize(latlng, radiusMeters) {
@@ -424,6 +448,20 @@ function renderTeams(teams, userCoords) {
       const shouldBlur = map.getZoom() >= privacyBlurZoom;
       privacyBlurLayers.forEach(layer => layer.setVisible(shouldBlur));
     };
+    const updateTeamZoomNotifiers = () => {
+      const shouldShow = map.getZoom() <= notifierMaxZoom;
+      Object.values(window._teamMapLayers || {}).forEach(layerSet => {
+        if (!layerSet.notifier) return;
+        const onMap = map.hasLayer(layerSet.notifier);
+        if (shouldShow && layerSet.visible !== false && !onMap) {
+          layerSet.notifier.addTo(map);
+        } else if ((!shouldShow || layerSet.visible === false) && onMap) {
+          map.removeLayer(layerSet.notifier);
+        }
+      });
+    };
+    window._updatePrivacyBlur = updatePrivacyBlur;
+    window._updateTeamZoomNotifiers = updateTeamZoomNotifiers;
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -432,6 +470,8 @@ function renderTeams(teams, userCoords) {
 
     window._teamsMapInstance = map;
     window._infoWindowTimer = null;
+    window._teamMapLayers = {};
+    window._teamMarkers = {};
 
     const bounds = L.latLngBounds();
     teams.forEach(team => {
@@ -468,10 +508,29 @@ function renderTeams(teams, userCoords) {
       }).addTo(map);
       const privacyBlurLayer = new PrivacyBlurCircle([team.lat, team.lon], radiusMeters).addTo(map);
       privacyBlurLayers.push(privacyBlurLayer);
+      const notifier = L.marker([team.lat, team.lon], {
+        interactive: true,
+        keyboard: true,
+        title: `${teamName} is in this area`,
+        icon: L.divIcon({
+          className: 'team-zoom-notifier-icon',
+          html: '<span class="team-zoom-notifier" aria-hidden="true"></span>',
+          iconSize: [28, 36],
+          iconAnchor: [14, 34],
+          popupAnchor: [0, -34]
+        })
+      });
 
       marker.bindPopup(popupContent, { maxWidth: 320 });
       if (!window._teamMarkers) window._teamMarkers = {};
       window._teamMarkers[teamName] = marker;
+      if (!window._teamMapLayers) window._teamMapLayers = {};
+      window._teamMapLayers[teamName] = {
+        circle: marker,
+        notifier,
+        privacyBlur: privacyBlurLayer,
+        visible: true
+      };
 
       marker.on('mouseover', () => {
         if (window._infoWindowTimer) {
@@ -491,6 +550,9 @@ function renderTeams(teams, userCoords) {
       marker.on('click', () => {
         focusTeam(teamName, { scroll: true, openPopup: true });
       });
+      notifier.on('click', () => {
+        focusTeam(teamName, { scroll: true, openPopup: true, zoom: 12 });
+      });
 
       bounds.extend(marker.getBounds());
     });
@@ -499,7 +561,9 @@ function renderTeams(teams, userCoords) {
       map.fitBounds(bounds, { padding: [24, 24] });
     }
     updatePrivacyBlur();
+    updateTeamZoomNotifiers();
     map.on('zoomend', updatePrivacyBlur);
+    map.on('zoomend', updateTeamZoomNotifiers);
 
     map.on('popupopen', event => {
       const popupEl = event.popup && event.popup.getElement ? event.popup.getElement() : null;
