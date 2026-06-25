@@ -95,6 +95,27 @@ function ensureAuthenticated(req, res, next) {
     res.redirect('/login');
 }
 
+function anonymousAllowedPath(pathname) {
+    const path = String(pathname || '/').split('?')[0];
+    return path === '/'
+        || path === '/login'
+        || path === '/signup'
+        || path === '/signup/seeker'
+        || path === '/signup/manager'
+        || path === '/auth-gate';
+}
+
+router.use(function(req, res, next) {
+    if (req.session && req.session.userId) return next();
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    if (req.path.startsWith('/api/')) return next();
+    if (req.path.startsWith('/assets/')) return next();
+    if (anonymousAllowedPath(req.path)) return next();
+
+    const nextPath = sanitizeNextPath(req.originalUrl || req.path, '/');
+    return res.redirect(`/auth-gate?next=${encodeURIComponent(nextPath)}&label=${encodeURIComponent('continue')}`);
+});
+
 function databaseErrorMessage() {
     return 'Database is not connected. Start MongoDB or set MONGODB_URI, then try again.';
 }
