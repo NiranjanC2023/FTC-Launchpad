@@ -699,12 +699,46 @@ function loadSiteShells() {
         .then(data => { 
           const user = data.user;
           const anchors = document.querySelectorAll('[data-href]');
+          const navUserControls = document.querySelector('.nav-user-controls');
+          const inboxMenu = document.querySelector('.inbox-menu');
+          const inboxToggle = document.querySelector('[data-inbox-toggle]');
+          const inboxDropdown = document.querySelector('[data-inbox-dropdown]');
           const accountMenu = document.querySelector('.account-menu');
           const accountToggle = document.querySelector('[data-account-toggle]');
           const accountDropdown = document.querySelector('[data-account-dropdown]');
           const initialsEl = document.querySelector('[data-account-initials]');
+          const accountLabelEl = document.querySelector('.account-label');
+          const inboxCountEls = document.querySelectorAll('[data-inbox-count]');
+          const inboxLinks = inboxDropdown ? inboxDropdown.querySelectorAll('a') : [];
+          const accountLinks = accountDropdown ? accountDropdown.querySelectorAll('a') : [];
+          const notificationStorageKey = user ? `inbox_unread_${user.id || user.email || 'current'}` : null;
 
-          if (accountMenu) accountMenu.style.display = user ? '' : 'none';
+          function getUnreadCount() {
+            if (!notificationStorageKey) return 0;
+            try {
+              const stored = sessionStorage.getItem(notificationStorageKey);
+              if (stored === null) return 3;
+              const parsed = Number(stored);
+              return Number.isFinite(parsed) && parsed >= 0 ? parsed : 3;
+            } catch (e) {
+              return 3;
+            }
+          }
+
+          function setUnreadCount(nextCount) {
+            const safeCount = Math.max(0, Number(nextCount) || 0);
+            inboxCountEls.forEach((el) => {
+              el.textContent = el.classList.contains('inbox-dropdown-count')
+                ? (safeCount > 0 ? `${safeCount} new` : 'All caught up')
+                : String(safeCount);
+            });
+            if (!notificationStorageKey) return;
+            try { sessionStorage.setItem(notificationStorageKey, String(safeCount)); } catch (e) {}
+          }
+
+          if (navUserControls) navUserControls.style.display = user ? 'inline-flex' : 'none';
+          if (inboxToggle) inboxToggle.setAttribute('aria-expanded', 'false');
+          if (inboxDropdown) inboxDropdown.hidden = true;
           if (accountToggle) accountToggle.setAttribute('aria-expanded', 'false');
           if (accountDropdown) accountDropdown.hidden = true;
           if (initialsEl && user) {
@@ -721,6 +755,62 @@ function loadSiteShells() {
             } else {
               initialsEl.textContent = initials;
             }
+          } else if (initialsEl) {
+            initialsEl.textContent = 'U';
+          }
+
+          if (user) {
+            if (accountLabelEl) accountLabelEl.textContent = 'Account';
+            setUnreadCount(getUnreadCount());
+            if (inboxLinks[0]) {
+              inboxLinks[0].setAttribute('href', '/account');
+              inboxLinks[0].setAttribute('data-href', '/account');
+              inboxLinks[0].innerHTML = '<strong>Profile updated</strong><span>Your account settings are ready to review.</span>';
+            }
+            if (inboxLinks[1]) {
+              inboxLinks[1].setAttribute('href', '/manage-team');
+              inboxLinks[1].setAttribute('data-href', '/manage-team');
+              inboxLinks[1].innerHTML = '<strong>Recruitment activity</strong><span>You have new team updates waiting.</span>';
+            }
+            if (inboxLinks[2]) {
+              inboxLinks[2].setAttribute('href', '/my-team');
+              inboxLinks[2].setAttribute('data-href', '/my-team');
+              inboxLinks[2].innerHTML = '<strong>Team message</strong><span>Check the latest updates from your team space.</span>';
+            }
+            if (accountLinks[0]) {
+              accountLinks[0].setAttribute('href', '/account');
+              accountLinks[0].setAttribute('data-href', '/account');
+              accountLinks[0].textContent = 'Settings';
+            }
+            if (accountLinks[1]) {
+              accountLinks[1].setAttribute('href', '/logout');
+              accountLinks[1].setAttribute('data-href', '/logout');
+              accountLinks[1].textContent = 'Sign Out';
+            }
+          }
+
+          if (inboxToggle && !inboxToggle.dataset.bound) {
+            inboxToggle.dataset.bound = 'true';
+            inboxToggle.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const menu = inboxToggle.closest('.inbox-menu');
+              const dropdown = menu && menu.querySelector('[data-inbox-dropdown]');
+              const expanded = inboxToggle.getAttribute('aria-expanded') === 'true';
+              if (dropdown) dropdown.hidden = expanded;
+              inboxToggle.setAttribute('aria-expanded', String(!expanded));
+              if (menu) menu.classList.toggle('is-open', !expanded);
+              if (!expanded && user) setUnreadCount(0);
+
+              const accountMenuEl = document.querySelector('.account-menu');
+              if (accountMenuEl) {
+                accountMenuEl.classList.remove('is-open');
+                const accountToggleEl = accountMenuEl.querySelector('[data-account-toggle]');
+                const accountDropdownEl = accountMenuEl.querySelector('[data-account-dropdown]');
+                if (accountToggleEl) accountToggleEl.setAttribute('aria-expanded', 'false');
+                if (accountDropdownEl) accountDropdownEl.hidden = true;
+              }
+            });
           }
 
           if (accountToggle && !accountToggle.dataset.bound) {
@@ -734,20 +824,31 @@ function loadSiteShells() {
               if (dropdown) dropdown.hidden = expanded;
               accountToggle.setAttribute('aria-expanded', String(!expanded));
               if (menu) menu.classList.toggle('is-open', !expanded);
+
+              const inboxMenuEl = document.querySelector('.inbox-menu');
+              if (inboxMenuEl) {
+                inboxMenuEl.classList.remove('is-open');
+                const inboxToggleEl = inboxMenuEl.querySelector('[data-inbox-toggle]');
+                const inboxDropdownEl = inboxMenuEl.querySelector('[data-inbox-dropdown]');
+                if (inboxToggleEl) inboxToggleEl.setAttribute('aria-expanded', 'false');
+                if (inboxDropdownEl) inboxDropdownEl.hidden = true;
+              }
             });
           }
 
-          if (!window.__accountMenuListenerBound) {
-            window.__accountMenuListenerBound = true;
+          if (!window.__navMenusListenerBound) {
+            window.__navMenusListenerBound = true;
             document.addEventListener('click', (event) => {
-              const menu = document.querySelector('.account-menu');
-              if (!menu || !menu.classList.contains('is-open')) return;
-              if (menu.contains(event.target)) return;
-              menu.classList.remove('is-open');
-              const toggle = menu.querySelector('[data-account-toggle]');
-              const dropdown = menu.querySelector('[data-account-dropdown]');
-              if (toggle) toggle.setAttribute('aria-expanded', 'false');
-              if (dropdown) dropdown.hidden = true;
+              ['.inbox-menu', '.account-menu'].forEach(selector => {
+                const menu = document.querySelector(selector);
+                if (!menu || !menu.classList.contains('is-open')) return;
+                if (menu.contains(event.target)) return;
+                menu.classList.remove('is-open');
+                const toggle = menu.querySelector('button[aria-haspopup="true"]');
+                const dropdown = menu.querySelector('[data-inbox-dropdown], [data-account-dropdown]');
+                if (toggle) toggle.setAttribute('aria-expanded', 'false');
+                if (dropdown) dropdown.hidden = true;
+              });
             });
           }
 

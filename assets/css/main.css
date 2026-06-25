@@ -28,7 +28,7 @@
   --input-text: #1f2326;
   --shadow-sm: 0 1px 2px rgba(0, 12, 4, 0.07);
   --shadow-md: 0 10px 24px rgba(0, 12, 4, 0.1);
-  --navbar-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --navbar-shadow: 0 10px 24px rgba(28, 36, 32, 0.2);
   --shadow-lg: 0 18px 44px rgba(0, 12, 4, 0.14);
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -129,7 +129,7 @@ header {
   padding: 0;
   display: block;
   background: var(--navbar-bg);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  border-bottom: 1px solid rgba(118, 128, 124, 0.55);
   box-shadow: var(--navbar-shadow);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -141,10 +141,10 @@ header::after {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -6px;
-  height: 8px;
+  bottom: -8px;
+  height: 10px;
   pointer-events: none;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.04), rgba(0,0,0,0.02));
+  background: linear-gradient(to bottom, rgba(103, 111, 108, 0.32), rgba(60, 66, 64, 0.08));
   z-index: 19;
 }
 
@@ -257,6 +257,12 @@ header .navbar {
   margin-left: 12px;
 }
 
+.nav-user-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .navbar-nav > li > a {
   padding: 8px 14px;
   border-radius: var(--radius-sm);
@@ -318,6 +324,134 @@ header .navbar {
   position: relative;
   display: flex;
   align-items: center;
+}
+
+.inbox-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inbox-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--navbar-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.inbox-toggle:hover,
+.inbox-toggle:focus {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.34);
+  transform: translateY(-1px);
+}
+
+.inbox-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  font-size: 1rem;
+  flex: 0 0 auto;
+}
+
+.inbox-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  display: block;
+}
+
+.inbox-label {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.inbox-badge,
+.inbox-dropdown-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #ffdf73;
+  color: #5c4100;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.inbox-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  width: 320px;
+  padding: 10px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.14);
+  z-index: 1200;
+}
+
+.inbox-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 6px 12px;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.inbox-dropdown a {
+  display: block;
+  padding: 12px;
+  border-radius: 12px;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.inbox-dropdown a + a {
+  margin-top: 4px;
+}
+
+.inbox-dropdown a strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 1.05rem;
+}
+
+.inbox-dropdown a span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.96rem;
+  line-height: 1.45;
+}
+
+.inbox-dropdown a:hover,
+.inbox-dropdown a:focus {
+  background: rgba(26, 163, 74, 0.1);
+  color: var(--accent-primary);
+}
+
+.inbox-menu.is-open .inbox-dropdown {
+  display: block;
 }
 
 .account-toggle {

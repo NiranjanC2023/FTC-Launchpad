@@ -313,14 +313,22 @@ router.get("/join-form", async function(req, res){
         }
 
         const user = await User.findById(req.session.userId).select('name age experience email phone interests').lean().exec();
-        const values = user ? {
-            name: user.name || '',
-            age: user.age || '',
-            experience: user.experience || '',
-            email: user.email || '',
-            phone: user.phone || '',
-            interests: user.interests || ''
-        } : {};
+        if (!user) {
+            return res.render("pages/join-form", { values: {} });
+        }
+
+        const studentProfile = user.email
+            ? await Student.findOne({ email: normalizeEmail(user.email) }).select('name age experience email phone interests').lean().exec()
+            : null;
+
+        const values = {
+            name: (studentProfile && studentProfile.name) || user.name || '',
+            age: (studentProfile && studentProfile.age) || user.age || '',
+            experience: (studentProfile && studentProfile.experience) || user.experience || '',
+            email: (studentProfile && studentProfile.email) || user.email || '',
+            phone: (studentProfile && studentProfile.phone) || user.phone || '',
+            interests: (studentProfile && studentProfile.interests) || user.interests || ''
+        };
 
         res.render("pages/join-form", { values });
     } catch (err) {
@@ -1262,7 +1270,7 @@ router.post('/signup', async function(req, res){
             if (acceptedTeam) return res.redirect('/manage-team');
         }
 
-        res.redirect('/account');
+        res.redirect('/');
     } catch (err) {
         console.error('Signup failed:', err);
         const renderMode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
@@ -1328,20 +1336,7 @@ router.post('/login', async function(req, res){
             if (acceptedTeam) return res.redirect('/manage-team');
         }
 
-        // If the user is a team contact or assigned manager, redirect to management dashboard
-        const manageTeam = await Team.findOne({
-            $or: [
-                { contact: normalizedEmail },
-                { managers: user._id }
-            ]
-        }).lean().exec();
-        if (manageTeam) return res.redirect('/manage-team');
-
-        // If the user is a member of a team, redirect to their team page
-        if (user.teamNumber) return res.redirect('/my-team');
-
-        // If the user is not currently registered with a team, send them to their applications page
-        res.redirect('/my-applications');
+        res.redirect('/');
     } catch (err) {
         res.render('pages/login', { error: err.message, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null });
     }

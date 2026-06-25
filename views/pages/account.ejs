@@ -7,14 +7,163 @@
   <link rel="stylesheet" href="/assets/css/main.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    .account-hero { background: var(--surface); border-bottom: 1px solid var(--border-color); padding: 40px 0; margin-bottom: 40px; }
-    .account-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
-    .account-card { background: var(--surface); padding: 28px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); text-align: left; }
-    .account-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
-    .account-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(26, 163, 74, 0.1); color: var(--accent-primary); font-weight: 700; margin-bottom: 12px; }
-    .account-list { list-style: none; padding: 0; margin: 0; }
-    .account-list li { padding: 8px 0; border-bottom: 1px solid var(--border-color); }
-    .account-list li:last-child { border-bottom: 0; }
+    .account-page {
+      padding: 18px 0 28px;
+    }
+    .account-shell {
+      display: grid;
+      gap: 18px;
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+    .account-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.9fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+    .account-hero-card,
+    .account-card {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 255, 248, 0.98));
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      box-shadow: var(--shadow-md);
+    }
+    .account-hero-card {
+      padding: 32px;
+    }
+    .account-card {
+      padding: 28px;
+    }
+    .account-hero-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+    .account-kicker,
+    .account-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(26, 163, 74, 0.12);
+      color: var(--accent-primary);
+      font-weight: 800;
+      margin-bottom: 14px;
+    }
+    .account-hero h1,
+    .account-card h2,
+    .account-card h3 {
+      margin-top: 0;
+    }
+    .account-hero h1 {
+      margin-bottom: 10px;
+    }
+    .account-hero p {
+      margin: 0;
+      max-width: 720px;
+    }
+    .account-status {
+      min-width: 220px;
+      padding: 18px 20px;
+      border-radius: 20px;
+      background: rgba(27, 107, 74, 0.92);
+      color: #ffffff;
+    }
+    .account-status strong,
+    .account-status span {
+      display: block;
+    }
+    .account-status strong {
+      font-size: 1.15rem;
+      margin-bottom: 6px;
+    }
+    .account-status span {
+      color: rgba(255, 255, 255, 0.82);
+      font-size: 0.96rem;
+      line-height: 1.5;
+    }
+    .account-highlights {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .account-highlight {
+      padding: 18px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(184, 237, 203, 0.9);
+    }
+    .account-highlight span,
+    .account-highlight strong {
+      display: block;
+    }
+    .account-highlight span {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      margin-bottom: 8px;
+    }
+    .account-highlight strong {
+      font-size: 1.15rem;
+      color: var(--text-primary);
+      line-height: 1.35;
+    }
+    .account-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      align-items: start;
+    }
+    .account-main,
+    .account-sidebar {
+      display: contents;
+    }
+    .account-overview {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 24px;
+      align-items: center;
+    }
+    .account-meta h2 {
+      margin-bottom: 8px;
+    }
+    .account-meta p {
+      margin-top: 0;
+      margin-bottom: 18px;
+    }
+    .account-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .account-detail {
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(184, 237, 203, 0.8);
+    }
+    .account-detail span,
+    .account-detail strong {
+      display: block;
+    }
+    .account-detail span {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+    }
+    .account-detail strong {
+      color: var(--text-primary);
+      line-height: 1.45;
+    }
+    .account-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 24px;
+    }
     .account-photo {
       width: 112px;
       height: 112px;
@@ -22,7 +171,6 @@
       object-fit: cover;
       display: block;
       border: 4px solid rgba(26, 163, 74, 0.18);
-      margin-bottom: 14px;
       background: #eef6f0;
     }
     .account-photo-placeholder {
@@ -37,72 +185,220 @@
       font-size: 2.1rem;
       font-weight: 800;
       border: 4px solid rgba(26, 163, 74, 0.18);
-      margin-bottom: 14px;
     }
     .photo-control {
-      position: relative;
       display: inline-flex;
       flex-direction: column;
       align-items: center;
       gap: 10px;
-      margin-bottom: 16px;
     }
     .photo-change {
       border: 0;
-      background: transparent;
+      border-radius: 999px;
+      background: rgba(26, 163, 74, 0.12);
       color: var(--accent-primary);
       font-weight: 800;
-      padding: 0;
+      padding: 8px 16px;
       cursor: pointer;
-      opacity: 0;
-      transition: opacity 0.18s ease;
-    }
-    .photo-control:hover .photo-change,
-    .photo-control:focus-within .photo-change {
-      opacity: 1;
     }
     .photo-menu {
-      width: 100%;
-      display: none;
+      display: grid;
+      gap: 8px;
       padding: 12px;
       border-radius: 14px;
       border: 1px solid var(--border-color);
       background: rgba(255, 255, 255, 0.9);
       box-shadow: var(--shadow-sm);
     }
-    .photo-control:hover .photo-menu,
-    .photo-control:focus-within .photo-menu {
-      display: grid;
-      gap: 8px;
-    }
-    @media (hover: none) {
-      .photo-menu {
-        display: grid;
-        gap: 8px;
-      }
-    }
     .photo-menu .form-control {
       min-height: 40px;
       padding: 8px 10px;
     }
+    .photo-menu input[type="file"] {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(184, 237, 203, 0.95);
+      background: #f8fffb;
+      color: var(--text-secondary);
+    }
+    .photo-menu input[type="file"]::file-selector-button {
+      margin-right: 14px;
+      padding: 10px 16px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent-primary);
+      color: #ffffff;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background-color 0.18s ease, transform 0.18s ease;
+    }
+    .photo-menu input[type="file"]::file-selector-button:hover {
+      background: #065f30;
+      transform: translateY(-1px);
+    }
     .account-form {
-      margin-top: 16px;
+      margin-top: 18px;
       display: grid;
-      gap: 10px;
+      gap: 12px;
+    }
+    .account-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 12px;
+    }
+    .account-list li {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .account-list li:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+    .account-list strong {
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+    .account-list span {
+      color: var(--text-secondary);
+      text-align: right;
+    }
+    .account-note {
+      padding: 16px 18px;
+      border-radius: 16px;
+      background: rgba(26, 163, 74, 0.08);
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+    .account-note strong {
+      color: var(--accent-primary);
+    }
+    .goal-switcher {
+      display: grid;
+      gap: 12px;
+    }
+    .goal-switcher p {
+      margin: 0;
+    }
+    .goal-options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .goal-option {
+      width: 100%;
+      text-align: left;
+      padding: 16px;
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.78);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+    .goal-option strong,
+    .goal-option span {
+      display: block;
+    }
+    .goal-option strong {
+      margin-bottom: 6px;
+      font-size: 1rem;
+    }
+    .goal-option span {
+      color: var(--text-muted);
+      font-size: 0.94rem;
+      line-height: 1.45;
+    }
+    .goal-option.is-active {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(26, 163, 74, 0.12);
+      transform: translateY(-1px);
+    }
+    .goal-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .goal-status {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin: 0;
+    }
+    @media (max-width: 980px) {
+      .account-hero,
+      .account-overview {
+        grid-template-columns: 1fr;
+      }
+      .account-grid {
+        grid-template-columns: 1fr;
+      }
+      .account-main,
+      .account-sidebar {
+        display: grid;
+        gap: 16px;
+      }
+      .account-hero-header {
+        flex-direction: column;
+      }
+      .account-highlights,
+      .account-detail-grid {
+        grid-template-columns: 1fr;
+      }
+      .account-status {
+        min-width: 0;
+      }
+    }
+    @media (max-width: 640px) {
+      .account-page {
+        padding-top: 14px;
+        padding-bottom: 20px;
+      }
+      .account-hero-card,
+      .account-card {
+        padding: 22px;
+        border-radius: 20px;
+      }
+      .account-actions {
+        flex-direction: column;
+      }
+      .account-actions .btn {
+        width: 100%;
+      }
+      .account-list li {
+        flex-direction: column;
+      }
+      .account-list span {
+        text-align: left;
+      }
+      .goal-options {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body class="dashboard-page">
   <header></header>
+  <%
+    const displayName = user && user.name ? user.name : 'Account';
+    const initials = user && user.name ? user.name.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0].toUpperCase()).join('') : 'U';
+    const ageValue = user && user.age ? user.age : 'Not set';
+    const phoneValue = user && user.phone ? user.phone : 'Not set';
+    const interestsValue = studentProfile && studentProfile.interests ? studentProfile.interests : (user && user.interests ? user.interests : 'Not set');
+    const experienceValue = studentProfile && studentProfile.experience ? studentProfile.experience : (user && user.experience ? user.experience : 'Not set');
+    const teamLabel = team ? (team.teamNumber + ' - ' + team.name) : (user && user.teamNumber ? ('Team #' + user.teamNumber) : 'Not connected yet');
+    const accountRole = team ? 'Team Member' : (studentProfile ? 'Student Profile Active' : 'Getting Started');
+    const profileComplete = (ageValue !== 'Not set' && phoneValue !== 'Not set' && interestsValue !== 'Not set');
+    const inferredGoal = team ? 'manager' : 'seeker';
+  %>
 
-  <section class="account-hero">
-    <div class="container">
-      <h1>My Account</h1>
-      <p class="text-muted">Manage your profile, settings, and sign-in details from one place.</p>
-    </div>
-  </section>
-
-  <main class="container">
+  <main class="container account-page">
     <% if (error) { %>
       <div class="alert alert-danger"><%= error %></div>
     <% } %>
@@ -110,41 +406,121 @@
       <div class="alert alert-success"><%= success %></div>
     <% } %>
 
-    <div class="account-grid">
-      <div class="account-card">
-        <div class="account-pill"><i class="fa-solid fa-user"></i> Profile</div>
-        <div class="photo-control">
-          <% if (user && user.profilePicture) { %>
-            <img class="account-photo" id="accountPhotoPreview" src="<%= user.profilePicture %>" alt="Profile picture">
-          <% } else { %>
-            <div class="account-photo-placeholder" id="accountPhotoPreview"><%= user && user.name ? user.name.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0].toUpperCase()).join('') : 'U' %></div>
-          <% } %>
-          <button type="button" class="photo-change" aria-controls="photoMenu">Change</button>
-          <small class="text-muted">Hover to change</small>
-        </div>
-        <h2 style="margin-top: 0;"><%= user ? user.name : 'Account' %></h2>
-        <p class="text-muted"><%= user ? user.email : '' %></p>
-        <ul class="account-list">
-          <li><strong>Age:</strong> <%= user && user.age ? user.age : '—' %></li>
-          <li><strong>Phone:</strong> <%= user && user.phone ? user.phone : '—' %></li>
-          <li><strong>Interests:</strong> <%= studentProfile && studentProfile.interests ? studentProfile.interests : (user && user.interests ? user.interests : '—') %></li>
-          <li><strong>Experience:</strong> <%= studentProfile && studentProfile.experience ? studentProfile.experience : (user && user.experience ? user.experience : '—') %></li>
-        </ul>
-        <div class="account-actions">
-          <a href="/join-form" class="btn btn-primary">Edit signup info</a>
-          <a href="/logout" class="btn btn-secondary">Sign out</a>
-        </div>
-        <form class="account-form" method="POST" action="/account">
-          <input type="hidden" id="profilePicture" name="profilePicture" value="<%= user && user.profilePicture ? user.profilePicture : '' %>">
-          <div class="photo-menu" id="photoMenu">
-            <label class="form-label" for="profilePictureFile">Upload photo</label>
-            <input class="form-control" type="file" id="profilePictureFile" accept="image/*">
-            <small class="text-muted">Choose an image and save it to your account.</small>
+    <div class="account-shell">
+      <section class="account-hero">
+        <div class="account-hero-card">
+          <div class="account-kicker"><i class="fa-solid fa-sliders"></i> Settings</div>
+          <div class="account-hero-header">
+            <div>
+              <h1>Manage your account</h1>
+              <p class="text-muted">Keep your profile photo, signup details, and team information up to date from one clean dashboard.</p>
+            </div>
+            <div class="account-status">
+              <strong><%= accountRole %></strong>
+              <span><%= user ? user.email : 'Sign in to update your account.' %></span>
+            </div>
           </div>
-          <button class="btn btn-primary" type="submit">Save picture</button>
-        </form>
-      </div>
+          <div class="account-highlights">
+            <div class="account-highlight">
+              <span>Current team</span>
+              <strong><%= teamLabel %></strong>
+            </div>
+            <div class="account-highlight">
+              <span>Profile completeness</span>
+              <strong><%= profileComplete ? 'Looking strong' : 'Needs a few details' %></strong>
+            </div>
+            <div class="account-highlight">
+              <span>Photo status</span>
+              <strong><%= user && user.profilePicture ? 'Custom photo added' : 'Using initials avatar' %></strong>
+            </div>
+          </div>
+        </div>
+      </section>
 
+      <div class="account-grid">
+        <div class="account-main">
+          <section class="account-card">
+            <div class="account-pill"><i class="fa-solid fa-user"></i> Profile overview</div>
+            <div class="account-overview">
+              <div class="photo-control">
+                <% if (user && user.profilePicture) { %>
+                  <img class="account-photo" id="accountPhotoPreview" src="<%= user.profilePicture %>" alt="Profile picture">
+                <% } else { %>
+                  <div class="account-photo-placeholder" id="accountPhotoPreview"><%= initials %></div>
+                <% } %>
+                <button type="button" class="photo-change" aria-controls="photoMenu">Choose photo</button>
+              </div>
+              <div class="account-meta">
+                <h2><%= displayName %></h2>
+                <p class="text-muted"><%= user ? user.email : '' %></p>
+                <div class="account-detail-grid">
+                  <div class="account-detail">
+                    <span>Age</span>
+                    <strong><%= ageValue %></strong>
+                  </div>
+                  <div class="account-detail">
+                    <span>Phone</span>
+                    <strong><%= phoneValue %></strong>
+                  </div>
+                  <div class="account-detail">
+                    <span>Interests</span>
+                    <strong><%= interestsValue %></strong>
+                  </div>
+                  <div class="account-detail">
+                    <span>Experience</span>
+                    <strong><%= experienceValue %></strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="account-actions">
+              <a href="/join-form" class="btn btn-primary">Edit signup info</a>
+              <a href="/logout" class="btn btn-secondary">Sign out</a>
+            </div>
+          </section>
+
+        </div>
+
+        <aside class="account-sidebar">
+          <section class="account-card">
+            <div class="account-pill"><i class="fa-solid fa-bullseye"></i> Current goal</div>
+            <div class="goal-switcher" data-goal-switcher data-default-goal="<%= inferredGoal %>">
+              <p class="text-muted">Switch what you want to do next and we'll guide the rest of the site in that direction.</p>
+              <div class="goal-options">
+                <button type="button" class="goal-option" data-goal-option data-goal="seeker" data-target="/join-form">
+                  <strong>Join a team</strong>
+                  <span>Focus on your student profile, nearby teams, and applications.</span>
+                </button>
+                <button type="button" class="goal-option" data-goal-option data-goal="manager" data-target="/team-register">
+                  <strong>Register a team</strong>
+                  <span>Switch into team-building mode and start setting up recruiting.</span>
+                </button>
+              </div>
+              <div class="goal-actions">
+                <a href="/join-form" class="btn btn-primary" data-goal-continue>Continue with goal</a>
+                <p class="goal-status" data-goal-status></p>
+              </div>
+            </div>
+          </section>
+
+          <section class="account-card">
+            <div class="account-pill"><i class="fa-solid fa-circle-info"></i> Account details</div>
+            <ul class="account-list">
+              <li><strong>Team</strong><span><%= teamLabel %></span></li>
+              <li><strong>Student profile</strong><span><%= studentProfile ? 'Created and active' : 'Not created yet' %></span></li>
+              <li><strong>Photo</strong><span><%= user && user.profilePicture ? 'Custom image saved' : 'Initials avatar active' %></span></li>
+              <li><strong>Experience</strong><span><%= experienceValue %></span></li>
+            </ul>
+          </section>
+
+          <section class="account-card">
+            <div class="account-pill"><i class="fa-solid fa-lightbulb"></i> Quick tip</div>
+            <div class="account-note">
+              <strong>Keep this page current.</strong> Teams review the details from your signup profile, so updated contact info and interests make it easier to match you with the right opportunities.
+            </div>
+          </section>
+        </aside>
+      </div>
     </div>
   </main>
 
@@ -153,38 +529,84 @@
     (() => {
       const fileInput = document.getElementById('profilePictureFile');
       const hiddenInput = document.getElementById('profilePicture');
-      const photoMenu = document.getElementById('photoMenu');
-      const preview = document.getElementById('accountPhotoPreview');
+      let preview = document.getElementById('accountPhotoPreview');
       const changeButton = document.querySelector('.photo-change');
-      if (!fileInput || !hiddenInput) return;
+      const goalSwitcher = document.querySelector('[data-goal-switcher]');
 
-      if (changeButton) {
+      if (changeButton && fileInput) {
         changeButton.addEventListener('click', () => fileInput.click());
       }
 
-      fileInput.addEventListener('change', () => {
-        const file = fileInput.files && fileInput.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = String(reader.result || '');
-          hiddenInput.value = result;
-          if (preview) {
-            if (preview.tagName === 'IMG') {
-              preview.src = result;
-            } else {
-              const img = document.createElement('img');
-              img.className = 'account-photo';
-              img.id = 'accountPhotoPreview';
-              img.src = result;
-              img.alt = 'Profile picture';
-              preview.replaceWith(img);
-            }
+      if (goalSwitcher) {
+        const goalButtons = goalSwitcher.querySelectorAll('[data-goal-option]');
+        const continueLink = goalSwitcher.querySelector('[data-goal-continue]');
+        const status = goalSwitcher.querySelector('[data-goal-status]');
+        const defaultGoal = goalSwitcher.getAttribute('data-default-goal') || 'seeker';
+
+        const goalConfig = {
+          seeker: {
+            label: 'Join a team',
+            href: '/join-form',
+            status: 'Goal set to joining a team.'
+          },
+          manager: {
+            label: 'Register a team',
+            href: '/team-register',
+            status: 'Goal set to registering a team.'
           }
         };
-        reader.readAsDataURL(file);
-      });
+
+        function applyGoal(goal) {
+          const selectedGoal = goalConfig[goal] ? goal : defaultGoal;
+          goalButtons.forEach((button) => button.classList.toggle('is-active', button.getAttribute('data-goal') === selectedGoal));
+          if (continueLink) {
+            continueLink.textContent = 'Continue: ' + goalConfig[selectedGoal].label;
+            continueLink.setAttribute('href', goalConfig[selectedGoal].href);
+          }
+          if (status) status.textContent = goalConfig[selectedGoal].status;
+          try { sessionStorage.setItem('signup_intent', selectedGoal); } catch (e) {}
+        }
+
+        let initialGoal = defaultGoal;
+        try {
+          initialGoal = sessionStorage.getItem('signup_intent') || defaultGoal;
+        } catch (e) {}
+        applyGoal(initialGoal);
+
+        goalButtons.forEach((button) => {
+          button.addEventListener('click', () => applyGoal(button.getAttribute('data-goal')));
+        });
+      }
+
+      if (fileInput && hiddenInput) {
+        fileInput.addEventListener('change', () => {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = String(reader.result || '');
+            hiddenInput.value = result;
+            if (preview) {
+              if (preview.tagName === 'IMG') {
+                preview.src = result;
+              } else {
+                const img = document.createElement('img');
+                img.className = 'account-photo';
+                img.id = 'accountPhotoPreview';
+                img.src = result;
+                img.alt = 'Profile picture';
+                preview.replaceWith(img);
+                preview = img;
+              }
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      }
     })();
   </script>
 </body>
 </html>
+
+
+

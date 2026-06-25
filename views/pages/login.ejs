@@ -5,26 +5,51 @@
   <title>Log In - FTC Starter Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/assets/css/main.css?v=13">
+  <style>
+    .login-form .form-label {
+      display: block;
+      text-align: left;
+      margin-bottom: 8px;
+    }
+    .password-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .show-password-toggle {
+      border: 0;
+      background: transparent;
+      color: var(--accent-primary);
+      font-weight: 700;
+      padding: 0;
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body class="auth-page">
   <header></header>
 
   <main>
     <div class="container">
-      <a href="/" class="btn btn-secondary back-button">← Back Home</a>
+      <a href="/" class="btn btn-secondary back-button">&larr; Back Home</a>
       <h1>Log In</h1>
       <% if (error) { %>
         <div class="alert alert-danger"><%= error %></div>
       <% } %>
-      <form method="POST" action="/login">
+      <form method="POST" action="/login" class="login-form">
         <input type="hidden" name="inviteToken" value="<%= inviteToken || '' %>" />
         <div class="mb-3">
-          <label class="form-label">Email</label>
-          <input name="email" type="email" class="form-control" required />
+          <label class="form-label" for="loginEmail">Email</label>
+          <input id="loginEmail" name="email" type="email" class="form-control" required />
         </div>
         <div class="mb-3">
-          <label class="form-label">Password</label>
-          <input name="password" type="password" class="form-control" required />
+          <div class="password-row">
+            <label class="form-label" for="loginPassword">Password</label>
+            <button type="button" class="show-password-toggle" data-password-toggle>Show</button>
+          </div>
+          <input id="loginPassword" name="password" type="password" class="form-control" required />
         </div>
         <div class="mb-3">
           <label class="form-label"><input type="checkbox" name="remember" value="1" /> Remember me</label>
@@ -36,5 +61,18 @@
   </main>
 
   <script src="/assets/js/main.js?v=8"></script>
+  <script>
+    (() => {
+      const passwordInput = document.getElementById('loginPassword');
+      const toggle = document.querySelector('[data-password-toggle]');
+      if (!passwordInput || !toggle) return;
+
+      toggle.addEventListener('click', () => {
+        const showPassword = passwordInput.type === 'password';
+        passwordInput.type = showPassword ? 'text' : 'password';
+        toggle.textContent = showPassword ? 'Hide' : 'Show';
+      });
+    })();
+  </script>
 </body>
 </html>
