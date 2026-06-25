@@ -392,10 +392,11 @@ router.get("/teams-nearby", async function(req, res){
             .exec();
 
         let studentApp = null;
+        let currentUser = null;
         if (req.session && req.session.userId) {
-            const user = await User.findById(req.session.userId).select('email').lean().exec();
-            if (user && user.email) {
-                const student = await Student.findOne({ email: normalizeEmail(user.email) }).lean().exec();
+            currentUser = await User.findById(req.session.userId).select('name age experience email phone interests').lean().exec();
+            if (currentUser && currentUser.email) {
+                const student = await Student.findOne({ email: normalizeEmail(currentUser.email) }).lean().exec();
                 if (student) {
                     studentApp = {
                         applicationStatus: student.applicationStatus || null,
@@ -407,7 +408,7 @@ router.get("/teams-nearby", async function(req, res){
             }
         }
 
-        res.render("pages/teams-nearby", { teams: teams.map(mapTeam), studentApp });
+        res.render("pages/teams-nearby", { teams: teams.map(mapTeam), studentApp, user: currentUser });
     } catch (err) {
         console.error('Failed to load nearby teams:', err);
         res.render("pages/teams-nearby", { teams: [] });
@@ -558,8 +559,32 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         let managerCandidates = [];
         if (team) {
             teamManagers = team.managers && team.managers.length
-                ? await User.find({ _id: { $in: team.managers } }).select('name role').lean().exec()
+                ? await User.find({ _id: { $in: team.managers } }).select('name role email').lean().exec()
                 : [];
+
+            const normalizedContact = normalizeEmail(team.contact);
+            let primaryManager = null;
+            if (normalizedContact) {
+                primaryManager = await User.findOne({ email: normalizedContact })
+                    .select('name role email')
+                    .lean()
+                    .exec();
+            }
+
+            if (primaryManager) {
+                const alreadyPresent = teamManagers.some(manager => String(manager._id) === String(primaryManager._id));
+                if (!alreadyPresent) {
+                    primaryManager.primary = true;
+                    teamManagers.unshift(primaryManager);
+                } else {
+                    teamManagers = teamManagers.map(manager => {
+                        if (String(manager._id) === String(primaryManager._id)) {
+                            return { ...manager, primary: true };
+                        }
+                        return manager;
+                    });
+                }
+            }
 
             const teamMembers = await User.find({ teamNumber: team.teamNumber })
                 .select('name email profilePicture role')
@@ -568,7 +593,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
 
             const managerIds = (team.managers || []).map(id => String(id));
             managerCandidates = teamMembers.filter(member => {
-                return String(member.email).toLowerCase() !== String(team.contact).toLowerCase()
+                return String(member.email).toLowerCase() !== normalizedContact
                     && !managerIds.includes(String(member._id));
             });
         }
@@ -752,19 +777,21 @@ router.post('/manage-team/managers/remove', ensureAuthenticated, async function(
             return res.redirect('/manage-team?error=manager_remove_invalid');
         }
 
-        if (!team.managers.some(id => String(id) === String(managerUserId))) {
-            return res.redirect('/manage-team?error=manager_remove_invalid');
-        }
-
         const managerToRemove = await User.findById(managerUserId).lean().exec();
         if (!managerToRemove) {
             return res.redirect('/manage-team?error=manager_remove_invalid');
         }
 
-        const isPrimary = normalizeEmail(user.email) === normalizeEmail(team.contact);
+        const normalizedContact = normalizeEmail(team.contact);
+        const targetIsPrimary = normalizeEmail(managerToRemove.email) === normalizedContact;
+        const isPrimary = normalizeEmail(user.email) === normalizedContact;
         const isCaptain = String(user.role || '').trim().toLowerCase() === 'captain';
         const isSelf = String(managerUserId) === String(user._id);
         const targetIsCaptain = String(managerToRemove.role || '').trim().toLowerCase() === 'captain';
+
+        if (targetIsPrimary) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
 
         if (targetIsCaptain && !isPrimary && !isCaptain) {
             return res.redirect('/manage-team?error=manager_remove_denied');
@@ -806,7 +833,9 @@ router.post('/manage-team/managers/captain', ensureAuthenticated, async function
             return res.redirect('/manage-team?error=captain_update_denied');
         }
 
-        const isPrimary = normalizeEmail(user.email) === normalizeEmail(team.contact);
+        const normalizedContact = normalizeEmail(team.contact);
+        const primaryContactUser = await User.findOne({ email: normalizedContact }).lean().exec();
+        const isPrimary = normalizeEmail(user.email) === normalizedContact;
         if (!isPrimary) {
             return res.redirect('/manage-team?error=captain_update_denied');
         }
@@ -816,7 +845,9 @@ router.post('/manage-team/managers/captain', ensureAuthenticated, async function
             return res.redirect('/manage-team?error=captain_update_invalid');
         }
 
-        if (!team.managers.some(id => String(id) === String(managerUserId))) {
+        const isPrimaryTarget = primaryContactUser && String(primaryContactUser._id) === String(managerUserId);
+        const isManagerTarget = Array.isArray(team.managers) && team.managers.some(id => String(id) === String(managerUserId));
+        if (!isPrimaryTarget && !isManagerTarget) {
             return res.redirect('/manage-team?error=captain_update_invalid');
         }
 
@@ -1302,6 +1333,103 @@ router.post('/account', ensureAuthenticated, async function(req, res) {
     } catch (err) {
         console.error('Failed to update account:', err);
         res.render('pages/account', { error: err.message, user: null, studentProfile: null, team: null });
+    }
+});
+
+router.get('/account/signup-info', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: {} });
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const values = {
+            name: user.name || '',
+            age: user.age || '',
+            experience: user.experience || '',
+            email: user.email || '',
+            phone: user.phone || '',
+            interests: user.interests || ''
+        };
+
+        res.render('pages/account-signup-info', { error: null, success: null, values });
+    } catch (err) {
+        console.error('Signup info page error:', err);
+        res.render('pages/account-signup-info', { error: 'Unable to load your signup info.', success: null, values: {} });
+    }
+});
+
+router.post('/account/signup-info', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: req.body || {} });
+
+        const currentUser = await User.findById(req.session.userId).lean().exec();
+        if (!currentUser) return res.redirect('/logout');
+
+        const name = String(req.body.name || '').trim();
+        const age = String(req.body.age || '').trim();
+        const experience = String(req.body.experience || '').trim();
+        const email = String(req.body.email || '').trim();
+        const phone = String(req.body.phone || '').trim();
+        const interests = String(req.body.interests || '').trim();
+
+        const normalizedEmail = normalizeEmail(email);
+        if (!name || !normalizedEmail) {
+            return res.render('pages/account-signup-info', {
+                error: 'Name and valid email are required.',
+                success: null,
+                values: req.body || {}
+            });
+        }
+
+        const existingUser = await User.findOne({ email: normalizedEmail, _id: { $ne: req.session.userId } }).lean().exec();
+        if (existingUser) {
+            return res.render('pages/account-signup-info', {
+                error: 'That email is already in use by another account.',
+                success: null,
+                values: req.body || {}
+            });
+        }
+
+        await User.findByIdAndUpdate(req.session.userId, {
+            name,
+            age: age ? Number(age) : undefined,
+            email: normalizedEmail,
+            phone,
+            interests,
+            experience
+        }, { new: true, runValidators: true }).exec();
+
+        const student = await Student.findOne({ email: normalizeEmail(currentUser.email) }).exec();
+        if (student) {
+            student.name = name;
+            student.age = age;
+            student.experience = experience;
+            student.interests = interests;
+            student.phone = phone;
+            student.email = normalizedEmail;
+            await student.save();
+        }
+
+        res.render('pages/account-signup-info', {
+            error: null,
+            success: 'Signup info saved successfully.',
+            values: {
+                name,
+                age,
+                experience,
+                email: normalizedEmail,
+                phone,
+                interests
+            }
+        });
+    } catch (err) {
+        console.error('Failed to save signup info:', err);
+        res.render('pages/account-signup-info', {
+            error: err.message || 'Failed to save signup info.',
+            success: null,
+            values: req.body || {}
+        });
     }
 });
 

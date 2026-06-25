@@ -131,7 +131,7 @@
           <li><strong>Experience:</strong> <%= studentProfile && studentProfile.experience ? studentProfile.experience : (user && user.experience ? user.experience : '—') %></li>
         </ul>
         <div class="account-actions">
-          <a href="/join-form" class="btn btn-primary">Edit signup info</a>
+          <a href="/account/signup-info" class="btn btn-primary">Edit signup info</a>
           <a href="/logout" class="btn btn-secondary">Sign out</a>
         </div>
         <form class="account-form" method="POST" action="/account">
