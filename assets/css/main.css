@@ -1469,14 +1469,20 @@ textarea.form-control {
   box-shadow: var(--shadow-md);
 }
 
-#teamsMap .leaflet-tile-pane,
-#teamsMap .leaflet-overlay-pane {
-  transition: filter 180ms ease;
+#teamsMap .team-privacy-blur {
+  position: absolute;
+  z-index: 350;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  background: rgba(255, 255, 255, 0.04);
+  transition: opacity 180ms ease;
 }
 
-#teamsMap.map-privacy-blur .leaflet-tile-pane,
-#teamsMap.map-privacy-blur .leaflet-overlay-pane {
-  filter: blur(7px);
+#teamsMap .team-privacy-blur.is-visible {
+  opacity: 1;
 }
 
 /* (duplicated block removed) */

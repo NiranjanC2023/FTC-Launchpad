@@ -385,8 +385,44 @@ function renderTeams(teams, userCoords) {
       scrollWheelZoom: true
     });
     const privacyBlurZoom = 16;
+    const privacyBlurLayers = [];
+    const PrivacyBlurCircle = L.Layer.extend({
+      initialize(latlng, radiusMeters) {
+        this._latlng = L.latLng(latlng);
+        this._radiusMeters = radiusMeters;
+      },
+      onAdd(layerMap) {
+        this._map = layerMap;
+        this._el = L.DomUtil.create('div', 'team-privacy-blur');
+        layerMap.getPanes().overlayPane.appendChild(this._el);
+        layerMap.on('zoom viewreset move', this._reset, this);
+        this._reset();
+      },
+      onRemove(layerMap) {
+        layerMap.off('zoom viewreset move', this._reset, this);
+        if (this._el) L.DomUtil.remove(this._el);
+        this._map = null;
+        this._el = null;
+      },
+      setVisible(visible) {
+        if (this._el) this._el.classList.toggle('is-visible', visible);
+      },
+      _reset() {
+        if (!this._map || !this._el) return;
+        const center = this._map.latLngToLayerPoint(this._latlng);
+        const lngOffset = this._radiusMeters / (111320 * Math.cos(this._latlng.lat * Math.PI / 180));
+        const edge = this._map.latLngToLayerPoint([this._latlng.lat, this._latlng.lng + lngOffset]);
+        const radiusPx = Math.max(8, Math.abs(edge.x - center.x));
+        const size = radiusPx * 2;
+
+        this._el.style.width = `${size}px`;
+        this._el.style.height = `${size}px`;
+        L.DomUtil.setPosition(this._el, center.subtract([radiusPx, radiusPx]));
+      }
+    });
     const updatePrivacyBlur = () => {
-      mapEl.classList.toggle('map-privacy-blur', map.getZoom() >= privacyBlurZoom);
+      const shouldBlur = map.getZoom() >= privacyBlurZoom;
+      privacyBlurLayers.forEach(layer => layer.setVisible(shouldBlur));
     };
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -430,6 +466,8 @@ function renderTeams(teams, userCoords) {
         fillColor: '#2f80ed',
         fillOpacity: 0.18
       }).addTo(map);
+      const privacyBlurLayer = new PrivacyBlurCircle([team.lat, team.lon], radiusMeters).addTo(map);
+      privacyBlurLayers.push(privacyBlurLayer);
 
       marker.bindPopup(popupContent, { maxWidth: 320 });
       if (!window._teamMarkers) window._teamMarkers = {};
