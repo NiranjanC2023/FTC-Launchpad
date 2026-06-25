@@ -107,6 +107,10 @@ function sanitizeNextPath(nextPath, fallback = '/') {
     return value;
 }
 
+function getSignupInfoBackTarget(back) {
+    return String(back || '').trim() === 'applications' ? 'applications' : 'account';
+}
+
 const CAPTAIN_ROLE_OPTIONS = new Map([
     ['captain', 'Captain'],
     ['outreach captain', 'Outreach Captain'],
@@ -907,12 +911,12 @@ router.get('/my-applications', ensureAuthenticated, async function(req, res) {
             .exec();
 
         const applications = [];
-        if (studentProfile && studentProfile.applicationTeam && studentProfile.applicationStatus) {
+        if (studentProfile && studentProfile.applicationTeam) {
             applications.push({
                 teamName: studentProfile.applicationTeam.name,
                 teamNumber: studentProfile.applicationTeam.teamNumber,
                 teamContact: studentProfile.applicationTeam.contact,
-                status: studentProfile.applicationStatus,
+                status: studentProfile.applicationStatus || 'pending',
                 message: studentProfile.statusMessage || '',
                 updatedAt: studentProfile.statusUpdatedAt || studentProfile.createdAt
             });
@@ -1687,7 +1691,9 @@ router.post('/account', ensureAuthenticated, async function(req, res) {
 
 router.get('/account/signup-info', ensureAuthenticated, async function(req, res) {
     try {
-        if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: {} });
+        const backTarget = getSignupInfoBackTarget(req.query.back);
+        const backUrl = backTarget === 'applications' ? '/my-applications' : '/account';
+        if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: {}, backTarget, backUrl });
 
         const user = await User.findById(req.session.userId).lean().exec();
         if (!user) return res.redirect('/logout');
@@ -1701,16 +1707,20 @@ router.get('/account/signup-info', ensureAuthenticated, async function(req, res)
             interests: user.interests || ''
         };
 
-        res.render('pages/account-signup-info', { error: null, success: null, values });
+        res.render('pages/account-signup-info', { error: null, success: null, values, backTarget, backUrl });
     } catch (err) {
         console.error('Signup info page error:', err);
-        res.render('pages/account-signup-info', { error: 'Unable to load your signup info.', success: null, values: {} });
+        const backTarget = getSignupInfoBackTarget(req.query.back);
+        const backUrl = backTarget === 'applications' ? '/my-applications' : '/account';
+        res.render('pages/account-signup-info', { error: 'Unable to load your signup info.', success: null, values: {}, backTarget, backUrl });
     }
 });
 
 router.post('/account/signup-info', ensureAuthenticated, async function(req, res) {
     try {
-        if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: req.body || {} });
+        const backTarget = getSignupInfoBackTarget(req.body.back);
+        const backUrl = backTarget === 'applications' ? '/my-applications' : '/account';
+        if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: req.body || {}, backTarget, backUrl });
 
         const currentUser = await User.findById(req.session.userId).lean().exec();
         if (!currentUser) return res.redirect('/logout');
@@ -1727,7 +1737,9 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             return res.render('pages/account-signup-info', {
                 error: 'Name and valid email are required.',
                 success: null,
-                values: req.body || {}
+                values: req.body || {},
+                backTarget,
+                backUrl
             });
         }
 
@@ -1736,7 +1748,9 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             return res.render('pages/account-signup-info', {
                 error: 'That email is already in use by another account.',
                 success: null,
-                values: req.body || {}
+                values: req.body || {},
+                backTarget,
+                backUrl
             });
         }
 
@@ -1757,11 +1771,6 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             student.interests = interests;
             student.phone = phone;
             student.email = normalizedEmail;
-            student.applicationTeam = undefined;
-            student.applicationStatus = undefined;
-            student.statusMessage = undefined;
-            student.statusUpdatedAt = undefined;
-            student.statusBy = undefined;
             await student.save();
         }
 
@@ -1775,14 +1784,20 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
                 email: normalizedEmail,
                 phone,
                 interests
-            }
+            },
+            backTarget,
+            backUrl
         });
     } catch (err) {
         console.error('Failed to save signup info:', err);
+        const backTarget = getSignupInfoBackTarget(req.body && req.body.back);
+        const backUrl = backTarget === 'applications' ? '/my-applications' : '/account';
         res.render('pages/account-signup-info', {
             error: err.message || 'Failed to save signup info.',
             success: null,
-            values: req.body || {}
+            values: req.body || {},
+            backTarget,
+            backUrl
         });
     }
 });

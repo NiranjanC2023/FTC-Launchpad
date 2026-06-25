@@ -844,7 +844,7 @@ function renderTeams(teams, userCoords) {
   tryInitMap();
 }
 
-function sendToTeam(team) {
+async function sendToTeam(team) {
   let raw = sessionStorage.getItem(STUDENT_KEY);
   if (!raw && window.__USER__) {
     const user = window.__USER__;
@@ -882,6 +882,33 @@ function sendToTeam(team) {
   }
 
   const info = JSON.parse(raw);
+  try {
+    const response = await fetch('/api/signups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: info.name,
+        age: info.age,
+        experience: info.experience,
+        email: info.email,
+        phone: info.phone,
+        interests: info.interests,
+        teamId: team && (team.id || team._id)
+      })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      alert(payload && payload.error ? payload.error : 'Unable to save your application right now.');
+      return;
+    }
+
+    sessionStorage.setItem(STUDENT_KEY, JSON.stringify(info));
+  } catch (err) {
+    alert('Unable to save your application right now.');
+    return;
+  }
+
   const subject = encodeURIComponent(`Student Interested: ${info.name}`);
   const bodyLines = [
     `Name: ${info.name}`,

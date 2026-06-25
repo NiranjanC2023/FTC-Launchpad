@@ -68,10 +68,14 @@ router.post('/teams', async function(req, res) {
 // Create or update student signup
 router.post('/signups', async function(req, res) {
 	try {
-		const { name, age, experience, email, phone, interests } = req.body;
+		const { name, age, experience, email, phone, interests, teamId } = req.body;
 		if (!name) return res.status(400).json({ ok: false, error: 'name required' });
 		const normalizedEmail = normalizeEmail(email);
 		if (!normalizedEmail) return res.status(400).json({ ok: false, error: 'valid email required' });
+		const normalizedTeamId = String(teamId || '').trim();
+		const shouldApplyToTeam = Boolean(normalizedTeamId && mongoose.Types.ObjectId.isValid(normalizedTeamId));
+		const team = shouldApplyToTeam ? await Team.findById(normalizedTeamId).select('_id name teamNumber contact').lean().exec() : null;
+		if (normalizedTeamId && !team) return res.status(400).json({ ok: false, error: 'valid team required' });
 
 		const now = new Date();
 		let student = await Student.findOne({ email: normalizedEmail }).exec();
@@ -101,14 +105,23 @@ router.post('/signups', async function(req, res) {
 				student.statusUpdatedAt = undefined;
 				student.statusBy = undefined;
 			}
+			if (team) {
+				student.applicationTeam = team._id;
+				student.applicationStatus = 'pending';
+				student.statusMessage = undefined;
+				student.statusUpdatedAt = undefined;
+				student.statusBy = undefined;
+			}
 			student.requestCount = (student.requestCount || 0) + 1;
 			student.lastRequestAt = now;
 			await student.save();
 			await createNotification({
 				recipientEmail: normalizedEmail,
 				type: 'application',
-				title: 'Application updated',
-				body: 'Your join-team profile was updated and is visible in your inbox.',
+				title: team ? `Application sent to ${team.name}` : 'Application updated',
+				body: team
+					? `Your application to ${team.name} is pending review and is visible in My Applications.`
+					: 'Your join-team profile was updated and is visible in your inbox.',
 				link: '/my-applications',
 				metadata: { source: 'join-form' }
 			});
@@ -123,14 +136,18 @@ router.post('/signups', async function(req, res) {
 			phone,
 			interests,
 			requestCount: 1,
-			lastRequestAt: now
+			lastRequestAt: now,
+			applicationTeam: team ? team._id : undefined,
+			applicationStatus: team ? 'pending' : undefined
 		});
 		await student.save();
 		await createNotification({
 			recipientEmail: normalizedEmail,
 			type: 'application',
-			title: 'Application submitted',
-			body: 'Your join-team profile was saved and is ready for teams to review.',
+			title: team ? `Application sent to ${team.name}` : 'Application submitted',
+			body: team
+				? `Your application to ${team.name} is pending review and is visible in My Applications.`
+				: 'Your join-team profile was saved and is ready for teams to review.',
 			link: '/my-applications',
 			metadata: { source: 'join-form' }
 		});

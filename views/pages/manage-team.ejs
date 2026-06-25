@@ -484,8 +484,9 @@
                                                                 data-experience="<%= recruit.experience || '' %>"><%= recruit.name %></button>
                                                         </h4>
                                                         <% if (recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id)) { %>
-                                                            <span class="status-pill" style="background: <%= recruit.applicationStatus === 'accepted' ? '#dcfce7' : recruit.applicationStatus === 'waitlisted' ? '#eef2ff' : '#fee2e2' %>; color: <%= recruit.applicationStatus === 'accepted' ? '#166534' : recruit.applicationStatus === 'waitlisted' ? '#4338ca' : '#991b1b' %>;">
-                                                                <%= recruit.applicationStatus.charAt(0).toUpperCase() + recruit.applicationStatus.slice(1) %>
+                                                            <% const recruitStatus = recruit.applicationStatus || 'pending'; %>
+                                                            <span class="status-pill" style="background: <%= recruitStatus === 'accepted' ? '#dcfce7' : recruitStatus === 'waitlisted' ? '#eef2ff' : recruitStatus === 'pending' ? '#fef3c7' : '#fee2e2' %>; color: <%= recruitStatus === 'accepted' ? '#166534' : recruitStatus === 'waitlisted' ? '#4338ca' : recruitStatus === 'pending' ? '#92400e' : '#991b1b' %>;">
+                                                                <%= recruitStatus.charAt(0).toUpperCase() + recruitStatus.slice(1) %>
                                                             </span>
                                                         <% } %>
                                                     </div>
@@ -496,7 +497,7 @@
                                                     <p class="small text-muted" style="margin: 0;"><strong>Background:</strong> <%= recruit.experience %></p>
                                                 </div>
                                                 <div class="col-sm-4 text-right recruit-actions">
-                                                    <% const status = (recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id)) ? recruit.applicationStatus : null; %>
+                                                    <% const status = (recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id)) ? (recruit.applicationStatus || 'pending') : null; %>
                                                     <% const isFinal = status === 'accepted' || status === 'rejected'; %>
                                                     <div class="recruit-action-row">
                                                         <button type="button" class="btn btn-danger btn-sm btn-rounded recruit-action-btn" data-action="reject" data-recruit-id="<%= recruit._id %>" data-recruit-name="<%= recruit.name %>" <%= isFinal ? 'disabled' : '' %>>

@@ -8,7 +8,7 @@ const StudentSchema = new mongoose.Schema({
   phone: { type: String },
   interests: { type: String },
   applicationTeam: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
-  applicationStatus: { type: String, enum: ['accepted', 'waitlisted', 'rejected'] },
+  applicationStatus: { type: String, enum: ['pending', 'accepted', 'waitlisted', 'rejected'], default: null },
   statusMessage: { type: String },
   statusUpdatedAt: { type: Date },
   statusBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
