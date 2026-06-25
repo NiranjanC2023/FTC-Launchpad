@@ -8,6 +8,7 @@ const UserSchema = new mongoose.Schema({
   age: { type: Number },
   phone: { type: String, trim: true },
   profilePicture: { type: String, trim: true },
+  role: { type: String, trim: true },
   interests: { type: String, trim: true },
   experience: { type: String, trim: true },
   teamNumber: { type: Number },

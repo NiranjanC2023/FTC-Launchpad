@@ -201,7 +201,13 @@ router.get('/users/me', async function(req, res) {
 		const user = await User.findById(req.session.userId).select('name email age phone profilePicture interests experience teamNumber createdAt').exec();
 		if (!user) return res.json({ ok: true, user: null });
 
-		const team = await Team.findOne({ contact: user.email }).select('_id').lean().exec();
+		const normalizedEmail = normalizeEmail(user.email);
+		const team = await Team.findOne({
+			$or: [
+				{ contact: normalizedEmail },
+				{ managers: user._id }
+			]
+		}).select('_id').lean().exec();
 		res.json({ ok: true, user: { ...publicUser(user), hasTeam: !!team } });
 	} catch (err) {
 		res.status(500).json({ ok: false, error: err.message });

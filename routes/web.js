@@ -541,12 +541,15 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             successMessage = 'Manager removed successfully.';
         } else if (querySuccess === 'status_updated') {
             successMessage = 'Status updated and email sent successfully.';
+        } else if (querySuccess === 'recruitment_cleared') {
+            successMessage = 'Recruitment feed cleared for testing.';
         }
 
         // Find team associated with this user's email or manager access
+        const normalizedEmail = normalizeEmail(user.email);
         const team = await Team.findOne({
             $or: [
-                { contact: user.email },
+                { contact: normalizedEmail },
                 { managers: user._id }
             ]
         }).lean().exec();
@@ -555,11 +558,11 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         let managerCandidates = [];
         if (team) {
             teamManagers = team.managers && team.managers.length
-                ? await User.find({ _id: { $in: team.managers } }).select('name email').lean().exec()
+                ? await User.find({ _id: { $in: team.managers } }).select('name role').lean().exec()
                 : [];
 
             const teamMembers = await User.find({ teamNumber: team.teamNumber })
-                .select('name email profilePicture')
+                .select('name email profilePicture role')
                 .lean()
                 .exec();
 
@@ -753,15 +756,130 @@ router.post('/manage-team/managers/remove', ensureAuthenticated, async function(
             return res.redirect('/manage-team?error=manager_remove_invalid');
         }
 
+        const managerToRemove = await User.findById(managerUserId).lean().exec();
+        if (!managerToRemove) {
+            return res.redirect('/manage-team?error=manager_remove_invalid');
+        }
+
+        const isPrimary = normalizeEmail(user.email) === normalizeEmail(team.contact);
+        const isCaptain = String(user.role || '').trim().toLowerCase() === 'captain';
+        const isSelf = String(managerUserId) === String(user._id);
+        const targetIsCaptain = String(managerToRemove.role || '').trim().toLowerCase() === 'captain';
+
+        if (targetIsCaptain && !isPrimary && !isCaptain) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
+        if (!isSelf && !isPrimary && !isCaptain) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
         await Team.findByIdAndUpdate(team._id, { $pull: { managers: managerUserId } }).exec();
 
-        if (String(managerUserId) === String(user._id)) {
+        if (isSelf) {
             return res.redirect('/account?success=self_removed');
         }
 
         res.redirect('/manage-team?success=manager_removed');
     } catch (err) {
         console.error('Remove manager error:', err);
+        res.redirect('/manage-team?error=manager_remove_failed');
+    }
+});
+
+// Toggle captain status for a team manager
+router.post('/manage-team/managers/captain', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const team = await Team.findOne({
+            $or: [
+                { contact: user.email },
+                { managers: user._id }
+            ]
+        }).exec();
+
+        if (!team) {
+            return res.redirect('/manage-team?error=captain_update_denied');
+        }
+
+        const isPrimary = normalizeEmail(user.email) === normalizeEmail(team.contact);
+        if (!isPrimary) {
+            return res.redirect('/manage-team?error=captain_update_denied');
+        }
+
+        const managerUserId = req.body.managerUserId;
+        if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
+            return res.redirect('/manage-team?error=captain_update_invalid');
+        }
+
+        if (!team.managers.some(id => String(id) === String(managerUserId))) {
+            return res.redirect('/manage-team?error=captain_update_invalid');
+        }
+
+        const manager = await User.findById(managerUserId).exec();
+        if (!manager) {
+            return res.redirect('/manage-team?error=captain_update_invalid');
+        }
+
+        const isCurrentlyCaptain = String(manager.role || '').trim().toLowerCase() === 'captain';
+        if (isCurrentlyCaptain) {
+            manager.role = undefined;
+            await manager.save();
+            return res.redirect('/manage-team?success=captain_removed');
+        }
+
+        await User.updateMany(
+            { teamNumber: team.teamNumber, role: 'captain' },
+            { $unset: { role: '' } }
+        ).exec();
+
+        manager.role = 'captain';
+        await manager.save();
+
+        res.redirect('/manage-team?success=captain_set');
+    } catch (err) {
+        console.error('Captain update error:', err);
+        res.redirect('/manage-team?error=captain_update_failed');
+    }
+});
+
+// Clear the team recruitment feed for testing
+router.post('/manage-team/recruitment/clear', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const team = await Team.findOne({
+            $or: [
+                { contact: user.email },
+                { managers: user._id }
+            ]
+        }).exec();
+
+        if (!team) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
+        const isPrimary = normalizeEmail(user.email) === normalizeEmail(team.contact);
+        const isCaptain = String(user.role || '').trim().toLowerCase() === 'captain';
+        if (!isPrimary && !isCaptain) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
+        await Student.updateMany(
+            { applicationTeam: team._id },
+            { $unset: { applicationTeam: '', applicationStatus: '', statusMessage: '', statusUpdatedAt: '', statusBy: '' } }
+        ).exec();
+
+        res.redirect('/manage-team?success=recruitment_cleared');
+    } catch (err) {
+        console.error('Clear recruitment feed error:', err);
         res.redirect('/manage-team?error=manager_remove_failed');
     }
 });
@@ -1119,7 +1237,7 @@ router.post('/signup', async function(req, res){
     const mode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
     try {
         if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {}, inviteToken: req.body.inviteToken || null });
-        const { name, email, password, age, phone, profilePicture, interests, experience, inviteToken } = req.body;
+        const { name, email, password, age, phone, profilePicture, interests, experience, role, inviteToken } = req.body;
         const normalizedEmail = normalizeEmail(email);
         if (!name || !normalizedEmail || !password) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body, inviteToken: inviteToken || null });
         const existing = await User.findOne({ email: normalizedEmail }).exec();
@@ -1131,7 +1249,8 @@ router.post('/signup', async function(req, res){
             phone,
             profilePicture,
             interests,
-            experience
+            experience,
+            role: role ? String(role).trim() : undefined
         });
         await user.setPassword(password);
         await user.save();
