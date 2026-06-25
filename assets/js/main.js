@@ -347,15 +347,6 @@ function renderTeams(teams, userCoords) {
     const contact = String(team.contact || 'Contact unavailable');
     const location = String(team.location || '').trim();
     const notes = String(team.notes || '').trim();
-    const createdAt = team.createdAt ? new Date(team.createdAt) : null;
-    const yearsInProgram = createdAt && !Number.isNaN(createdAt.getTime())
-      ? Math.max(1, new Date().getFullYear() - createdAt.getFullYear() + 1)
-      : null;
-    const teamStatus = yearsInProgram === null
-      ? ''
-      : yearsInProgram <= 2
-        ? 'Rookie'
-        : 'Veteran';
 
     const card = document.createElement('div');
     card.className = 'team-card';
@@ -368,7 +359,6 @@ function renderTeams(teams, userCoords) {
         <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; flex: 1 1 auto;">
           <h3 class="team-card-title">${escapeHTML(teamName)}</h3>
           <span class="team-card-label" style="display: block; font-size: 0.95rem; font-weight: 700; color: #333; margin-top: 6px;">${escapeHTML(teamNumber)}${team.verified ? ' · verified' : ''}</span>
-          ${yearsInProgram ? `<span class="team-card-badge ${teamStatus === 'Rookie' ? 'is-rookie' : 'is-veteran'}">${escapeHTML(teamStatus)} • ${yearsInProgram} year${yearsInProgram === 1 ? '' : 's'} in program</span>` : ''}
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex: 0 0 auto;">
           <button class="btn btn-link goto-marker" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-location-dot"></i></button>
@@ -843,7 +833,6 @@ function loadSiteShells() {
       fetch('/api/users/me')
         .then(r => r.json())
         .then(data => { 
-          document.documentElement.classList.add('nav-auth-ready');
           const user = data.user;
           const anchors = document.querySelectorAll('[data-href]');
           const navUserControls = document.querySelector('.nav-user-controls');
@@ -860,47 +849,17 @@ function loadSiteShells() {
           const accountLabelEl = document.querySelector('.account-label');
           const inboxCountEls = document.querySelectorAll('[data-inbox-count]');
           const accountLinks = accountDropdown ? accountDropdown.querySelectorAll('a') : [];
-          const applicationUpdate = user && user.applicationUpdate ? user.applicationUpdate : null;
-          const applicationUpdatedAt = applicationUpdate && applicationUpdate.updatedAt ? applicationUpdate.updatedAt : 'current';
-          const applicationTeamId = applicationUpdate && applicationUpdate.team ? (applicationUpdate.team.id || applicationUpdate.team.name) : 'team';
-          const notificationStorageKey = user && applicationUpdate
-            ? `inbox_recruitment_${user.id || user.email || 'current'}_${applicationTeamId}_${applicationUpdate.status}_${applicationUpdatedAt}`
-            : null;
+          let notifications = Array.isArray(data.notifications) ? data.notifications : [];
+          let unreadCount = Number.isFinite(Number(data.unreadCount)) ? Number(data.unreadCount) : 0;
 
-          function applicationStatusLabel(status) {
-            if (status === 'accepted') return 'accepted';
-            if (status === 'waitlisted') return 'waitlisted';
-            if (status === 'rejected') return 'rejected';
-            return 'updated';
+          function formatNotificationDate(value) {
+            const date = value ? new Date(value) : null;
+            if (!date || Number.isNaN(date.getTime())) return '';
+            return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
           }
 
-          function applicationStatusTitle(status) {
-            if (status === 'accepted') return 'Application accepted';
-            if (status === 'waitlisted') return 'Application waitlisted';
-            if (status === 'rejected') return 'Application rejected';
-            return 'Application updated';
-          }
-
-          function applicationStatusSummary(update) {
-            const teamName = update && update.team && update.team.name ? update.team.name : 'A team';
-            const label = applicationStatusLabel(update && update.status);
-            return `${teamName} ${label} your recruitment application.`;
-          }
-
-          function getUnreadCount() {
-            if (!notificationStorageKey) return 0;
-            try {
-              const stored = sessionStorage.getItem(notificationStorageKey);
-              if (stored === null) return 3;
-              const parsed = Number(stored);
-              return Number.isFinite(parsed) && parsed >= 0 ? parsed : 3;
-            } catch (e) {
-              return 3;
-            }
-          }
-
-          function syncUnreadCount(count) {
-            unreadCount = Math.max(0, Number(count) || 0);
+          function syncUnreadCount(nextCount) {
+            unreadCount = Math.max(0, Number(nextCount) || 0);
             inboxCountEls.forEach((el) => {
               el.textContent = el.classList.contains('inbox-dropdown-count')
                 ? (unreadCount > 0 ? `${unreadCount} new` : 'All caught up')
@@ -911,8 +870,7 @@ function loadSiteShells() {
           function renderNotifications() {
             if (!inboxList || !inboxEmpty || !inboxTitle) return;
 
-            const visibleNotifications = notifications;
-            if (!visibleNotifications.length) {
+            if (!notifications.length) {
               inboxList.innerHTML = '';
               inboxEmpty.hidden = false;
               inboxTitle.textContent = 'Inbox';
@@ -921,7 +879,7 @@ function loadSiteShells() {
 
             inboxEmpty.hidden = true;
             inboxTitle.textContent = unreadCount > 0 ? 'New notifications' : 'Notifications';
-            inboxList.innerHTML = visibleNotifications.map((notification) => {
+            inboxList.innerHTML = notifications.map((notification) => {
               const link = notification.link || '/account';
               const title = escapeHTML(notification.title || 'Notification');
               const body = escapeHTML(notification.body || '');
@@ -965,22 +923,8 @@ function loadSiteShells() {
 
           if (user) {
             if (accountLabelEl) accountLabelEl.textContent = 'Account';
-            setUnreadCount(getUnreadCount());
-            if (inboxLinks[0]) {
-              inboxLinks[0].setAttribute('href', '/account');
-              inboxLinks[0].setAttribute('data-href', '/account');
-              inboxLinks[0].innerHTML = '<strong>Profile updated</strong><span>Your account settings are ready to review.</span>';
-            }
-            if (inboxLinks[1]) {
-              inboxLinks[1].setAttribute('href', '/manage-team');
-              inboxLinks[1].setAttribute('data-href', '/manage-team');
-              inboxLinks[1].innerHTML = '<strong>Recruitment activity</strong><span>You have new team updates waiting.</span>';
-            }
-            if (inboxLinks[2]) {
-              inboxLinks[2].setAttribute('href', '/my-team');
-              inboxLinks[2].setAttribute('data-href', '/my-team');
-              inboxLinks[2].innerHTML = '<strong>Team message</strong><span>Check the latest updates from your team space.</span>';
-            }
+            renderNotifications();
+            syncUnreadCount(unreadCount);
             if (accountLinks[0]) {
               accountLinks[0].setAttribute('href', '/account');
               accountLinks[0].setAttribute('data-href', '/account');
@@ -1071,24 +1015,11 @@ function loadSiteShells() {
             if (target === '/login' || target === '/signup') {
               navItem.style.display = user ? 'none' : '';
             } else if (target === '/team-register') {
-              if (!user) {
-                navItem.style.display = '';
-                if (!a.dataset.guestRegisterBound) {
-                  a.dataset.guestRegisterBound = 'true';
-                  a.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    alert('Login required to register a team.');
-                    try { sessionStorage.setItem('signup_intent', 'manager'); } catch (e) {}
-                    window.location.href = '/login';
-                  });
-                }
-              } else {
-                // Only show the "Register Team" link when the user is an authenticated team contact
-                // or when the current session explicitly selected the manager/signup intent.
-                const intent = (() => { try { return sessionStorage.getItem('signup_intent'); } catch (e) { return null; }})();
-                const allowedForUser = !!user.hasTeam;
-                navItem.style.display = (allowedForUser || intent === 'manager') ? '' : 'none';
-              }
+              // Only show the "Register Team" link when the user is an authenticated team contact
+              // or when the current anonymous session explicitly selected the manager/signup intent.
+              const intent = (() => { try { return sessionStorage.getItem('signup_intent'); } catch (e) { return null; }})();
+              const allowedForUser = user ? !!user.hasTeam : false;
+              navItem.style.display = (allowedForUser || intent === 'manager') ? '' : 'none';
             } else if (target === '/manage-team') {
               navItem.style.display = (user && user.hasTeam) ? '' : 'none';
             } else if (target === '/my-applications' || target === '/join-form') {
@@ -1099,9 +1030,7 @@ function loadSiteShells() {
               navItem.style.display = (user && user.teamNumber) ? '' : 'none';
             }
           });
-        }).catch(() => {
-          document.documentElement.classList.add('nav-auth-ready');
-        });
+        }).catch(() => {});
 
       }).catch(() => {});
 
