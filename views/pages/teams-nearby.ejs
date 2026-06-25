@@ -24,7 +24,7 @@
   <main>
     <div class="container" id="teamsContainer">
       <div class="button-group">
-        <a href="/join-form" class="btn btn-secondary back-button">← Edit Info</a>
+        <a href="/account/signup-info" class="btn btn-secondary back-button">← Edit Info</a>
         <a href="/my-applications" class="btn btn-secondary">View My Applications</a>
       </div>
       <h1>Teams Near You</h1>
@@ -42,6 +42,7 @@
     window.__TEAMS__ = <%- JSON.stringify(typeof teams !== 'undefined' ? teams : null) %>;
     window.__USER_COORDS__ = <%- JSON.stringify(typeof userCoords !== 'undefined' ? userCoords : null) %>;
     window.__STUDENT_APP__ = <%- JSON.stringify(typeof studentApp !== 'undefined' ? studentApp : null) %>;
+    window.__USER__ = <%- JSON.stringify(typeof user !== 'undefined' ? user : null) %>;
   </script>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

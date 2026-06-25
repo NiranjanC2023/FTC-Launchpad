@@ -437,89 +437,39 @@
         </div>
       </section>
 
-      <div class="account-grid">
-        <div class="account-main">
-          <section class="account-card">
-            <div class="account-pill"><i class="fa-solid fa-user"></i> Profile overview</div>
-            <div class="account-overview">
-              <div class="photo-control">
-                <% if (user && user.profilePicture) { %>
-                  <img class="account-photo" id="accountPhotoPreview" src="<%= user.profilePicture %>" alt="Profile picture">
-                <% } else { %>
-                  <div class="account-photo-placeholder" id="accountPhotoPreview"><%= initials %></div>
-                <% } %>
-                <button type="button" class="photo-change" aria-controls="photoMenu">Choose photo</button>
-              </div>
-              <div class="account-meta">
-                <h2><%= displayName %></h2>
-                <p class="text-muted"><%= user ? user.email : '' %></p>
-                <div class="account-detail-grid">
-                  <div class="account-detail">
-                    <span>Age</span>
-                    <strong><%= ageValue %></strong>
-                  </div>
-                  <div class="account-detail">
-                    <span>Phone</span>
-                    <strong><%= phoneValue %></strong>
-                  </div>
-                  <div class="account-detail">
-                    <span>Interests</span>
-                    <strong><%= interestsValue %></strong>
-                  </div>
-                  <div class="account-detail">
-                    <span>Experience</span>
-                    <strong><%= experienceValue %></strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="account-actions">
-              <a href="/join-form" class="btn btn-primary">Edit signup info</a>
-              <a href="/logout" class="btn btn-secondary">Sign out</a>
-            </div>
-          </section>
-
+    <div class="account-grid">
+      <div class="account-card">
+        <div class="account-pill"><i class="fa-solid fa-user"></i> Profile</div>
+        <div class="photo-control">
+          <% if (user && user.profilePicture) { %>
+            <img class="account-photo" id="accountPhotoPreview" src="<%= user.profilePicture %>" alt="Profile picture">
+          <% } else { %>
+            <div class="account-photo-placeholder" id="accountPhotoPreview"><%= user && user.name ? user.name.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0].toUpperCase()).join('') : 'U' %></div>
+          <% } %>
+          <button type="button" class="photo-change" aria-controls="photoMenu">Change</button>
+          <small class="text-muted">Hover to change</small>
         </div>
-
-        <aside class="account-sidebar">
-          <section class="account-card">
-            <div class="account-pill"><i class="fa-solid fa-bullseye"></i> Current goal</div>
-            <div class="goal-switcher" data-goal-switcher data-default-goal="<%= inferredGoal %>">
-              <p class="text-muted">Switch what you want to do next and we'll guide the rest of the site in that direction.</p>
-              <div class="goal-options">
-                <button type="button" class="goal-option" data-goal-option data-goal="seeker" data-target="/join-form">
-                  <strong>Join a team</strong>
-                  <span>Focus on your student profile, nearby teams, and applications.</span>
-                </button>
-                <button type="button" class="goal-option" data-goal-option data-goal="manager" data-target="/team-register">
-                  <strong>Register a team</strong>
-                  <span>Switch into team-building mode and start setting up recruiting.</span>
-                </button>
-              </div>
-              <div class="goal-actions">
-                <a href="/join-form" class="btn btn-primary" data-goal-continue>Continue with goal</a>
-                <p class="goal-status" data-goal-status></p>
-              </div>
-            </div>
-          </section>
-
-          <section class="account-card">
-            <div class="account-pill"><i class="fa-solid fa-circle-info"></i> Account details</div>
-            <ul class="account-list">
-              <li><strong>Team</strong><span><%= teamLabel %></span></li>
-              <li><strong>Student profile</strong><span><%= studentProfile ? 'Created and active' : 'Not created yet' %></span></li>
-              <li><strong>Photo</strong><span><%= user && user.profilePicture ? 'Custom image saved' : 'Initials avatar active' %></span></li>
-              <li><strong>Experience</strong><span><%= experienceValue %></span></li>
-            </ul>
-          </section>
-
-          <section class="account-card">
-            <div class="account-pill"><i class="fa-solid fa-lightbulb"></i> Quick tip</div>
-            <div class="account-note">
-              <strong>Keep this page current.</strong> Teams review the details from your signup profile, so updated contact info and interests make it easier to match you with the right opportunities.
-            </div>
-          </section>
-        </aside>
+        <h2 style="margin-top: 0;"><%= user ? user.name : 'Account' %></h2>
+        <p class="text-muted"><%= user ? user.email : '' %></p>
+        <ul class="account-list">
+          <li><strong>Age:</strong> <%= user && user.age ? user.age : '—' %></li>
+          <li><strong>Phone:</strong> <%= user && user.phone ? user.phone : '—' %></li>
+          <li><strong>Interests:</strong> <%= studentProfile && studentProfile.interests ? studentProfile.interests : (user && user.interests ? user.interests : '—') %></li>
+          <li><strong>Experience:</strong> <%= studentProfile && studentProfile.experience ? studentProfile.experience : (user && user.experience ? user.experience : '—') %></li>
+        </ul>
+        <div class="account-actions">
+          <a href="/join-form" class="btn btn-primary">Edit signup info</a>
+          <a href="/logout" class="btn btn-secondary">Sign out</a>
+        </div>
+        <form class="account-form" method="POST" action="/account">
+          <input type="hidden" id="profilePicture" name="profilePicture" value="<%= user && user.profilePicture ? user.profilePicture : '' %>">
+          <div class="photo-menu" id="photoMenu">
+            <label class="form-label" for="profilePictureFile">Upload photo</label>
+            <input class="form-control" type="file" id="profilePictureFile" accept="image/*">
+            <small class="text-muted">Choose an image and save it to your account.</small>
+          </div>
+          <button class="btn btn-primary" type="submit">Save picture</button>
+        </form>
       </div>
     </div>
   </main>

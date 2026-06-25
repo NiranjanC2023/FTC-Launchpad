@@ -1635,6 +1635,42 @@ textarea.form-control {
   opacity: 1;
 }
 
+.team-zoom-notifier-icon {
+  background: transparent;
+  border: none;
+}
+
+.team-zoom-notifier {
+  position: relative;
+  display: block;
+  width: 24px;
+  height: 24px;
+  background: #d32f2f;
+  border: 3px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.25);
+  transform: rotate(-45deg);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.team-zoom-notifier::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.leaflet-marker-icon:hover .team-zoom-notifier,
+.leaflet-marker-icon:focus .team-zoom-notifier {
+  transform: translateY(-3px) rotate(-45deg);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.22);
+}
+
 /* (duplicated block removed) */
 
 .goto-marker {
