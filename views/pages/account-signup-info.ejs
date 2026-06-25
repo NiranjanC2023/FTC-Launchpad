@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Edit Signup Info | FTC Starter Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/main.css?v=13">
+</head>
+<body>
+  <header></header>
+
+  <main>
+    <div class="container">
+      <a href="/account" class="btn btn-secondary back-button">← Back to Account</a>
+
+      <h1>Edit Signup Info</h1>
+      <p class="subtitle">Update the profile used when you contact teams and send your info.</p>
+
+      <% if (error) { %>
+        <div class="alert alert-danger"><%= error %></div>
+      <% } %>
+      <% if (success) { %>
+        <div class="alert alert-success"><%= success %></div>
+      <% } %>
+
+      <form id="accountSignupForm" class="form-grid" method="POST" action="/account/signup-info">
+        <label for="name">Full name</label>
+        <input id="name" name="name" value="<%= values && values.name ? values.name : '' %>" required>
+
+        <label for="age">Age</label>
+        <input id="age" name="age" type="number" min="8" max="120" value="<%= values && values.age ? values.age : '' %>">
+
+        <label for="experience">Experience (brief)</label>
+        <textarea id="experience" name="experience" rows="4" placeholder="e.g., none, some Java, built RC car"><%= values && values.experience ? values.experience : '' %></textarea>
+
+        <label for="interests">Interests / Roles</label>
+        <input id="interests" name="interests" placeholder="programming, mechanical, outreach" value="<%= values && values.interests ? values.interests : '' %>">
+
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" value="<%= values && values.email ? values.email : '' %>" required>
+
+        <label for="phone">Phone (optional)</label>
+        <input id="phone" name="phone" type="tel" value="<%= values && values.phone ? values.phone : '' %>">
+
+        <div></div>
+        <div>
+          <button type="submit" class="btn btn-primary">Save signup info</button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <script src="/assets/js/main.js?v=13"></script>
+</body>
+</html>

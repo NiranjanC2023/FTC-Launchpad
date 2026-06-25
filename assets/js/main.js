@@ -520,7 +520,20 @@ function renderTeams(teams, userCoords) {
 }
 
 function sendToTeam(team) {
-  const raw = sessionStorage.getItem(STUDENT_KEY);
+  let raw = sessionStorage.getItem(STUDENT_KEY);
+  if (!raw && window.__USER__) {
+    const user = window.__USER__;
+    raw = JSON.stringify({
+      name: String(user.name || '').trim(),
+      age: String(user.age || '').trim(),
+      experience: String(user.experience || '').trim(),
+      email: String(user.email || '').trim(),
+      phone: String(user.phone || '').trim(),
+      interests: String(user.interests || '').trim(),
+      timestamp: new Date().toISOString()
+    });
+  }
+
   if (!raw) {
     alert('No student info found. Please fill the signup form first.');
     window.location.href = '/join-form';
