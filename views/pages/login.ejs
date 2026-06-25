@@ -40,6 +40,7 @@
       <% } %>
       <form method="POST" action="/login" class="login-form">
         <input type="hidden" name="inviteToken" value="<%= inviteToken || '' %>" />
+        <input type="hidden" name="next" value="<%= nextPath || '' %>" />
         <div class="mb-3">
           <label class="form-label" for="loginEmail">Email</label>
           <input id="loginEmail" name="email" type="email" class="form-control" required />
@@ -56,7 +57,7 @@
         </div>
         <button class="btn btn-primary" type="submit">Log in</button>
       </form>
-      <p style="margin-top:14px">Don't have an account? <a href="/signup/manager?<%= inviteToken ? 'inviteToken=' + encodeURIComponent(inviteToken) : '' %>">Sign up</a></p>
+      <p style="margin-top:14px">Don't have an account? <a href="/signup<%= [inviteToken ? 'inviteToken=' + encodeURIComponent(inviteToken) : '', nextPath ? 'next=' + encodeURIComponent(nextPath) : ''].filter(Boolean).join(inviteToken && nextPath ? '&' : '?') %>">Sign up</a></p>
     </div>
   </main>
 

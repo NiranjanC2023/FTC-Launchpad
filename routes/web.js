@@ -99,6 +99,29 @@ function databaseErrorMessage() {
     return 'Database is not connected. Start MongoDB or set MONGODB_URI, then try again.';
 }
 
+function sanitizeNextPath(nextPath, fallback = '/') {
+    const value = String(nextPath || '').trim();
+    if (!value) return fallback;
+    if (!value.startsWith('/') || value.startsWith('//')) return fallback;
+    if (value === '/auth-gate') return fallback;
+    return value;
+}
+
+const CAPTAIN_ROLE_OPTIONS = new Map([
+    ['captain', 'Captain'],
+    ['outreach captain', 'Outreach Captain'],
+    ['technical captain', 'Technical Captain']
+]);
+
+function normalizeCaptainRole(role) {
+    const value = String(role || '').trim().toLowerCase();
+    return CAPTAIN_ROLE_OPTIONS.has(value) ? value : '';
+}
+
+function isCaptainRole(role) {
+    return Boolean(normalizeCaptainRole(role));
+}
+
 function toNumber(value) {
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
@@ -699,7 +722,7 @@ router.post('/team-register', async function(req, res) {
 // Team Management Dashboard
 router.get('/manage-team', ensureAuthenticated, async function(req, res) {
     try {
-        if (!isDatabaseConnected()) return res.render('pages/manage-team', { error: databaseErrorMessage() });
+        if (!isDatabaseConnected()) return res.render('pages/manage-team', { error: databaseErrorMessage(), pendingInvitations: [] });
         
         const user = await User.findById(req.session.userId).lean().exec();
         if (!user) return res.redirect('/logout');
@@ -726,6 +749,16 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             errorMessage = 'Unable to remove the manager. Please try again.';
         } else if (queryError === 'manager_add_failed') {
             errorMessage = 'Unable to add the new team manager. Please try again.';
+        } else if (queryError === 'role_update_denied') {
+            errorMessage = 'You do not have permission to update captain roles for this team.';
+        } else if (queryError === 'role_update_invalid') {
+            errorMessage = 'Please choose a valid manager and role.';
+        } else if (queryError === 'role_update_failed') {
+            errorMessage = 'Unable to update the role. Please try again.';
+        } else if (queryError === 'pending_invites_clear_denied') {
+            errorMessage = 'You do not have permission to clear pending invitations.';
+        } else if (queryError === 'pending_invites_clear_failed') {
+            errorMessage = 'Unable to clear pending invitations. Please try again.';
         }
 
         // Handle success messages
@@ -741,6 +774,12 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             successMessage = 'Status updated and email sent successfully.';
         } else if (querySuccess === 'recruitment_cleared') {
             successMessage = 'Recruitment feed cleared for testing.';
+        } else if (querySuccess === 'role_updated') {
+            successMessage = 'Captain role updated successfully.';
+        } else if (querySuccess === 'role_cleared') {
+            successMessage = 'Captain role cleared successfully.';
+        } else if (querySuccess === 'pending_invitations_cleared') {
+            successMessage = 'Pending invitations cleared successfully.';
         }
 
         // Find team associated with this user's email or manager access
@@ -754,7 +793,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         const team = await enrichTeamWithFtcScout(foundTeam);
 
         let teamManagers = [];
-        let managerCandidates = [];
+        let pendingInvitations = [];
         if (team) {
             teamManagers = team.managers && team.managers.length
                 ? await User.find({ _id: { $in: team.managers } }).select('name role email').lean().exec()
@@ -784,16 +823,25 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
                 }
             }
 
-            const teamMembers = await User.find({ teamNumber: team.teamNumber })
-                .select('name email profilePicture role')
+            const managerEmails = new Set(
+                teamManagers
+                    .map(manager => normalizeEmail(manager.email))
+                    .filter(Boolean)
+            );
+            if (normalizedContact) {
+                managerEmails.add(normalizedContact);
+            }
+
+            pendingInvitations = await ManagerInvite.find({
+                team: team._id,
+                acceptedAt: null,
+                expiresAt: { $gt: new Date() }
+            })
+                .sort({ createdAt: -1 })
                 .lean()
                 .exec();
 
-            const managerIds = (team.managers || []).map(id => String(id));
-            managerCandidates = teamMembers.filter(member => {
-                return String(member.email).toLowerCase() !== normalizedContact
-                    && !managerIds.includes(String(member._id));
-            });
+            pendingInvitations = pendingInvitations.filter(invite => !managerEmails.has(normalizeEmail(invite.email)));
         }
 
         if (!team) {
@@ -801,7 +849,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
                 user,
                 team: null,
                 teamManagers: [],
-                managerCandidates: [],
+                pendingInvitations: [],
                 recruits: [],
                 waitlisted: [],
                 acceptedCount: 0,
@@ -826,7 +874,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             user, 
             team, 
             teamManagers,
-            managerCandidates,
+            pendingInvitations,
             recruits,
             waitlisted,
             acceptedCount,
@@ -839,7 +887,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         console.error('Management page error:', err);
         res.render('pages/manage-team', { 
             error: 'Failed to load dashboard',
-            user: null, team: null, recruits: [] 
+            user: null, team: null, recruits: [], pendingInvitations: [] 
         });
     }
 });
@@ -916,7 +964,7 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
         if (!team) {
             return res.render('pages/manage-team', { 
                 error: 'Team not found or you do not have permission to edit it.',
-                user, team: null, recruits: [] 
+                user, team: null, recruits: [], pendingInvitations: [] 
             });
         }
 
@@ -996,15 +1044,15 @@ router.post('/manage-team/managers/remove', ensureAuthenticated, async function(
         const normalizedContact = normalizeEmail(team.contact);
         const targetIsPrimary = normalizeEmail(managerToRemove.email) === normalizedContact;
         const isPrimary = normalizeEmail(user.email) === normalizedContact;
-        const isCaptain = String(user.role || '').trim().toLowerCase() === 'captain';
+        const isCaptain = isCaptainRole(user.role);
         const isSelf = String(managerUserId) === String(user._id);
-        const targetIsCaptain = String(managerToRemove.role || '').trim().toLowerCase() === 'captain';
+        const targetIsCaptain = isCaptainRole(managerToRemove.role);
 
         if (targetIsPrimary) {
             return res.redirect('/manage-team?error=manager_remove_denied');
         }
 
-        if (targetIsCaptain && !isPrimary && !isCaptain) {
+        if (targetIsCaptain && !isPrimary) {
             return res.redirect('/manage-team?error=manager_remove_denied');
         }
 
@@ -1025,7 +1073,7 @@ router.post('/manage-team/managers/remove', ensureAuthenticated, async function(
     }
 });
 
-// Toggle captain status for a team manager
+// Update a manager's captain role
 router.post('/manage-team/managers/captain', ensureAuthenticated, async function(req, res) {
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
@@ -1041,51 +1089,97 @@ router.post('/manage-team/managers/captain', ensureAuthenticated, async function
         }).exec();
 
         if (!team) {
-            return res.redirect('/manage-team?error=captain_update_denied');
+            return res.redirect('/manage-team?error=role_update_denied');
         }
 
         const normalizedContact = normalizeEmail(team.contact);
         const primaryContactUser = await User.findOne({ email: normalizedContact }).lean().exec();
         const isPrimary = normalizeEmail(user.email) === normalizedContact;
         if (!isPrimary) {
-            return res.redirect('/manage-team?error=captain_update_denied');
+            return res.redirect('/manage-team?error=role_update_denied');
         }
 
         const managerUserId = req.body.managerUserId;
         if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
-            return res.redirect('/manage-team?error=captain_update_invalid');
+            return res.redirect('/manage-team?error=role_update_invalid');
         }
 
         const isPrimaryTarget = primaryContactUser && String(primaryContactUser._id) === String(managerUserId);
         const isManagerTarget = Array.isArray(team.managers) && team.managers.some(id => String(id) === String(managerUserId));
         if (!isPrimaryTarget && !isManagerTarget) {
-            return res.redirect('/manage-team?error=captain_update_invalid');
+            return res.redirect('/manage-team?error=role_update_invalid');
         }
 
         const manager = await User.findById(managerUserId).exec();
         if (!manager) {
-            return res.redirect('/manage-team?error=captain_update_invalid');
+            return res.redirect('/manage-team?error=role_update_invalid');
         }
 
-        const isCurrentlyCaptain = String(manager.role || '').trim().toLowerCase() === 'captain';
-        if (isCurrentlyCaptain) {
+        const requestedRole = normalizeCaptainRole(req.body.captainRole || req.body.role);
+        if (!requestedRole) {
             manager.role = undefined;
             await manager.save();
-            return res.redirect('/manage-team?success=captain_removed');
+            return res.redirect('/manage-team?success=role_cleared');
         }
 
+        const managerIds = Array.isArray(team.managers) ? team.managers.map(id => String(id)) : [];
+        if (primaryContactUser) {
+            managerIds.push(String(primaryContactUser._id));
+        }
+        const distinctRoleHolderIds = [...new Set(managerIds)];
+
         await User.updateMany(
-            { teamNumber: team.teamNumber, role: 'captain' },
+            {
+                _id: { $in: distinctRoleHolderIds, $ne: manager._id },
+                role: requestedRole
+            },
             { $unset: { role: '' } }
         ).exec();
 
-        manager.role = 'captain';
+        manager.role = requestedRole;
         await manager.save();
 
-        res.redirect('/manage-team?success=captain_set');
+        res.redirect('/manage-team?success=role_updated');
     } catch (err) {
         console.error('Captain update error:', err);
-        res.redirect('/manage-team?error=captain_update_failed');
+        res.redirect('/manage-team?error=role_update_failed');
+    }
+});
+
+router.post('/manage-team/invitations/clear', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const team = await Team.findOne({
+            $or: [
+                { contact: user.email },
+                { managers: user._id }
+            ]
+        }).lean().exec();
+
+        if (!team) {
+            return res.redirect('/manage-team?error=pending_invites_clear_denied');
+        }
+
+        const normalizedContact = normalizeEmail(team.contact);
+        const isPrimary = normalizeEmail(user.email) === normalizedContact;
+        const isCaptain = isCaptainRole(user.role);
+        if (!isPrimary && !isCaptain) {
+            return res.redirect('/manage-team?error=pending_invites_clear_denied');
+        }
+
+        await ManagerInvite.deleteMany({
+            team: team._id,
+            acceptedAt: null
+        }).exec();
+
+        res.redirect('/manage-team?success=pending_invitations_cleared');
+    } catch (err) {
+        console.error('Clear pending invitations error:', err);
+        res.redirect('/manage-team?error=pending_invites_clear_failed');
     }
 });
 
@@ -1109,7 +1203,7 @@ router.post('/manage-team/recruitment/clear', ensureAuthenticated, async functio
         }
 
         const isPrimary = normalizeEmail(user.email) === normalizeEmail(team.contact);
-        const isCaptain = String(user.role || '').trim().toLowerCase() === 'captain';
+        const isCaptain = isCaptainRole(user.role);
         if (!isPrimary && !isCaptain) {
             return res.redirect('/manage-team?error=manager_remove_denied');
         }
@@ -1212,7 +1306,7 @@ router.post('/manage-team/delete', ensureAuthenticated, async function(req, res)
         } else {
             res.render('pages/manage-team', { 
                 error: 'No team found associated with your account to delete.',
-                user, team: null, recruits: [] 
+                user, team: null, recruits: [], pendingInvitations: [] 
             });
         }
     } catch (err) {
@@ -1477,7 +1571,11 @@ router.get('/invite/:token', async function(req, res) {
 
 // Account routes
 router.get('/signup', function(req, res){
-    res.render('pages/signup', { error: null, inviteToken: req.query.inviteToken || null });
+    res.render('pages/signup', {
+        error: null,
+        inviteToken: req.query.inviteToken || null,
+        nextPath: sanitizeNextPath(req.query.next, '')
+    });
 });
 
 // Dedicated pages for each signup mode (selection page links here)
@@ -1489,7 +1587,12 @@ router.get('/signup/seeker', async function(req, res){
             values.email = invite.email;
         }
     }
-    res.render('pages/signup-seeker', { error: null, values, inviteToken: req.query.inviteToken || null });
+    res.render('pages/signup-seeker', {
+        error: null,
+        values,
+        inviteToken: req.query.inviteToken || null,
+        nextPath: sanitizeNextPath(req.query.next, '')
+    });
 });
 
 router.get('/signup/manager', async function(req, res){
@@ -1500,18 +1603,24 @@ router.get('/signup/manager', async function(req, res){
             values.email = invite.email;
         }
     }
-    res.render('pages/signup-manager', { error: null, values, inviteToken: req.query.inviteToken || null });
+    res.render('pages/signup-manager', {
+        error: null,
+        values,
+        inviteToken: req.query.inviteToken || null,
+        nextPath: sanitizeNextPath(req.query.next, '')
+    });
 });
 
 router.post('/signup', async function(req, res){
     const mode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
     try {
-        if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {}, inviteToken: req.body.inviteToken || null });
+        if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
         const { name, email, password, age, phone, profilePicture, interests, experience, role, inviteToken } = req.body;
+        const nextPath = sanitizeNextPath(req.body.next, '');
         const normalizedEmail = normalizeEmail(email);
-        if (!name || !normalizedEmail || !password) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body, inviteToken: inviteToken || null });
+        if (!name || !normalizedEmail || !password) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body, inviteToken: inviteToken || null, nextPath });
         const existing = await User.findOne({ email: normalizedEmail }).exec();
-        if (existing) return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body, inviteToken: inviteToken || null });
+        if (existing) return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body, inviteToken: inviteToken || null, nextPath });
         const user = new User({
             name: name.trim(),
             email: normalizedEmail,
@@ -1529,14 +1638,15 @@ router.post('/signup', async function(req, res){
 
         if (inviteToken) {
             const acceptedTeam = await acceptInviteToken(inviteToken, user);
-            if (acceptedTeam) return res.redirect('/manage-team');
+            if (acceptedTeam) return res.redirect(nextPath || '/manage-team');
         }
 
+        if (nextPath) return res.redirect(nextPath);
         res.redirect('/');
     } catch (err) {
         console.error('Signup failed:', err);
         const renderMode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
-        res.render(`pages/signup-${renderMode}`, { error: err.message, values: req.body || {}, inviteToken: req.body.inviteToken || null });
+        res.render(`pages/signup-${renderMode}`, { error: err.message, values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
     }
 });
 
@@ -1678,31 +1788,49 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
 });
 
 router.get('/login', function(req, res){
-    res.render('pages/login', { error: null, inviteToken: req.query.inviteToken || null });
+    res.render('pages/login', {
+        error: null,
+        inviteToken: req.query.inviteToken || null,
+        nextPath: sanitizeNextPath(req.query.next, '')
+    });
+});
+
+router.get('/auth-gate', function(req, res){
+    const nextPath = sanitizeNextPath(req.query.next, '/');
+    if (req.session.userId) {
+        return res.redirect(nextPath);
+    }
+
+    res.render('pages/auth-gate', {
+        nextPath,
+        destinationLabel: String(req.query.label || '').trim()
+    });
 });
 
 router.post('/login', async function(req, res){
     try {
-        if (!isDatabaseConnected()) return res.render('pages/login', { error: databaseErrorMessage(), inviteToken: req.body.inviteToken || null });
+        if (!isDatabaseConnected()) return res.render('pages/login', { error: databaseErrorMessage(), inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
         const { email, password, inviteToken } = req.body;
+        const nextPath = sanitizeNextPath(req.body.next, '');
         const remember = req.body && (req.body.remember === '1' || req.body.remember === 'on' || req.body.remember === true);
         const normalizedEmail = normalizeEmail(email);
-        if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required', inviteToken: inviteToken || null });
+        if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required', inviteToken: inviteToken || null, nextPath });
         const user = await User.findOne({ email: normalizedEmail }).exec();
-        if (!user) return res.render('pages/login', { error: 'Invalid credentials', inviteToken: inviteToken || null });
+        if (!user) return res.render('pages/login', { error: 'Invalid credentials', inviteToken: inviteToken || null, nextPath });
         const ok = await user.validatePassword(password);
-        if (!ok) return res.render('pages/login', { error: 'Invalid credentials', inviteToken: inviteToken || null });
+        if (!ok) return res.render('pages/login', { error: 'Invalid credentials', inviteToken: inviteToken || null, nextPath });
         signIn(req, user);
         applyRememberMe(req, remember);
 
         if (inviteToken) {
             const acceptedTeam = await acceptInviteToken(inviteToken, user);
-            if (acceptedTeam) return res.redirect('/manage-team');
+            if (acceptedTeam) return res.redirect(nextPath || '/manage-team');
         }
 
+        if (nextPath) return res.redirect(nextPath);
         res.redirect(await getPostLoginRedirect(user));
     } catch (err) {
-        res.render('pages/login', { error: err.message, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null });
+        res.render('pages/login', { error: err.message, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null, nextPath: sanitizeNextPath(req.body && req.body.next, '') });
     }
 });
 

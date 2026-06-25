@@ -1026,9 +1026,16 @@ function loadSiteShells() {
 
       // Immediately rewrite all links so they work even while auth is loading
       const initialAnchors = document.querySelectorAll('[data-href]');
+      const gatedTargets = new Set(['/start-team', '/teams-nearby', '/my-applications', '/team-register', '/resources']);
       initialAnchors.forEach(a => {
         const target = a.getAttribute('data-href');
-        if (target) a.setAttribute('href', target);
+        if (!target) return;
+        if (gatedTargets.has(target)) {
+          const label = encodeURIComponent((a.textContent || '').trim());
+          a.setAttribute('href', `/auth-gate?next=${encodeURIComponent(target)}${label ? `&label=${label}` : ''}`);
+        } else {
+          a.setAttribute('href', target);
+        }
       });
 
       // Update links and toggle visibility based on auth status
@@ -1216,20 +1223,28 @@ function loadSiteShells() {
             const navItem = a.closest('li') || a;
             if (target === '/login' || target === '/signup') {
               navItem.style.display = user ? 'none' : '';
+              if (user) a.setAttribute('href', target);
             } else if (target === '/team-register') {
               // Only show the "Register Team" link when the user is an authenticated team contact
-              // or when the current anonymous session explicitly selected the manager/signup intent.
+              // or on the home/start page for anonymous visitors.
               const intent = (() => { try { return sessionStorage.getItem('signup_intent'); } catch (e) { return null; }})();
+              const isStartPage = window.location.pathname === '/';
               const allowedForUser = user ? !!user.hasTeam : false;
-              navItem.style.display = (allowedForUser || intent === 'manager') ? '' : 'none';
+              navItem.style.display = (allowedForUser || intent === 'manager' || (!user && isStartPage)) ? '' : 'none';
+              a.setAttribute('href', user ? target : `/auth-gate?next=${encodeURIComponent(target)}&label=${encodeURIComponent((a.textContent || '').trim())}`);
             } else if (target === '/manage-team') {
               navItem.style.display = (user && user.hasTeam) ? '' : 'none';
+              if (user) a.setAttribute('href', target);
             } else if (target === '/my-applications' || target === '/join-form') {
               // Show applications and join form only for students (logged in users without a team)
               // We hide these if the user is already a team manager
-              navItem.style.display = (user && !user.hasTeam) ? '' : (user ? 'none' : '');
+              navItem.style.display = (user && !user.hasTeam) ? '' : 'none';
+              a.setAttribute('href', user ? target : `/auth-gate?next=${encodeURIComponent(target)}&label=${encodeURIComponent((a.textContent || '').trim())}`);
             } else if (target === '/my-team') {
               navItem.style.display = (user && user.teamNumber) ? '' : 'none';
+              if (user) a.setAttribute('href', target);
+            } else if (gatedTargets.has(target)) {
+              a.setAttribute('href', user ? target : `/auth-gate?next=${encodeURIComponent(target)}&label=${encodeURIComponent((a.textContent || '').trim())}`);
             }
           });
         }).catch(() => {});
