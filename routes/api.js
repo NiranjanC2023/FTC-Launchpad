@@ -4,10 +4,7 @@ const mongoose = require('mongoose');
 const Team = require('../models/team');
 const Student = require('../models/student');
 const User = require('../models/user');
-
-function normalizeEmail(email) {
-	return String(email || '').trim().toLowerCase();
-}
+const { createNotification, listNotifications, countUnreadNotifications, markNotificationsRead, serializeNotification, normalizeEmail } = require('../lib/notifications');
 
 function publicUser(user) {
 	return {
@@ -107,6 +104,14 @@ router.post('/signups', async function(req, res) {
 			student.requestCount = (student.requestCount || 0) + 1;
 			student.lastRequestAt = now;
 			await student.save();
+			await createNotification({
+				recipientEmail: normalizedEmail,
+				type: 'application',
+				title: 'Application updated',
+				body: 'Your join-team profile was updated and is visible in your inbox.',
+				link: '/my-applications',
+				metadata: { source: 'join-form' }
+			});
 			return res.json({ ok: true, student });
 		}
 
@@ -121,6 +126,14 @@ router.post('/signups', async function(req, res) {
 			lastRequestAt: now
 		});
 		await student.save();
+		await createNotification({
+			recipientEmail: normalizedEmail,
+			type: 'application',
+			title: 'Application submitted',
+			body: 'Your join-team profile was saved and is ready for teams to review.',
+			link: '/my-applications',
+			metadata: { source: 'join-form' }
+		});
 		res.json({ ok: true, student });
 	} catch (err) {
 		res.status(500).json({ ok: false, error: err.message });
@@ -193,6 +206,21 @@ router.post('/users/logout', function(req, res) {
 	});
 });
 
+router.post('/notifications/read', async function(req, res) {
+	try {
+		if (!requireDatabase(res)) return;
+		if (!req.session.userId) return res.status(401).json({ ok: false, error: 'not authenticated' });
+
+		const user = await User.findById(req.session.userId).select('email').lean().exec();
+		if (!user) return res.status(401).json({ ok: false, error: 'not authenticated' });
+
+		await markNotificationsRead(user.email);
+		res.json({ ok: true });
+	} catch (err) {
+		res.status(500).json({ ok: false, error: err.message });
+	}
+});
+
 // Current user
 router.get('/users/me', async function(req, res) {
 	try {
@@ -208,7 +236,14 @@ router.get('/users/me', async function(req, res) {
 				{ managers: user._id }
 			]
 		}).select('_id').lean().exec();
-		res.json({ ok: true, user: { ...publicUser(user), hasTeam: !!team } });
+		const notifications = await listNotifications(normalizedEmail, 50);
+		const unreadCount = await countUnreadNotifications(normalizedEmail);
+		res.json({
+			ok: true,
+			user: { ...publicUser(user), hasTeam: !!team },
+			notifications: notifications.map(serializeNotification),
+			unreadCount
+		});
 	} catch (err) {
 		res.status(500).json({ ok: false, error: err.message });
 	}

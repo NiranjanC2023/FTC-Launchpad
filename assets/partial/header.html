@@ -8,19 +8,19 @@
     <div class="creator-badge">Created By FTC 25690</div>
     <ul class="nav navbar-nav">
       <li><a href="/" data-href="/">Home</a></li>
-      <li><a href="/start-team" data-href="/start-team">Start Team</a></li>
+      <li><a href="/start-team" data-href="/start-team">Start a Team</a></li>
       <li><a href="/teams-nearby" data-href="/teams-nearby">Join Team</a></li>
       <li><a href="/team-register" data-href="/team-register">Register Team</a></li>
       <li><a href="/resources" data-href="/resources">Resources</a></li>
-      <li style="display: none;"><a href="/my-team" data-href="/my-team">My Team</a></li>
-      <li style="display: none;"><a href="/manage-team" data-href="/manage-team">Your Team</a></li>
+      <li class="nav-auth-only nav-my-team"><a href="/my-team" data-href="/my-team">My Team</a></li>
+      <li class="nav-auth-only nav-manage-team"><a href="/manage-team" data-href="/manage-team">Your Team</a></li>
     </ul>
     <ul class="nav navbar-nav navbar-right">
-      <li style="display: none;"><a href="/login" data-href="/login">Log In</a></li>
-      <li style="display: none;"><a href="/signup" data-href="/signup">Sign Up</a></li>
+      <li class="nav-auth-only nav-login"><a href="/login" data-href="/login">Log In</a></li>
+      <li class="nav-auth-only nav-signup"><a href="/signup" data-href="/signup">Sign Up</a></li>
     </ul>
     <div class="navbar-tools">
-      <div class="nav-user-controls">
+      <div class="nav-user-controls nav-auth-only">
         <div class="inbox-menu">
           <button type="button" class="inbox-toggle" aria-haspopup="true" aria-expanded="false" data-inbox-toggle>
             <span class="inbox-icon" aria-hidden="true">
@@ -29,25 +29,15 @@
               </svg>
             </span>
             <span class="inbox-label">Inbox</span>
-            <span class="inbox-badge" data-inbox-count>3</span>
+            <span class="inbox-badge" data-inbox-count>0</span>
           </button>
           <div class="inbox-dropdown" data-inbox-dropdown hidden>
             <div class="inbox-dropdown-header">
-              <span>New notifications</span>
-              <span class="inbox-dropdown-count" data-inbox-count>3 new</span>
+              <span data-inbox-title>New notifications</span>
+              <span class="inbox-dropdown-count" data-inbox-count>0 new</span>
             </div>
-            <a href="/account" data-href="/account">
-              <strong>Profile updated</strong>
-              <span>Your account settings are ready to review.</span>
-            </a>
-            <a href="/manage-team" data-href="/manage-team">
-              <strong>Recruitment activity</strong>
-              <span>You have new team updates waiting.</span>
-            </a>
-            <a href="/my-team" data-href="/my-team">
-              <strong>Team message</strong>
-              <span>Check the latest updates from your team space.</span>
-            </a>
+            <div class="inbox-dropdown-list" data-inbox-list></div>
+            <p class="inbox-empty" data-inbox-empty>No notifications yet.</p>
           </div>
         </div>
         <div class="account-menu">

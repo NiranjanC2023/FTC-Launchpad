@@ -6,6 +6,7 @@ const Team = require('../models/team');
 const ManagerInvite = require('../models/managerInvite');
 const nodemailer = require('nodemailer');
 const Student = require('../models/student');
+const { createNotification, normalizeEmail } = require('../lib/notifications');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -29,10 +30,6 @@ transporter.verify((error) => {
         console.log('Nodemailer: Server is ready to send invitation emails');
     }
 });
-
-function normalizeEmail(email) {
-    return String(email || '').trim().toLowerCase();
-}
 
 function signIn(req, user) {
     req.session.userId = user._id.toString();
@@ -973,6 +970,14 @@ router.post('/manage-team/invite', ensureAuthenticated, async function(req, res)
         };
 
         await transporter.sendMail(mailOptions);
+        await createNotification({
+            recipientEmail: inviteEmail,
+            type: 'manager-invite',
+            title: 'Manager invitation',
+            body: `You were invited to help manage ${team.name}.`,
+            link: `/invite/${invite.token}`,
+            metadata: { teamId: String(team._id), teamName: team.name }
+        });
         res.redirect('/manage-team?success=invite_sent');
     } catch (err) {
         console.error('Invite send error:', err);
@@ -1093,6 +1098,14 @@ router.post('/manage-team/recruit/:recruitId/status', ensureAuthenticated, async
         };
 
         await transporter.sendMail(mailOptions);
+        await createNotification({
+            recipientEmail: recruit.email,
+            type: 'application-status',
+            title: subject,
+            body: bodyIntro,
+            link: '/my-applications',
+            metadata: { teamId: String(team._id), recruitId: String(recruit._id), status }
+        });
 
         recruit.applicationStatus = status;
         recruit.applicationTeam = team._id;
@@ -1153,6 +1166,14 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
         };
 
         await transporter.sendMail(mailOptions);
+        await createNotification({
+            recipientEmail: recruit.email,
+            type: 'team-contact',
+            title: `Message from ${team.name}`,
+            body: `A manager from ${team.name} contacted you about joining the team.`,
+            link: '/my-applications',
+            metadata: { teamId: String(team._id), recruitId: String(recruit._id) }
+        });
         console.log(`Invitation successfully sent to ${recruit.email} from ${team.name}`);
         return res.redirect('/manage-team?success=mail_sent');
     } catch (err) {

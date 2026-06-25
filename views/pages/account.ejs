@@ -192,38 +192,32 @@
       align-items: center;
       gap: 10px;
     }
-    .photo-change {
-      border: 0;
-      border-radius: 999px;
-      background: rgba(26, 163, 74, 0.12);
-      color: var(--accent-primary);
-      font-weight: 800;
-      padding: 8px 16px;
-      cursor: pointer;
+    .photo-form {
+      display: grid;
+      gap: 12px;
+      width: 100%;
+      max-width: 320px;
     }
-    .photo-menu {
+    .photo-upload {
       display: grid;
       gap: 8px;
-      padding: 12px;
-      border-radius: 14px;
-      border: 1px solid var(--border-color);
-      background: rgba(255, 255, 255, 0.9);
-      box-shadow: var(--shadow-sm);
-    }
-    .photo-menu .form-control {
-      min-height: 40px;
-      padding: 8px 10px;
-    }
-    .photo-menu input[type="file"] {
-      width: 100%;
-      padding: 12px 14px;
-      border-radius: 12px;
+      padding: 14px;
+      border-radius: 16px;
       border: 1px solid rgba(184, 237, 203, 0.95);
-      background: #f8fffb;
+      background: rgba(248, 255, 251, 0.96);
       color: var(--text-secondary);
     }
-    .photo-menu input[type="file"]::file-selector-button {
-      margin-right: 14px;
+    .photo-upload span {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .photo-upload input[type="file"] {
+      width: 100%;
+      color: var(--text-secondary);
+    }
+    .photo-upload input[type="file"]::file-selector-button {
+      margin-right: 12px;
       padding: 10px 16px;
       border: 0;
       border-radius: 999px;
@@ -233,9 +227,12 @@
       cursor: pointer;
       transition: background-color 0.18s ease, transform 0.18s ease;
     }
-    .photo-menu input[type="file"]::file-selector-button:hover {
+    .photo-upload input[type="file"]::file-selector-button:hover {
       background: #065f30;
       transform: translateY(-1px);
+    }
+    .photo-save {
+      justify-self: start;
     }
     .account-form {
       margin-top: 18px;
@@ -437,39 +434,95 @@
         </div>
       </section>
 
-    <div class="account-grid">
-      <div class="account-card">
-        <div class="account-pill"><i class="fa-solid fa-user"></i> Profile</div>
-        <div class="photo-control">
-          <% if (user && user.profilePicture) { %>
-            <img class="account-photo" id="accountPhotoPreview" src="<%= user.profilePicture %>" alt="Profile picture">
-          <% } else { %>
-            <div class="account-photo-placeholder" id="accountPhotoPreview"><%= user && user.name ? user.name.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0].toUpperCase()).join('') : 'U' %></div>
-          <% } %>
-          <button type="button" class="photo-change" aria-controls="photoMenu">Change</button>
-          <small class="text-muted">Hover to change</small>
+      <div class="account-grid">
+        <div class="account-main">
+          <section class="account-card">
+            <div class="account-pill"><i class="fa-solid fa-user"></i> Profile overview</div>
+            <div class="account-overview">
+              <div class="photo-control">
+                <% if (user && user.profilePicture) { %>
+                  <img class="account-photo" id="accountPhotoPreview" src="<%= user.profilePicture %>" alt="Profile picture">
+                <% } else { %>
+                  <div class="account-photo-placeholder" id="accountPhotoPreview"><%= initials %></div>
+                <% } %>
+                <form class="photo-form" method="post" action="/account">
+                  <input type="hidden" name="profilePicture" id="profilePicture" value="<%= user && user.profilePicture ? user.profilePicture : '' %>">
+                  <label class="photo-upload">
+                    <span>Choose photo</span>
+                    <input type="file" id="profilePictureFile" accept="image/*">
+                  </label>
+                  <button type="submit" class="btn btn-primary photo-save">Save photo</button>
+                </form>
+              </div>
+              <div class="account-meta">
+                <h2><%= displayName %></h2>
+                <p class="text-muted"><%= user ? user.email : '' %></p>
+                <div class="account-detail-grid">
+                  <div class="account-detail">
+                    <span>Age</span>
+                    <strong><%= ageValue %></strong>
+                  </div>
+                  <div class="account-detail">
+                    <span>Phone</span>
+                    <strong><%= phoneValue %></strong>
+                  </div>
+                  <div class="account-detail">
+                    <span>Interests</span>
+                    <strong><%= interestsValue %></strong>
+                  </div>
+                  <div class="account-detail">
+                    <span>Experience</span>
+                    <strong><%= experienceValue %></strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="account-actions">
+              <a href="/join-form" class="btn btn-primary">Edit signup info</a>
+              <a href="/logout" class="btn btn-secondary">Sign out</a>
+            </div>
+          </section>
         </div>
-        <h2 style="margin-top: 0;"><%= user ? user.name : 'Account' %></h2>
-        <p class="text-muted"><%= user ? user.email : '' %></p>
-        <ul class="account-list">
-          <li><strong>Age:</strong> <%= user && user.age ? user.age : '—' %></li>
-          <li><strong>Phone:</strong> <%= user && user.phone ? user.phone : '—' %></li>
-          <li><strong>Interests:</strong> <%= studentProfile && studentProfile.interests ? studentProfile.interests : (user && user.interests ? user.interests : '—') %></li>
-          <li><strong>Experience:</strong> <%= studentProfile && studentProfile.experience ? studentProfile.experience : (user && user.experience ? user.experience : '—') %></li>
-        </ul>
-        <div class="account-actions">
-          <a href="/join-form" class="btn btn-primary">Edit signup info</a>
-          <a href="/logout" class="btn btn-secondary">Sign out</a>
-        </div>
-        <form class="account-form" method="POST" action="/account">
-          <input type="hidden" id="profilePicture" name="profilePicture" value="<%= user && user.profilePicture ? user.profilePicture : '' %>">
-          <div class="photo-menu" id="photoMenu">
-            <label class="form-label" for="profilePictureFile">Upload photo</label>
-            <input class="form-control" type="file" id="profilePictureFile" accept="image/*">
-            <small class="text-muted">Choose an image and save it to your account.</small>
-          </div>
-          <button class="btn btn-primary" type="submit">Save picture</button>
-        </form>
+
+        <aside class="account-sidebar">
+          <section class="account-card">
+            <div class="account-pill"><i class="fa-solid fa-bullseye"></i> Current goal</div>
+            <div class="goal-switcher" data-goal-switcher data-default-goal="<%= inferredGoal %>">
+              <p class="text-muted">Switch what you want to do next and we'll guide the rest of the site in that direction.</p>
+              <div class="goal-options">
+                <button type="button" class="goal-option" data-goal-option data-goal="seeker" data-target="/join-form">
+                  <strong>Join a team</strong>
+                  <span>Focus on your student profile, nearby teams, and applications.</span>
+                </button>
+                <button type="button" class="goal-option" data-goal-option data-goal="manager" data-target="/team-register">
+                  <strong>Register a team</strong>
+                  <span>Switch into team-building mode and start setting up recruiting.</span>
+                </button>
+              </div>
+              <div class="goal-actions">
+                <a href="/join-form" class="btn btn-primary" data-goal-continue>Continue with goal</a>
+                <p class="goal-status" data-goal-status></p>
+              </div>
+            </div>
+          </section>
+
+          <section class="account-card">
+            <div class="account-pill"><i class="fa-solid fa-circle-info"></i> Account details</div>
+            <ul class="account-list">
+              <li><strong>Team</strong><span><%= teamLabel %></span></li>
+              <li><strong>Student profile</strong><span><%= studentProfile ? 'Created and active' : 'Not created yet' %></span></li>
+              <li><strong>Photo</strong><span><%= user && user.profilePicture ? 'Custom image saved' : 'Initials avatar active' %></span></li>
+              <li><strong>Experience</strong><span><%= experienceValue %></span></li>
+            </ul>
+          </section>
+
+          <section class="account-card">
+            <div class="account-pill"><i class="fa-solid fa-lightbulb"></i> Quick tip</div>
+            <div class="account-note">
+              <strong>Keep this page current.</strong> Teams review the details from your signup profile, so updated contact info and interests make it easier to match you with the right opportunities.
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   </main>
@@ -480,11 +533,32 @@
       const fileInput = document.getElementById('profilePictureFile');
       const hiddenInput = document.getElementById('profilePicture');
       let preview = document.getElementById('accountPhotoPreview');
-      const changeButton = document.querySelector('.photo-change');
       const goalSwitcher = document.querySelector('[data-goal-switcher]');
 
-      if (changeButton && fileInput) {
-        changeButton.addEventListener('click', () => fileInput.click());
+      if (fileInput && hiddenInput) {
+        fileInput.addEventListener('change', () => {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = String(reader.result || '');
+            hiddenInput.value = result;
+            if (preview) {
+              if (preview.tagName === 'IMG') {
+                preview.src = result;
+              } else {
+                const img = document.createElement('img');
+                img.className = 'account-photo';
+                img.id = 'accountPhotoPreview';
+                img.src = result;
+                img.alt = 'Profile picture';
+                preview.replaceWith(img);
+                preview = img;
+              }
+            }
+          };
+          reader.readAsDataURL(file);
+        });
       }
 
       if (goalSwitcher) {
@@ -527,36 +601,7 @@
           button.addEventListener('click', () => applyGoal(button.getAttribute('data-goal')));
         });
       }
-
-      if (fileInput && hiddenInput) {
-        fileInput.addEventListener('change', () => {
-          const file = fileInput.files && fileInput.files[0];
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = String(reader.result || '');
-            hiddenInput.value = result;
-            if (preview) {
-              if (preview.tagName === 'IMG') {
-                preview.src = result;
-              } else {
-                const img = document.createElement('img');
-                img.className = 'account-photo';
-                img.id = 'accountPhotoPreview';
-                img.src = result;
-                img.alt = 'Profile picture';
-                preview.replaceWith(img);
-                preview = img;
-              }
-            }
-          };
-          reader.readAsDataURL(file);
-        });
-      }
     })();
   </script>
 </body>
 </html>
-
-
-
