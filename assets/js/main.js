@@ -1248,13 +1248,13 @@ function loadSiteShells() {
             // Toggle visibility based on auth status
             const target = a.getAttribute('data-href');
             const navItem = a.closest('li') || a;
+            const intent = (() => { try { return sessionStorage.getItem('signup_intent'); } catch (e) { return null; }})();
             if (target === '/login' || target === '/signup') {
               navItem.style.display = user ? 'none' : '';
               if (user) a.setAttribute('href', target);
             } else if (target === '/team-register') {
               // Only show the "Register Team" link when the user is an authenticated team contact
               // or on the home/start page for anonymous visitors.
-              const intent = (() => { try { return sessionStorage.getItem('signup_intent'); } catch (e) { return null; }})();
               const isStartPage = window.location.pathname === '/';
               const allowedForUser = user ? !!user.hasTeam : false;
               navItem.style.display = (allowedForUser || intent === 'manager' || (!user && isStartPage)) ? '' : 'none';
@@ -1263,9 +1263,9 @@ function loadSiteShells() {
               navItem.style.display = (user && user.hasTeam) ? '' : 'none';
               if (user) a.setAttribute('href', target);
             } else if (target === '/my-applications' || target === '/join-form') {
-              // Show applications and join form only for students (logged in users without a team)
-              // We hide these if the user is already a team manager
-              navItem.style.display = (user && !user.hasTeam) ? '' : 'none';
+              // Show applications/join form only for students.
+              // If the user is focused on registering a team, keep the header focused on that path instead.
+              navItem.style.display = (user && !user.hasTeam && intent !== 'manager') ? '' : 'none';
               a.setAttribute('href', user ? target : `/auth-gate?next=${encodeURIComponent(target)}&label=${encodeURIComponent((a.textContent || '').trim())}`);
             } else if (target === '/my-team') {
               navItem.style.display = (user && user.teamNumber) ? '' : 'none';
