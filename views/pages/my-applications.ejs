@@ -52,16 +52,16 @@
         <div class="row">
             <div class="col-md-4">
                 <div class="profile-section">
-                    <h3><i class="fa-solid fa-user-graduate"></i> My Profile</h3>
+                    <h3><i class="fa-solid fa-user-graduate"></i> Recruitment Profile</h3>
                     <hr>
                     <% if (studentProfile) { %>
                         <p><strong>Experience:</strong> <%= studentProfile.experience %></p>
                         <p><strong>Interests:</strong> <%= studentProfile.interests %></p>
                         <p><strong>Phone:</strong> <%= studentProfile.phone %></p>
-                        <a href="/account/signup-info" class="btn btn-outline btn-block" style="margin-top: 20px;">Update Profile</a>
+                        <a href="/account/signup-info?back=applications" class="btn btn-outline btn-block" style="margin-top: 20px;">Edit Recruitment Profile</a>
                     <% } else { %>
                         <p class="text-muted">You haven't created a recruitment profile yet.</p>
-                        <a href="/account/signup-info" class="btn btn-primary btn-block">Create Profile</a>
+                        <a href="/account/signup-info?back=applications" class="btn btn-primary btn-block">Create Recruitment Profile</a>
                     <% } %>
                 </div>
             </div>

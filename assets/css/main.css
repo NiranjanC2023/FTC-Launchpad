@@ -191,7 +191,8 @@ header .navbar-default {
 /* Ensure navbar casts a subtle shadow separate from the page */
 header .navbar {
   box-shadow: var(--navbar-shadow);
-  z-index: 20;
+  position: relative;
+  z-index: 10000;
 }
 
 .navbar .container {
@@ -405,9 +406,9 @@ header .navbar {
   padding: 10px;
   border-radius: 16px;
   background: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 2px solid rgba(34, 197, 94, 0.9);
   box-shadow: 0 16px 34px rgba(15, 23, 42, 0.14);
-  z-index: 1200;
+  z-index: 10001;
 }
 
 .inbox-dropdown-header {
@@ -539,7 +540,7 @@ header .navbar {
   background: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.12);
   box-shadow: 0 16px 34px rgba(15, 23, 42, 0.14);
-  z-index: 1200;
+  z-index: 10001;
 }
 
 .account-dropdown a {

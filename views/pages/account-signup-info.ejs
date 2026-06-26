@@ -11,14 +11,14 @@
   <link rel="stylesheet" href="/assets/css/main.css?v=13">
 </head>
 <body>
-  <header></header>
+      <header></header>
 
   <main>
     <div class="container">
-      <a href="/account" class="btn btn-secondary back-button">← Back to Account</a>
+      <a href="<%= backUrl || '/account' %>" class="btn btn-secondary back-button"><%= backTarget === 'applications' ? '← Back to Applications' : '← Back to Account' %></a>
 
-      <h1>Edit Signup Info</h1>
-      <p class="subtitle">Update the profile used when you contact teams and send your info.</p>
+      <h1>Edit Recruitment Profile</h1>
+      <p class="subtitle">Update the profile teams see when you contact them or apply.</p>
 
       <% if (error) { %>
         <div class="alert alert-danger"><%= error %></div>
@@ -28,6 +28,7 @@
       <% } %>
 
       <form id="accountSignupForm" class="form-grid" method="POST" action="/account/signup-info">
+        <input type="hidden" name="back" value="<%= backTarget || 'account' %>">
         <label for="name">Full name</label>
         <input id="name" name="name" value="<%= values && values.name ? values.name : '' %>" required>
 
@@ -48,7 +49,7 @@
 
         <div></div>
         <div>
-          <button type="submit" class="btn btn-primary">Save signup info</button>
+          <button type="submit" class="btn btn-primary">Save recruitment profile</button>
         </div>
       </form>
     </div>
