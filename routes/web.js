@@ -245,6 +245,25 @@ function formatScoutSeasonLabel(season) {
     return `${startYear}-${startYear + 1}`;
 }
 
+function formatTeamTenureLabel(team) {
+    const yearsInProgram = Number(team && team.yearsInProgram);
+    if (Number.isFinite(yearsInProgram) && yearsInProgram >= 0) {
+        const roundedYears = Math.max(0, Math.round(yearsInProgram));
+        return `${roundedYears} year${roundedYears === 1 ? '' : 's'}`;
+    }
+
+    const createdAt = team && team.createdAt ? new Date(team.createdAt) : null;
+    if (!createdAt || Number.isNaN(createdAt.getTime())) return 'Not available';
+
+    const monthsElapsed = Math.max(0, Math.round((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24 * 30.4375)));
+    if (monthsElapsed < 12) {
+        return `${monthsElapsed} month${monthsElapsed === 1 ? '' : 's'}`;
+    }
+
+    const yearsElapsed = Math.max(1, Math.round(monthsElapsed / 12));
+    return `${yearsElapsed} year${yearsElapsed === 1 ? '' : 's'}`;
+}
+
 function formatAwardHistoryEntry(award) {
     const awardType = formatFtcScoutAwardType(award && award.type);
     if (!awardType) return null;
@@ -326,20 +345,21 @@ async function enrichTeamWithFtcScout(team) {
     const ftcScoutDetails = await fetchFtcScoutTeamDetails(team.teamNumber).catch(() => null);
     if (!ftcScoutDetails) return team;
 
-    const enrichedTeam = {
-        ...team,
-        program: team.program || 'FTC',
+        const enrichedTeam = {
+            ...team,
+            program: team.program || 'FTC',
         awards: ftcScoutDetails.awards || team.awards || '',
         awardHistory: ftcScoutDetails.awardHistory && ftcScoutDetails.awardHistory.length ? ftcScoutDetails.awardHistory : (team.awardHistory || []),
         yearsInProgram: ftcScoutDetails.yearsInProgram !== null && ftcScoutDetails.yearsInProgram !== undefined
             ? ftcScoutDetails.yearsInProgram
             : team.yearsInProgram,
-        advancementLevels: ftcScoutDetails.advancementLevels && ftcScoutDetails.advancementLevels.length ? ftcScoutDetails.advancementLevels : (team.advancementLevels || []),
-        advancementHistory: ftcScoutDetails.advancementHistory && ftcScoutDetails.advancementHistory.length ? ftcScoutDetails.advancementHistory : (team.advancementHistory || [])
-    };
+            advancementLevels: ftcScoutDetails.advancementLevels && ftcScoutDetails.advancementLevels.length ? ftcScoutDetails.advancementLevels : (team.advancementLevels || []),
+            advancementHistory: ftcScoutDetails.advancementHistory && ftcScoutDetails.advancementHistory.length ? ftcScoutDetails.advancementHistory : (team.advancementHistory || [])
+        };
+        const teamTenureLabel = formatTeamTenureLabel(enrichedTeam);
 
-    const needsSave = enrichedTeam.awards !== team.awards
-        || enrichedTeam.yearsInProgram !== team.yearsInProgram
+        const needsSave = enrichedTeam.awards !== team.awards
+            || enrichedTeam.yearsInProgram !== team.yearsInProgram
         || JSON.stringify(enrichedTeam.awardHistory || []) !== JSON.stringify(team.awardHistory || [])
         || JSON.stringify(enrichedTeam.advancementLevels || []) !== JSON.stringify(team.advancementLevels || [])
         || JSON.stringify(enrichedTeam.advancementHistory || []) !== JSON.stringify(team.advancementHistory || []);
@@ -832,6 +852,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             acceptedCount,
             waitlistCount,
             rejectedCount,
+            teamTenureLabel,
             error: errorMessage,
             success: successMessage
         });
@@ -893,7 +914,7 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
         const user = await User.findById(req.session.userId).lean().exec();
         if (!user) return res.redirect('/logout');
 
-        const { notes, awards, yearsInProgram, recruiting } = req.body;
+        const { notes, recruiting } = req.body;
         
         // Ensure the user actually has management access on this team
         const team = await Team.findOneAndUpdate(
@@ -905,8 +926,6 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
             },
             { 
                 notes: notes,
-                awards: awards,
-                yearsInProgram: toNumber(yearsInProgram),
                 recruiting: recruiting === 'on',
                 updatedAt: new Date()
             },
@@ -1413,7 +1432,7 @@ router.get('/my-team', ensureAuthenticated, async function(req, res) {
         const team = await enrichTeamWithFtcScout(foundTeam);
         if (!team) return res.render('pages/my-team', { error: 'Team not found', team: null });
 
-        res.render('pages/my-team', { team, user, error: null });
+        res.render('pages/my-team', { team, user, error: null, teamTenureLabel: formatTeamTenureLabel(team) });
     } catch (err) {
         res.render('pages/my-team', { error: 'Error loading team page', team: null });
     }

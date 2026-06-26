@@ -161,6 +161,13 @@
                     </div>
                 </div>
                 <div class="stat-card">
+                    <div class="stat-icon" style="background: #ecfeff; color: #0891b2;"><i class="fa-solid fa-hourglass-half"></i></div>
+                    <div class="stat-content">
+                        <h4>Time as a Team</h4>
+                        <p><%= teamTenureLabel || 'Not available' %></p>
+                    </div>
+                </div>
+                <div class="stat-card">
                     <div class="stat-icon"><i class="fa-solid fa-users-viewfinder"></i></div>
                     <div class="stat-content">
                         <h4>Total Recruits</h4>
@@ -204,19 +211,6 @@
                                     <small class="text-muted">This bio appears on the public map.</small>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Years in Program</label>
-                                    <input type="number" name="yearsInProgram" class="form-control" min="0" step="1" value="<%= team.yearsInProgram || '' %>" placeholder="Example: 3">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Awards</label>
-                                    <input type="text" name="awards" class="form-control" value="<%= team.awards || '' %>" placeholder="Example: Inspire, Think, Finalist">
-                                    <small class="text-muted">FTC teams auto-refresh this from FTC Scout when available.</small>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Advancement</label>
-                                    <div class="team-history-panel" style="margin: 0;"><%= team.advancementLevels && team.advancementLevels.length ? team.advancementLevels.join(', ') : 'No advancement listed yet.' %></div>
-                                </div>
-                                <div class="mb-3">
                                     <label class="form-label">Awards Achieved</label>
                                     <div class="team-history-panel" style="margin: 0;">
                                         <% if (team.awardHistory && team.awardHistory.length) { %>
@@ -231,7 +225,7 @@
                                     </div>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Advancement History</label>
+                                    <label class="form-label">Competition History</label>
                                     <div class="team-history-panel" style="margin: 0;">
                                         <% if (team.advancementHistory && team.advancementHistory.length) { %>
                                             <ul style="margin: 0; padding-left: 18px;">
@@ -240,7 +234,7 @@
                                                 <% }) %>
                                             </ul>
                                         <% } else { %>
-                                            No advancement history listed yet.
+                                            No competition history listed yet.
                                         <% } %>
                                     </div>
                                 </div>
