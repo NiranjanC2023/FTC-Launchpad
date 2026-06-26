@@ -417,9 +417,10 @@
     const interestsValue = studentProfile && studentProfile.interests ? studentProfile.interests : (user && user.interests ? user.interests : 'Not set');
     const experienceValue = studentProfile && studentProfile.experience ? studentProfile.experience : (user && user.experience ? user.experience : 'Not set');
     const teamLabel = team ? (team.teamNumber + ' - ' + team.name) : (user && user.teamNumber ? ('Team #' + user.teamNumber) : 'Not connected yet');
-    const accountRole = team ? 'Team Member' : (studentProfile ? 'Student Profile Active' : 'Getting Started');
+    const accountRole = team ? 'Team Member' : 'Getting Started';
     const profileComplete = (ageValue !== 'Not set' && phoneValue !== 'Not set' && interestsValue !== 'Not set');
     const inferredGoal = team ? 'manager' : 'seeker';
+    const studentProfileState = studentProfile ? 'Created but inactive' : 'Not created yet';
   %>
 
   <main class="container account-page">
@@ -440,7 +441,7 @@
               <p class="text-muted">Keep your profile photo, signup details, and team information up to date from one clean dashboard.</p>
             </div>
             <div class="account-status">
-              <strong><%= accountRole %></strong>
+              <strong id="accountRoleLabel"><%= accountRole %></strong>
               <span><%= user ? user.email : 'Sign in to update your account.' %></span>
             </div>
           </div>
@@ -505,7 +506,7 @@
               </div>
             </div>
             <div class="account-actions">
-              <a href="/join-form" class="btn btn-primary">Edit signup info</a>
+              <a href="/account/signup-info" class="btn btn-primary">Edit signup info</a>
               <a href="/logout" class="btn btn-secondary">Sign out</a>
             </div>
           </section>
@@ -537,7 +538,7 @@
             <div class="account-pill"><i class="fa-solid fa-circle-info"></i> Account details</div>
             <ul class="account-list">
               <li><strong>Team</strong><span><%= teamLabel %></span></li>
-              <li><strong>Student profile</strong><span><%= studentProfile ? 'Created and active' : 'Not created yet' %></span></li>
+              <li><strong>Student profile</strong><span id="studentProfileStatus"><%= studentProfileState %></span></li>
               <li><strong>Photo</strong><span><%= user && user.profilePicture ? 'Custom image saved' : 'Initials avatar active' %></span></li>
               <li><strong>Experience</strong><span><%= experienceValue %></span></li>
             </ul>
@@ -561,6 +562,10 @@
       const hiddenInput = document.getElementById('profilePicture');
       let preview = document.getElementById('accountPhotoPreview');
       const goalSwitcher = document.querySelector('[data-goal-switcher]');
+      const accountRoleLabel = document.getElementById('accountRoleLabel');
+      const studentProfileStatus = document.getElementById('studentProfileStatus');
+      const hasStudentProfile = <%= studentProfile ? 'true' : 'false' %>;
+      const hasTeam = <%= team ? 'true' : 'false' %>;
 
       if (fileInput && hiddenInput) {
         fileInput.addEventListener('change', () => {
@@ -615,6 +620,22 @@
             continueLink.setAttribute('href', goalConfig[selectedGoal].href);
           }
           if (status) status.textContent = goalConfig[selectedGoal].status;
+          if (accountRoleLabel) {
+            if (hasTeam) {
+              accountRoleLabel.textContent = 'Team Member';
+            } else if (selectedGoal === 'seeker' && hasStudentProfile) {
+              accountRoleLabel.textContent = 'Student Profile Active';
+            } else {
+              accountRoleLabel.textContent = 'Getting Started';
+            }
+          }
+          if (studentProfileStatus) {
+            if (hasStudentProfile) {
+              studentProfileStatus.textContent = selectedGoal === 'seeker' ? 'Created and active' : 'Created but inactive';
+            } else {
+              studentProfileStatus.textContent = 'Not created yet';
+            }
+          }
           try { sessionStorage.setItem('signup_intent', selectedGoal); } catch (e) {}
         }
 

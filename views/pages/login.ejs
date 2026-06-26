@@ -38,6 +38,9 @@
       <% if (error) { %>
         <div class="alert alert-danger"><%= error %></div>
       <% } %>
+      <% if (typeof notice !== 'undefined' && notice) { %>
+        <div class="alert" style="background:#e9f8ef;border-color:#b8edcb;color:#0f5b34;"><%= notice %></div>
+      <% } %>
       <form method="POST" action="/login" class="login-form">
         <input type="hidden" name="inviteToken" value="<%= inviteToken || '' %>" />
         <input type="hidden" name="next" value="<%= nextPath || '' %>" />

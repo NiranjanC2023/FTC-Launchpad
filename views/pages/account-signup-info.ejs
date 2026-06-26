@@ -17,8 +17,8 @@
     <div class="container">
       <a href="<%= backUrl || '/account' %>" class="btn btn-secondary back-button"><%= backTarget === 'applications' ? '← Back to Applications' : '← Back to Account' %></a>
 
-      <h1>Edit Recruitment Profile</h1>
-      <p class="subtitle">Update the profile teams see when you contact them or apply.</p>
+      <h1>Edit Signup Info</h1>
+      <p class="subtitle">Update the signup details saved on your account.</p>
 
       <% if (error) { %>
         <div class="alert alert-danger"><%= error %></div>
@@ -49,7 +49,7 @@
 
         <div></div>
         <div>
-          <button type="submit" class="btn btn-primary">Save recruitment profile</button>
+          <button type="submit" class="btn btn-primary">Save Signup Info</button>
         </div>
       </form>
     </div>

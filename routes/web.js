@@ -1794,7 +1794,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             });
         }
 
-        await User.findByIdAndUpdate(req.session.userId, {
+        const updatedUser = await User.findByIdAndUpdate(req.session.userId, {
             name,
             age: age ? Number(age) : undefined,
             email: normalizedEmail,
@@ -1812,6 +1812,16 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             student.phone = phone;
             student.email = normalizedEmail;
             await student.save();
+        }
+
+        const emailChanged = normalizeEmail(currentUser.email) !== normalizeEmail(updatedUser && updatedUser.email ? updatedUser.email : normalizedEmail);
+        if (emailChanged) {
+            return req.session.destroy((sessionErr) => {
+                if (sessionErr) {
+                    console.error('Failed to destroy session after email change:', sessionErr);
+                }
+                return res.redirect(`/login?notice=${encodeURIComponent('Your email was updated. Please sign in again.')}`);
+            });
         }
 
         res.render('pages/account-signup-info', {
@@ -1845,6 +1855,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
 router.get('/login', function(req, res){
     res.render('pages/login', {
         error: null,
+        notice: req.query.notice || null,
         inviteToken: req.query.inviteToken || null,
         nextPath: sanitizeNextPath(req.query.next, '')
     });
@@ -1864,16 +1875,16 @@ router.get('/auth-gate', function(req, res){
 
 router.post('/login', async function(req, res){
     try {
-        if (!isDatabaseConnected()) return res.render('pages/login', { error: databaseErrorMessage(), inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
+        if (!isDatabaseConnected()) return res.render('pages/login', { error: databaseErrorMessage(), notice: null, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
         const { email, password, inviteToken } = req.body;
         const nextPath = sanitizeNextPath(req.body.next, '');
         const remember = req.body && (req.body.remember === '1' || req.body.remember === 'on' || req.body.remember === true);
         const normalizedEmail = normalizeEmail(email);
-        if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required', inviteToken: inviteToken || null, nextPath });
+        if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required', notice: null, inviteToken: inviteToken || null, nextPath });
         const user = await User.findOne({ email: normalizedEmail }).exec();
-        if (!user) return res.render('pages/login', { error: 'Invalid credentials', inviteToken: inviteToken || null, nextPath });
+        if (!user) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
         const ok = await user.validatePassword(password);
-        if (!ok) return res.render('pages/login', { error: 'Invalid credentials', inviteToken: inviteToken || null, nextPath });
+        if (!ok) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
         signIn(req, user);
         applyRememberMe(req, remember);
 
@@ -1885,7 +1896,7 @@ router.post('/login', async function(req, res){
         if (nextPath) return res.redirect(nextPath);
         res.redirect(await getPostLoginRedirect(user));
     } catch (err) {
-        res.render('pages/login', { error: err.message, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null, nextPath: sanitizeNextPath(req.body && req.body.next, '') });
+        res.render('pages/login', { error: err.message, notice: null, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null, nextPath: sanitizeNextPath(req.body && req.body.next, '') });
     }
 });
 
