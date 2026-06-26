@@ -25,8 +25,11 @@
                 <p><strong>Location:</strong> <%= team.city %>, <%= team.state %>, <%= team.country %></p>
                 <p><strong>Contact Info:</strong> <%= team.contact %></p>
                 <p><strong>Years in Program:</strong> <%= team.yearsInProgram || 'Not listed yet.' %></p>
+                <p><strong>FTC Region:</strong> <%= team.competitionRegionLabel || 'Region not available.' %></p>
                 <p><strong>Awards:</strong> <%= team.awards || 'No awards listed.' %></p>
-                <p><strong>Advancement:</strong> <%= team.advancementLevels && team.advancementLevels.length ? team.advancementLevels.join(', ') : 'No advancement listed.' %></p>
+                <% const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.filter(function(level) { return level === 'Regional' || level === 'Worlds'; }) : []; %>
+                <% const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(function(entry) { return /^(Regional|Worlds)\b/i.test(String(entry || '').trim()); }) : []; %>
+                <p><strong>Advancement:</strong> <%= advancementLevels.length ? advancementLevels.join(', ') : 'No advancement listed.' %></p>
                 <p><strong>Awards Achieved:</strong></p>
                 <% if (team.awardHistory && team.awardHistory.length) { %>
                     <ul>
@@ -38,9 +41,9 @@
                     <p>No award history listed.</p>
                 <% } %>
                 <p><strong>Advancement History:</strong></p>
-                <% if (team.advancementHistory && team.advancementHistory.length) { %>
+                <% if (advancementHistory.length) { %>
                     <ul>
-                        <% team.advancementHistory.forEach(function(entry) { %>
+                        <% advancementHistory.forEach(function(entry) { %>
                             <li>🏁 <%= entry %></li>
                         <% }) %>
                     </ul>

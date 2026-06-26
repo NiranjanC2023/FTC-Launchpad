@@ -194,8 +194,9 @@ function mapTeam(team) {
         awards: team.awards,
         awardHistory: team.awardHistory,
         yearsInProgram: team.yearsInProgram,
-        advancementLevels: team.advancementLevels,
-        advancementHistory: team.advancementHistory,
+        competitionRegionLabel: team.competitionRegionLabel || '',
+        advancementLevels: filterAdvancementValues(team.advancementLevels),
+        advancementHistory: filterAdvancementHistoryValues(team.advancementHistory),
         recruiting: team.recruiting,
         verified: team.verified,
         radiusMeters: 1000,
@@ -278,6 +279,14 @@ function formatFtcScoutAwardType(value) {
     return `${normalized} Award`;
 }
 
+function formatFtcScoutEventLabel(event) {
+    const name = String(event && event.name || '').trim();
+    if (name) return name;
+    const code = String(event && event.code || '').trim();
+    if (code) return code;
+    return '';
+}
+
 function formatFtcScoutPlacement(placement, awardType) {
     const place = Number(placement);
     if (!Number.isFinite(place) || place <= 1) return '';
@@ -291,6 +300,26 @@ function formatScoutSeasonLabel(season) {
     const startYear = Number(season);
     if (!Number.isFinite(startYear)) return '';
     return `${startYear}-${startYear + 1}`;
+}
+
+function formatCompetitionRegionLabel(team) {
+    const events = Array.isArray(team && team.events) ? team.events : [];
+    const sourceEvent = events.find(event => event && (event.regionCode || event.districtCode));
+    const code = String(sourceEvent && (sourceEvent.regionCode || sourceEvent.districtCode) || '').trim();
+    if (!code) return '';
+    return `Region ${code}`;
+}
+
+function filterAdvancementValues(values) {
+    return Array.isArray(values)
+        ? values.filter(value => value === 'Regional' || value === 'Worlds')
+        : [];
+}
+
+function filterAdvancementHistoryValues(values) {
+    return Array.isArray(values)
+        ? values.filter(value => /^(Regional|Worlds)\b/i.test(String(value || '').trim()))
+        : [];
 }
 
 function formatTeamTenureLabel(team) {
@@ -315,14 +344,19 @@ function formatTeamTenureLabel(team) {
 function formatAwardHistoryEntry(award) {
     const awardType = formatFtcScoutAwardType(award && award.type);
     if (!awardType) return null;
+    const isAllianceAward = /^(Winning Alliance|Finalist Alliance)$/i.test(awardType);
+    const eventLabel = isAllianceAward
+        ? formatFtcScoutEventLabel(award && (award.event || { name: award && award.divisionName, code: award && award.eventCode }))
+        : '';
+    const awardLabel = eventLabel ? `${awardType} (${eventLabel})` : awardType;
     const placementLabel = formatFtcScoutPlacement(award && award.placement, awardType);
     const seasonLabel = formatScoutSeasonLabel(award && award.season);
-    return [awardType, placementLabel, seasonLabel].filter(Boolean).join(' ').trim();
+    return [awardLabel, placementLabel, seasonLabel].filter(Boolean).join(' ').trim();
 }
 
 function mapAdvancementLevel(eventType) {
     const type = String(eventType || '').trim();
-    if (type === 'Qualifier' || type === 'SuperQualifier' || type === 'LeagueTournament' || type === 'LeagueMeet') return 'Qualifier';
+    if (type === 'Qualifier' || type === 'SuperQualifier' || type === 'LeagueTournament' || type === 'LeagueMeet') return null;
     if (type === 'Championship' || type === 'Premier') return 'Regional';
     if (type === 'FIRSTChampionship') return 'Worlds';
     return null;
@@ -344,7 +378,7 @@ function getUniqueNumericValues(values) {
 
 async function fetchFtcScoutTeamDetails(teamNumber) {
     const body = {
-        query: 'query($number:Int!){ teamByNumber(number:$number){ rookieYear awards { type placement season } matches { season event { type } } activeSeasons } }',
+        query: 'query($number:Int!){ teamByNumber(number:$number){ rookieYear awards { type placement season divisionName eventCode event { name code } } matches { season event { type } } events { regionCode districtCode } activeSeasons } }',
         variables: { number: Number(teamNumber) }
     };
 
@@ -367,6 +401,7 @@ async function fetchFtcScoutTeamDetails(teamNumber) {
     const awardSeasons = getUniqueNumericValues(awards.map(award => award && award.season));
     const matchSeasons = getUniqueNumericValues(matchParticipations.map(participation => participation && participation.season));
     const competitionSeasons = matchSeasons.length ? matchSeasons : (awardSeasons.length ? awardSeasons : getUniqueNumericValues(team.activeSeasons));
+    const competitionRegionLabel = formatCompetitionRegionLabel(team);
     const advancementLevels = [];
     const advancementHistory = [];
 
@@ -382,7 +417,8 @@ async function fetchFtcScoutTeamDetails(teamNumber) {
         awards: uniqueAwardTypes.slice(0, 6).join(', ') || null,
         awardHistory,
         advancementLevels,
-        advancementHistory
+        advancementHistory,
+        competitionRegionLabel
     };
 }
 
@@ -401,14 +437,16 @@ async function enrichTeamWithFtcScout(team) {
         yearsInProgram: ftcScoutDetails.yearsInProgram !== null && ftcScoutDetails.yearsInProgram !== undefined
             ? ftcScoutDetails.yearsInProgram
             : team.yearsInProgram,
-            advancementLevels: ftcScoutDetails.advancementLevels && ftcScoutDetails.advancementLevels.length ? ftcScoutDetails.advancementLevels : (team.advancementLevels || []),
-            advancementHistory: ftcScoutDetails.advancementHistory && ftcScoutDetails.advancementHistory.length ? ftcScoutDetails.advancementHistory : (team.advancementHistory || [])
+            advancementLevels: filterAdvancementValues(ftcScoutDetails.advancementLevels && ftcScoutDetails.advancementLevels.length ? ftcScoutDetails.advancementLevels : (team.advancementLevels || [])),
+            advancementHistory: filterAdvancementHistoryValues(ftcScoutDetails.advancementHistory && ftcScoutDetails.advancementHistory.length ? ftcScoutDetails.advancementHistory : (team.advancementHistory || [])),
+            competitionRegionLabel: ftcScoutDetails.competitionRegionLabel || team.competitionRegionLabel || ''
         };
         const teamTenureLabel = formatTeamTenureLabel(enrichedTeam);
 
         const needsSave = enrichedTeam.awards !== team.awards
             || enrichedTeam.yearsInProgram !== team.yearsInProgram
         || JSON.stringify(enrichedTeam.awardHistory || []) !== JSON.stringify(team.awardHistory || [])
+        || String(enrichedTeam.competitionRegionLabel || '') !== String(team.competitionRegionLabel || '')
         || JSON.stringify(enrichedTeam.advancementLevels || []) !== JSON.stringify(team.advancementLevels || [])
         || JSON.stringify(enrichedTeam.advancementHistory || []) !== JSON.stringify(team.advancementHistory || []);
     if (needsSave && team._id) {
@@ -418,6 +456,7 @@ async function enrichTeamWithFtcScout(team) {
                 awards: enrichedTeam.awards,
                 yearsInProgram: enrichedTeam.yearsInProgram,
                 awardHistory: enrichedTeam.awardHistory,
+                competitionRegionLabel: enrichedTeam.competitionRegionLabel,
                 advancementLevels: enrichedTeam.advancementLevels,
                 advancementHistory: enrichedTeam.advancementHistory,
                 updatedAt: new Date()
@@ -665,7 +704,19 @@ router.get("/teams-nearby", async function(req, res){
             }
         }
 
-        res.render("pages/teams-nearby", { teams: teams.map(mapTeam), studentApp, user: currentUser });
+        const enrichedTeams = await Promise.all(
+            teams.map(async (team) => {
+                const hasOldAwardFormat = Array.isArray(team && team.awardHistory) && team.awardHistory.some(entry => !/\(.*\)/.test(String(entry || '')));
+                const hasOldAdvancementFormat = Array.isArray(team && team.advancementLevels) && team.advancementLevels.some(level => level === 'Qualifier');
+                if (team && team.program === 'FTC' && (!team.competitionRegionLabel || hasOldAwardFormat || hasOldAdvancementFormat || !team.advancementHistory || !team.advancementHistory.length)) {
+                    const enriched = await enrichTeamWithFtcScout(team).catch(() => team);
+                    return enriched || team;
+                }
+                return team;
+            })
+        );
+
+        res.render("pages/teams-nearby", { teams: enrichedTeams.map(mapTeam), studentApp, user: currentUser });
     } catch (err) {
         console.error('Failed to load nearby teams:', err);
         res.render("pages/teams-nearby", { teams: [] });
@@ -735,6 +786,7 @@ router.post('/team-register', async function(req, res) {
                 yearsInProgram: ftcScoutDetails && ftcScoutDetails.yearsInProgram !== null
                     ? ftcScoutDetails.yearsInProgram
                     : toNumber(values.yearsInProgram),
+                competitionRegionLabel: ftcScoutDetails && ftcScoutDetails.competitionRegionLabel ? ftcScoutDetails.competitionRegionLabel : '',
                 advancementLevels: ftcScoutDetails && ftcScoutDetails.advancementLevels ? ftcScoutDetails.advancementLevels : [],
                 advancementHistory: ftcScoutDetails && ftcScoutDetails.advancementHistory ? ftcScoutDetails.advancementHistory : [],
                 recruiting,
@@ -767,7 +819,7 @@ router.post('/team-register', async function(req, res) {
 // Team Management Dashboard
 router.get('/manage-team', ensureAuthenticated, async function(req, res) {
     try {
-        if (!isDatabaseConnected()) return res.render('pages/manage-team', { error: databaseErrorMessage(), pendingInvitations: [] });
+        if (!isDatabaseConnected()) return res.render('pages/manage-team', { error: databaseErrorMessage(), pendingInvitations: [], teamTenureLabel: null });
         
         const user = await User.findById(req.session.userId).lean().exec();
         if (!user) return res.redirect('/logout');
@@ -836,6 +888,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             ]
         }).lean().exec();
         const team = await enrichTeamWithFtcScout(foundTeam);
+        const teamTenureLabel = formatTeamTenureLabel(team);
 
         let teamManagers = [];
         let pendingInvitations = [];
@@ -900,6 +953,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
                 acceptedCount: 0,
                 waitlistCount: 0,
                 rejectedCount: 0,
+                teamTenureLabel: null,
                 error: 'You are no longer a manager on any team.',
                 success: null
             });
@@ -933,7 +987,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         console.error('Management page error:', err);
         res.render('pages/manage-team', { 
             error: 'Failed to load dashboard',
-            user: null, team: null, recruits: [], pendingInvitations: [] 
+            user: null, team: null, recruits: [], pendingInvitations: [], teamTenureLabel: null
         });
     }
 });

@@ -225,7 +225,6 @@ function renderTeams(teams, userCoords) {
             <label for="teamsAdvancementFilter">Advancement</label>
             <select id="teamsAdvancementFilter" class="teams-program-filter" aria-label="Filter teams by advancement level">
               <option value="all">All advancement</option>
-              <option value="Qualifier">Qualifiers</option>
               <option value="Regional">Regionals</option>
               <option value="Worlds">Worlds</option>
               <option value="unknown">Unknown</option>
@@ -504,12 +503,13 @@ function renderTeams(teams, userCoords) {
     const teamNumber = team.teamNumber ? `${programLabel} ${team.teamNumber}` : `${programLabel} team`;
     const contact = String(team.contact || 'Contact unavailable');
     const location = String(team.location || '').trim();
+    const regionLabel = String(team.competitionRegionLabel || team.regionLabel || '').trim();
     const notes = String(team.notes || '').trim();
     const awards = String(team.awards || '').trim();
     const awardHistory = Array.isArray(team.awardHistory) ? team.awardHistory.filter(Boolean) : [];
     const yearsInProgram = Number(team.yearsInProgram);
-    const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.filter(Boolean) : [];
-    const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(Boolean) : [];
+    const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.filter((level) => level === 'Regional' || level === 'Worlds') : [];
+    const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter((entry) => /^(Regional|Worlds)\b/i.test(String(entry || '').trim())) : [];
     const distanceData = Number.isFinite(dist) ? formatDistance(dist, distanceUnitPreference) : null;
 
     const card = document.createElement('div');
@@ -520,13 +520,14 @@ function renderTeams(teams, userCoords) {
     card.dataset.hasAwards = awards ? 'true' : 'false';
     card.dataset.yearsInProgram = Number.isFinite(yearsInProgram) ? String(yearsInProgram) : '';
     card.dataset.advancementLevels = advancementLevels.join('|');
+    card.dataset.regionLabel = regionLabel;
     card.dataset.distanceKm = Number.isFinite(dist) ? String(dist) : '';
-    card.dataset.search = `${teamName} ${teamNumber} ${contact} ${location} ${notes} ${awards} ${awardHistory.join(' ')} ${advancementLevels.join(' ')} ${advancementHistory.join(' ')}`.toLowerCase();
+    card.dataset.search = `${teamName} ${teamNumber} ${contact} ${location} ${regionLabel} ${notes} ${awards} ${awardHistory.join(' ')} ${advancementLevels.join(' ')} ${advancementHistory.join(' ')}`.toLowerCase();
     card.innerHTML = `
       <div class="team-card-head">
         <div class="team-card-heading">
           <h3 class="team-card-title">${escapeHTML(teamName)}</h3>
-          <span class="team-card-label">${escapeHTML(teamNumber)}${team.verified ? ' · verified' : ''}</span>
+          <span class="team-card-label">${escapeHTML(teamNumber)}${regionLabel ? ` · ${escapeHTML(regionLabel)}` : ''}${team.verified ? ' · verified' : ''}</span>
         </div>
         <div class="team-card-toolbar">
           <button class="btn btn-link goto-marker team-card-icon-button" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-location-dot"></i></button>
@@ -535,7 +536,7 @@ function renderTeams(teams, userCoords) {
       </div>
       <div class="team-details-content" style="margin-top: 12px; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 260ms ease, opacity 200ms ease;">
         <p class="team-card-contact">${escapeHTML(contact)}</p>
-        ${location ? `<p class="team-card-meta">${escapeHTML(location)}</p>` : ''}
+        ${(location || regionLabel) ? `<p class="team-card-meta">${escapeHTML([location, regionLabel].filter(Boolean).join(' · '))}</p>` : ''}
         ${Number.isFinite(yearsInProgram) ? `
           <div class="team-card-stats">
             ${Number.isFinite(yearsInProgram) ? `

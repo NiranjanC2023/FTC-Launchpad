@@ -16,6 +16,7 @@ const TeamSchema = new mongoose.Schema({
   awards: { type: String, trim: true },
   awardHistory: [{ type: String, trim: true }],
   yearsInProgram: { type: Number, min: 0 },
+  competitionRegionLabel: { type: String, trim: true },
   advancementLevels: [{ type: String, trim: true }],
   advancementHistory: [{ type: String, trim: true }],
   recruiting: { type: Boolean, default: true },
