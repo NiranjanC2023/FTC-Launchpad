@@ -192,10 +192,10 @@ function mapTeam(team) {
         lon: displayCoords.lon,
         notes: team.notes,
         awards: team.awards,
-        awardHistory: team.awardHistory,
+        awardHistory: sortHistoryEntriesMostRecent(team.awardHistory || []),
         yearsInProgram: team.yearsInProgram,
         advancementLevels: team.advancementLevels,
-        advancementHistory: team.advancementHistory,
+        advancementHistory: sortHistoryEntriesMostRecent(team.advancementHistory || []),
         recruiting: team.recruiting,
         verified: team.verified,
         radiusMeters: 1000,
@@ -235,62 +235,31 @@ async function geocodeAddress(values) {
     return { lat, lon };
 }
 
-const FIRST_SEARCH_ENDPOINT = 'https://3dl2fnsh51.execute-api.us-east-1.amazonaws.com/prod/first-search';
-
 const PROGRAM_LABELS = {
     FTC: 'FIRST Tech Challenge',
     FRC: 'FIRST Robotics Competition',
     'FLL Challenge': 'FIRST LEGO League Challenge',
     'FLL Explore': 'FIRST LEGO League Explore'
 };
-const FTC_SCOUT_GRAPHQL_ENDPOINT = 'https://api.ftcscout.org/graphql';
-const FTC_AWARD_TYPE_LABELS = {
-    Winner: 'Winning Alliance',
-    Finalist: 'Finalist Alliance',
-    Think: 'Think Award',
-    Control: 'Control Award',
-    Sustain: 'Sustain Award',
-    Connect: 'Connect Award',
-    Motivate: 'Motivate Award',
-    Design: 'Design Award',
-    Promote: 'Promote Award',
-    Compass: 'Compass Award',
-    Inspire: 'Inspire Award',
-    Innovate: 'Innovate Award',
-    Judge: "Judges' Choice Award",
-    JudgesChoice: "Judges' Choice Award"
-};
+const FTC_SCOUT_API_BASE = 'https://api.ftcscout.org/rest/v1';
+const BLUE_ALLIANCE_API_BASE = 'https://www.thebluealliance.com/api/v3';
+const BLUE_ALLIANCE_AUTH_KEY = process.env.TBA_AUTH_KEY || process.env.BLUE_ALLIANCE_API_KEY || process.env.BLUE_ALLIANCE_AUTH_KEY || '';
+const teamApiDetailsCache = new Map();
 
 function normalizeProgram(program) {
     const value = String(program || '').trim();
     return PROGRAM_LABELS[value] ? value : 'FTC';
 }
 
-function formatFtcScoutAwardType(value) {
-    const normalized = String(value || '')
-        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-        .trim();
-    if (!normalized) return '';
-    const compact = normalized.replace(/\s+/g, '');
-    if (FTC_AWARD_TYPE_LABELS[compact]) return FTC_AWARD_TYPE_LABELS[compact];
-    if (FTC_AWARD_TYPE_LABELS[normalized]) return FTC_AWARD_TYPE_LABELS[normalized];
-    if (/award$/i.test(normalized) || /(alliance|finalist|winner)/i.test(normalized)) return normalized;
-    return `${normalized} Award`;
+function shouldUseTeamApi(program, teamNumber) {
+    const normalizedProgram = normalizeProgram(program);
+    return (normalizedProgram === 'FTC' || normalizedProgram === 'FRC') && Number.isFinite(Number(teamNumber));
 }
 
-function formatFtcScoutPlacement(placement, awardType) {
-    const place = Number(placement);
-    if (!Number.isFinite(place) || place <= 1) return '';
-    if (/alliance/i.test(String(awardType || ''))) return '';
-    if (place === 2) return '2nd Place';
-    if (place === 3) return '3rd Place';
-    return `${place}th Place`;
-}
-
-function formatScoutSeasonLabel(season) {
-    const startYear = Number(season);
-    if (!Number.isFinite(startYear)) return '';
-    return `${startYear}-${startYear + 1}`;
+function formatSeasonLabel(program, season) {
+    const value = Number(season);
+    if (!Number.isFinite(value)) return '';
+    return normalizeProgram(program) === 'FTC' ? `${value}-${value + 1}` : String(value);
 }
 
 function formatTeamTenureLabel(team) {
@@ -312,25 +281,41 @@ function formatTeamTenureLabel(team) {
     return `${yearsElapsed} year${yearsElapsed === 1 ? '' : 's'}`;
 }
 
-function formatAwardHistoryEntry(award) {
-    const awardType = formatFtcScoutAwardType(award && award.type);
-    if (!awardType) return null;
-    const placementLabel = formatFtcScoutPlacement(award && award.placement, awardType);
-    const seasonLabel = formatScoutSeasonLabel(award && award.season);
-    return [awardType, placementLabel, seasonLabel].filter(Boolean).join(' ').trim();
+function normalizeApiList(payload, singularKey, pluralKey) {
+    if (!payload || typeof payload !== 'object') return [];
+    const candidates = [
+        payload[pluralKey],
+        payload[pluralKey && pluralKey[0].toUpperCase() + pluralKey.slice(1)],
+        payload[singularKey],
+        payload[singularKey && singularKey[0].toUpperCase() + singularKey.slice(1)]
+    ];
+    for (const value of candidates) {
+        if (Array.isArray(value)) return value;
+    }
+    return [];
 }
 
-function mapAdvancementLevel(eventType) {
+function mapAdvancementLevel(program, eventType) {
     const type = String(eventType || '').trim();
-    if (type === 'Qualifier' || type === 'SuperQualifier' || type === 'LeagueTournament' || type === 'LeagueMeet') return 'Qualifier';
-    if (type === 'Championship' || type === 'Premier') return 'Regional';
-    if (type === 'FIRSTChampionship') return 'Worlds';
+    if (!type) return null;
+
+    if (normalizeProgram(program) === 'FTC') {
+        if (type === 'Qualifier' || type === 'SuperQualifier' || type === 'LeagueTournament' || type === 'LeagueMeet') return 'Qualifier';
+        if (type === 'Championship' || type === 'Premier') return 'Regional';
+        if (type === 'FIRSTChampionship') return 'Worlds';
+        return type.replace(/([a-z])([A-Z])/g, '$1 $2');
+    }
+
+    if (type === 'DistrictEvent') return 'District';
+    if (type === 'DistrictChampionship') return 'District Championship';
+    if (type === 'Regional' || type === 'RegionalEvent') return 'Regional';
+    if (type === 'Championship' || type === 'ChampionshipDivision') return 'Championship';
     return null;
 }
 
-function formatAdvancementHistoryEntry(level, season) {
+function formatAdvancementHistoryEntry(program, level, season) {
     if (!level) return null;
-    const seasonLabel = formatScoutSeasonLabel(season);
+    const seasonLabel = formatSeasonLabel(program, season);
     return `${level}${seasonLabel ? ' ' + seasonLabel : ''}`.trim();
 }
 
@@ -342,72 +327,333 @@ function getUniqueNumericValues(values) {
     )).sort((a, b) => a - b);
 }
 
-async function fetchFtcScoutTeamDetails(teamNumber) {
-    const body = {
-        query: 'query($number:Int!){ teamByNumber(number:$number){ rookieYear awards { type placement season } matches { season event { type } } activeSeasons } }',
-        variables: { number: Number(teamNumber) }
-    };
+function isConfiguredCredential(value) {
+    const text = String(value || '').trim();
+    if (!text) return false;
+    return !/^your[_-]/i.test(text) && text.toLowerCase() !== 'your_ftc_api_token' && text.toLowerCase() !== 'your_frc_api_token';
+}
 
-    const response = await fetch(FTC_SCOUT_GRAPHQL_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+function buildBlueAllianceHeaders() {
+    if (!isConfiguredCredential(BLUE_ALLIANCE_AUTH_KEY)) return null;
+    return {
+        'X-TBA-Auth-Key': BLUE_ALLIANCE_AUTH_KEY,
+        Accept: 'application/json',
+        'User-Agent': 'FTC-Starter-Hub/1.0'
+    };
+}
+
+async function fetchApiJson(url, headers = null) {
+    const response = await fetch(url, {
+        headers: headers || {
+            Accept: 'application/json',
+            'User-Agent': 'FTC-Starter-Hub/1.0'
+        }
     });
 
     if (!response.ok) return null;
 
-    const payload = await response.json();
-    const team = payload && payload.data ? payload.data.teamByNumber : null;
-    if (!team) return null;
-
-    const matchParticipations = Array.isArray(team.matches) ? team.matches : [];
-    const awards = Array.isArray(team.awards) ? team.awards : [];
-    const awardHistory = Array.from(new Set(awards.map(formatAwardHistoryEntry).filter(Boolean)));
-    const uniqueAwardTypes = Array.from(new Set(awards.map(award => formatFtcScoutAwardType(award.type)).filter(Boolean)));
-    const awardSeasons = getUniqueNumericValues(awards.map(award => award && award.season));
-    const matchSeasons = getUniqueNumericValues(matchParticipations.map(participation => participation && participation.season));
-    const competitionSeasons = matchSeasons.length ? matchSeasons : (awardSeasons.length ? awardSeasons : getUniqueNumericValues(team.activeSeasons));
-    const advancementLevels = [];
-    const advancementHistory = [];
-
-    matchParticipations.forEach((participation) => {
-        const level = mapAdvancementLevel(participation && participation.event ? participation.event.type : null);
-        if (level && !advancementLevels.includes(level)) advancementLevels.push(level);
-        const historyEntry = formatAdvancementHistoryEntry(level, participation && participation.season);
-        if (historyEntry && !advancementHistory.includes(historyEntry)) advancementHistory.push(historyEntry);
-    });
-
-    return {
-        yearsInProgram: competitionSeasons.length || null,
-        awards: uniqueAwardTypes.slice(0, 6).join(', ') || null,
-        awardHistory,
-        advancementLevels,
-        advancementHistory
-    };
+    try {
+        return await response.json();
+    } catch (error) {
+        return null;
+    }
 }
 
-async function enrichTeamWithFtcScout(team) {
-    if (!team || !team.teamNumber) return team;
-    if (team.program && team.program !== 'FTC') return team;
+function uniqueList(values) {
+    return Array.from(new Set((Array.isArray(values) ? values : []).map(value => String(value || '').trim()).filter(Boolean)));
+}
 
-    const ftcScoutDetails = await fetchFtcScoutTeamDetails(team.teamNumber).catch(() => null);
-    if (!ftcScoutDetails) return team;
+function extractSeasonSortValue(entry) {
+    const text = String(entry || '').trim();
+    if (!text) return -Infinity;
+    const seasonMatch = text.match(/(\d{4})-(\d{4})\s*$/) || text.match(/(\d{4})\s*$/);
+    if (!seasonMatch) return -Infinity;
+    return Number(seasonMatch[1]);
+}
 
-        const enrichedTeam = {
-            ...team,
-            program: team.program || 'FTC',
-        awards: ftcScoutDetails.awards || team.awards || '',
-        awardHistory: ftcScoutDetails.awardHistory && ftcScoutDetails.awardHistory.length ? ftcScoutDetails.awardHistory : (team.awardHistory || []),
-        yearsInProgram: ftcScoutDetails.yearsInProgram !== null && ftcScoutDetails.yearsInProgram !== undefined
-            ? ftcScoutDetails.yearsInProgram
-            : team.yearsInProgram,
-            advancementLevels: ftcScoutDetails.advancementLevels && ftcScoutDetails.advancementLevels.length ? ftcScoutDetails.advancementLevels : (team.advancementLevels || []),
-            advancementHistory: ftcScoutDetails.advancementHistory && ftcScoutDetails.advancementHistory.length ? ftcScoutDetails.advancementHistory : (team.advancementHistory || [])
+function sortHistoryEntriesMostRecent(entries) {
+    return uniqueList(entries).sort((left, right) => {
+        const rightSeason = extractSeasonSortValue(right);
+        const leftSeason = extractSeasonSortValue(left);
+        if (rightSeason !== leftSeason) return rightSeason - leftSeason;
+        return String(right).localeCompare(String(left));
+    });
+}
+
+function createSeasonRange(startSeason, endSeason) {
+    const seasons = [];
+    for (let season = startSeason; season <= endSeason; season++) {
+        seasons.push(season);
+    }
+    return seasons;
+}
+
+function extractTeamDisplayName(team) {
+    return String((team && (team.nickname || team.team_nickname || team.name || team.team_name || team.teamName)) || '').trim();
+}
+
+function extractAwardName(award) {
+    return String((award && (award.type || award.award_type || award.awardType || award.name || award.award_name || award.award)) || '').trim();
+}
+
+function extractAwardEventName(award) {
+    return String((award && (award.eventCode || award.event_code || award.event_key || award.eventName || award.event_name || award.event)) || '').trim();
+}
+
+function mapAwardCompetitionLevel(program, award) {
+    const normalizedProgram = normalizeProgram(program);
+    const eventCode = extractAwardEventName(award).toUpperCase();
+    const eventType = String(mapBlueAllianceEventType(award) || '').trim().toUpperCase();
+
+    if (normalizedProgram === 'FTC') {
+        if (!eventCode) return null;
+        if (eventCode.includes('CMP') || eventCode.includes('CHAMP')) return 'Worlds';
+        if (eventCode.includes('REG')) return 'Regionals';
+        if (eventCode.includes('QUAL') || /Q\d*$/.test(eventCode) || eventCode.includes('LEAGUE')) return 'Qualifiers';
+        return null;
+    }
+
+    if (!eventType) return null;
+    if (eventType.includes('CHAMP')) return 'Worlds';
+    if (eventType.includes('REG') || eventType.includes('DISTRICT')) return 'Regionals';
+    if (eventType.includes('QUAL')) return 'Qualifiers';
+    return null;
+}
+
+function mapBlueAllianceEventType(event) {
+    const raw = event && (event.event_type_string || event.event_type_str || event.eventTypeString || event.type_string || event.type || event.event_type);
+    if (typeof raw === 'string') {
+        const value = raw.trim();
+        if (!value) return null;
+        return value.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+    }
+
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) return null;
+
+    switch (numeric) {
+        case 0: return 'Regional';
+        case 1: return 'District';
+        case 2: return 'District Championship';
+        case 3: return 'Championship';
+        case 4: return 'Offseason';
+        case 5: return 'Preseason';
+        case 6: return 'District Championship';
+        default: return `Event Type ${numeric}`;
+    }
+}
+
+function mapFtcScoutEventType(eventCode) {
+    const code = String(eventCode || '').toUpperCase();
+    if (!code) return null;
+    if (code.includes('CMP')) return 'Championship';
+    if (code.includes('LEAGUE')) return 'League';
+    if (code.includes('JQ') || /Q\d*$/.test(code) || code.includes('QUAL')) return 'Qualifier';
+    return 'Qualifier';
+}
+
+function buildAwardHistoryEntries(awards, seasonLabelOrResolver, formatEventLabel = award => mapAwardCompetitionLevel('', award)) {
+    return uniqueList(
+        (Array.isArray(awards) ? awards : [])
+            .map((award) => {
+                const awardName = extractAwardName(award);
+                if (!awardName) return null;
+                const placement = award && award.placement !== undefined && award.placement !== null && award.placement !== ''
+                    ? String(award.placement).trim()
+                    : '';
+                const eventLabel = formatEventLabel(award);
+                const seasonLabel = typeof seasonLabelOrResolver === 'function'
+                    ? seasonLabelOrResolver(award)
+                    : seasonLabelOrResolver;
+                const detailParts = [awardName];
+                if (placement) detailParts.push(`Place ${placement}`);
+                if (eventLabel) detailParts.push(eventLabel);
+                if (seasonLabel) detailParts.push(seasonLabel);
+                return detailParts.join(' - ');
+            })
+            .filter(Boolean)
+    );
+}
+
+async function fetchFtcScoutTeamDetails(teamNumber) {
+    const cacheKey = `FTC:${Number(teamNumber)}`;
+    if (teamApiDetailsCache.has(cacheKey)) {
+        return teamApiDetailsCache.get(cacheKey);
+    }
+
+    const promise = (async () => {
+        const teamUrl = `${FTC_SCOUT_API_BASE}/teams/${encodeURIComponent(teamNumber)}`;
+        const teamProfile = await fetchApiJson(teamUrl);
+        if (!teamProfile) return null;
+
+        const rookieYear = Number(teamProfile.rookieYear);
+        const currentYear = new Date().getFullYear();
+        const startSeason = Number.isFinite(rookieYear) ? rookieYear : currentYear - 1;
+        const seasonRange = createSeasonRange(startSeason, currentYear);
+
+        const [awardsPayload, ...seasonEventsPayload] = await Promise.all([
+            fetchApiJson(`${FTC_SCOUT_API_BASE}/teams/${encodeURIComponent(teamNumber)}/awards`),
+            ...seasonRange.map(season => fetchApiJson(`${FTC_SCOUT_API_BASE}/teams/${encodeURIComponent(teamNumber)}/events/${season}`))
+        ]);
+
+        const awards = Array.isArray(awardsPayload) ? awardsPayload : [];
+        const awardNames = uniqueList(awards.map(extractAwardName));
+        const awardHistory = sortHistoryEntriesMostRecent(
+            buildAwardHistoryEntries(
+                awards,
+                award => formatSeasonLabel('FTC', Number(award && (award.season || award.year))),
+                award => mapAwardCompetitionLevel('FTC', award)
+            )
+        );
+
+        const advancementLevels = [];
+        const advancementHistory = [];
+        seasonEventsPayload.forEach((eventsPayload, index) => {
+            const season = seasonRange[index];
+            const events = Array.isArray(eventsPayload) ? eventsPayload : [];
+            events.forEach((event) => {
+                const level = mapFtcScoutEventType(event && event.eventCode);
+                if (level && !advancementLevels.includes(level)) advancementLevels.push(level);
+                const historyEntry = formatAdvancementHistoryEntry('FTC', level, season);
+                if (historyEntry && !advancementHistory.includes(historyEntry)) advancementHistory.push(historyEntry);
+            });
+        });
+
+        return {
+            yearsInProgram: Number.isFinite(rookieYear) ? Math.max(0, currentYear - rookieYear + 1) : null,
+            awards: awardNames.slice(0, 6).join(', ') || null,
+            awardHistory,
+            advancementLevels,
+            advancementHistory: sortHistoryEntriesMostRecent(advancementHistory),
+            profile: teamProfile
         };
-        const teamTenureLabel = formatTeamTenureLabel(enrichedTeam);
+    })();
 
-        const needsSave = enrichedTeam.awards !== team.awards
-            || enrichedTeam.yearsInProgram !== team.yearsInProgram
+    teamApiDetailsCache.set(cacheKey, promise);
+    const result = await promise;
+    if (result) {
+        teamApiDetailsCache.set(cacheKey, result);
+    } else {
+        teamApiDetailsCache.delete(cacheKey);
+    }
+    return result;
+}
+
+async function fetchBlueAllianceTeamDetails(teamNumber) {
+    if (!isConfiguredCredential(BLUE_ALLIANCE_AUTH_KEY)) return null;
+
+    const cacheKey = `FRC:${Number(teamNumber)}`;
+    if (teamApiDetailsCache.has(cacheKey)) {
+        return teamApiDetailsCache.get(cacheKey);
+    }
+
+    const promise = (async () => {
+        const headers = buildBlueAllianceHeaders();
+        if (!headers) return null;
+
+        const teamUrl = `${BLUE_ALLIANCE_API_BASE}/team/frc${encodeURIComponent(teamNumber)}`;
+        const teamProfile = await fetchApiJson(teamUrl, headers);
+        if (!teamProfile) return null;
+
+        const rookieYear = Number(teamProfile.rookie_year);
+        const currentYear = new Date().getFullYear();
+        const startSeason = Number.isFinite(rookieYear) ? rookieYear : currentYear - 1;
+        const seasonRange = createSeasonRange(startSeason, currentYear);
+
+        const seasonPayloads = await Promise.all(seasonRange.map(async (season) => {
+            const [awardsPayload, eventsPayload] = await Promise.all([
+                fetchApiJson(`${BLUE_ALLIANCE_API_BASE}/team/frc${encodeURIComponent(teamNumber)}/awards/${season}`, headers),
+                fetchApiJson(`${BLUE_ALLIANCE_API_BASE}/team/frc${encodeURIComponent(teamNumber)}/events/${season}`, headers)
+            ]);
+            return { season, awardsPayload, eventsPayload };
+        }));
+
+        const awardNames = [];
+        const awardHistory = [];
+        const advancementLevels = [];
+        const advancementHistory = [];
+
+        seasonPayloads.forEach(({ season, awardsPayload, eventsPayload }) => {
+            const seasonLabel = formatSeasonLabel('FRC', season);
+            const awards = Array.isArray(awardsPayload) ? awardsPayload : [];
+            awards.forEach((award) => {
+                const awardName = extractAwardName(award);
+                if (awardName && !awardNames.includes(awardName)) awardNames.push(awardName);
+            });
+            buildAwardHistoryEntries(
+                awards,
+                award => formatSeasonLabel('FRC', Number(award && (award.year || award.season))),
+                award => mapAwardCompetitionLevel('FRC', award)
+            )
+                .forEach(entry => {
+                    if (entry && !awardHistory.includes(entry)) awardHistory.push(entry);
+                });
+
+            const events = Array.isArray(eventsPayload) ? eventsPayload : [];
+            events.forEach((event) => {
+                const level = mapBlueAllianceEventType(event);
+                if (level && !advancementLevels.includes(level)) advancementLevels.push(level);
+                const historyEntry = formatAdvancementHistoryEntry('FRC', level, season);
+                if (historyEntry && !advancementHistory.includes(historyEntry)) advancementHistory.push(historyEntry);
+            });
+        });
+
+        return {
+            yearsInProgram: Number.isFinite(rookieYear) ? Math.max(0, currentYear - rookieYear + 1) : null,
+            awards: awardNames.slice(0, 6).join(', ') || null,
+            awardHistory: sortHistoryEntriesMostRecent(awardHistory),
+            advancementLevels,
+            advancementHistory: sortHistoryEntriesMostRecent(advancementHistory),
+            profile: teamProfile
+        };
+    })();
+
+    teamApiDetailsCache.set(cacheKey, promise);
+    const result = await promise;
+    if (result) {
+        teamApiDetailsCache.set(cacheKey, result);
+    } else {
+        teamApiDetailsCache.delete(cacheKey);
+    }
+    return result;
+}
+
+async function fetchTeamDetailsViaApi(program, teamNumber) {
+    if (!shouldUseTeamApi(program, teamNumber)) return null;
+    const normalizedProgram = normalizeProgram(program);
+    if (normalizedProgram === 'FRC') {
+        return fetchBlueAllianceTeamDetails(teamNumber).catch(() => null);
+    }
+    return fetchFtcScoutTeamDetails(teamNumber).catch(() => null);
+}
+
+async function enrichTeamWithApi(team) {
+    if (!team || !team.teamNumber) return team;
+    if (!shouldUseTeamApi(team.program || 'FTC', team.teamNumber)) return team;
+
+    const apiDetails = await fetchTeamDetailsViaApi(team.program || 'FTC', team.teamNumber).catch(() => null);
+    if (!apiDetails) return team;
+
+    const enrichedTeam = {
+        ...team,
+        program: team.program || 'FTC',
+        awards: apiDetails.awards || team.awards || '',
+        awardHistory: apiDetails.awardHistory && apiDetails.awardHistory.length
+            ? sortHistoryEntriesMostRecent(apiDetails.awardHistory)
+            : sortHistoryEntriesMostRecent(team.awardHistory || []),
+        yearsInProgram: apiDetails.yearsInProgram !== null && apiDetails.yearsInProgram !== undefined
+            ? apiDetails.yearsInProgram
+            : team.yearsInProgram,
+        advancementLevels: apiDetails.advancementLevels && apiDetails.advancementLevels.length ? apiDetails.advancementLevels : (team.advancementLevels || []),
+        advancementHistory: apiDetails.advancementHistory && apiDetails.advancementHistory.length
+            ? sortHistoryEntriesMostRecent(apiDetails.advancementHistory)
+            : sortHistoryEntriesMostRecent(team.advancementHistory || [])
+    };
+
+    const teamTenureLabel = formatTeamTenureLabel(enrichedTeam);
+
+    const needsSave = enrichedTeam.awards !== team.awards
+        || enrichedTeam.yearsInProgram !== team.yearsInProgram
         || JSON.stringify(enrichedTeam.awardHistory || []) !== JSON.stringify(team.awardHistory || [])
         || JSON.stringify(enrichedTeam.advancementLevels || []) !== JSON.stringify(team.advancementLevels || [])
         || JSON.stringify(enrichedTeam.advancementHistory || []) !== JSON.stringify(team.advancementHistory || []);
@@ -428,52 +674,32 @@ async function enrichTeamWithFtcScout(team) {
     return enrichedTeam;
 }
 
-async function verifyFirstTeam(teamNumber, program) {
+async function verifyTeamWithApi(teamNumber, program) {
     const normalizedProgram = normalizeProgram(program);
-    const query = {
-        index: 'teams_*',
-        query: {
-            size: 25,
-            query: {
-                bool: {
-                    must: [
-                        { term: { team_number_yearly: String(teamNumber) } },
-                        { term: { ff_program_moniker: normalizedProgram } }
-                    ]
-                }
-            }
-        }
+    if (normalizedProgram === 'FRC' && !isConfiguredCredential(BLUE_ALLIANCE_AUTH_KEY)) {
+        return {
+            ok: false,
+            configured: false,
+            error: 'Blue Alliance API key is missing. Add TBA_AUTH_KEY to your .env file to verify FRC teams.'
+        };
+    }
+
+    const details = await fetchTeamDetailsViaApi(normalizedProgram, teamNumber).catch(() => null);
+    if (!details || !details.profile) {
+        return {
+            ok: false,
+            configured: true,
+            error: `Team ${teamNumber} was not found in ${PROGRAM_LABELS[normalizedProgram]} on the selected team API.`
+        };
+    }
+
+    return {
+        ok: true,
+        configured: true,
+        team: details.profile,
+        program: normalizedProgram,
+        source: normalizedProgram === 'FRC' ? 'Blue Alliance' : 'FTC Scout'
     };
-
-    const response = await fetch(FIRST_SEARCH_ENDPOINT, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(query)
-    });
-
-    if (!response.ok) {
-        return {
-            ok: false,
-            configured: true,
-            error: `FIRST lookup failed with status ${response.status}.`
-        };
-    }
-
-    const data = await response.json();
-    const teams = Array.isArray(data.results) ? data.results : [];
-    const official = teams.find(team => String(team.team_number_yearly) === String(teamNumber) && team.ff_program_moniker === normalizedProgram);
-
-    if (!official) {
-        return {
-            ok: false,
-            configured: true,
-            error: `Team ${teamNumber} was not found in ${PROGRAM_LABELS[normalizedProgram]} on the FIRST team search.`
-        };
-    }
-
-    return { ok: true, configured: true, team: official, program: normalizedProgram };
 }
 
 // Home page
@@ -484,6 +710,7 @@ router.get("/", function(req, res){
         if (fs.existsSync(dir)) {
             const files = fs.readdirSync(dir)
                 .filter(f => /\.(png|jpe?g|webp|gif)$/i.test(f))
+                .filter(f => f !== '54352814752_6bf43c5dde_c.jpg')
                 .sort()
                 .slice(0,4);
 
@@ -697,16 +924,16 @@ router.post('/team-register', async function(req, res) {
             });
         }
 
-        const verification = await verifyFirstTeam(teamNumber, program);
+        const verification = await verifyTeamWithApi(teamNumber, program);
         if (!verification.ok) {
             return res.render('pages/team-register', { error: verification.error, message: null, values });
         }
 
         const official = verification.team;
-        const officialName = official.team_nickname || official.team_name_calc || official.team_name || values.name;
+        const officialName = extractTeamDisplayName(official) || official.team_nickname || official.team_name_calc || official.team_name || values.name;
         const recruiting = values.recruiting === 'on';
         const coords = await geocodeAddress(values);
-        const ftcScoutDetails = program === 'FTC' ? await fetchFtcScoutTeamDetails(teamNumber).catch(() => null) : null;
+        const apiTeamDetails = shouldUseTeamApi(program, teamNumber) ? await fetchTeamDetailsViaApi(program, teamNumber).catch(() => null) : null;
 
         if (!coords) {
             return res.render('pages/team-register', {
@@ -730,17 +957,17 @@ router.post('/team-register', async function(req, res) {
                 lat: coords.lat,
                 lon: coords.lon,
                 notes: values.notes,
-                awards: ftcScoutDetails && ftcScoutDetails.awards ? ftcScoutDetails.awards : values.awards,
-                awardHistory: ftcScoutDetails && ftcScoutDetails.awardHistory ? ftcScoutDetails.awardHistory : [],
-                yearsInProgram: ftcScoutDetails && ftcScoutDetails.yearsInProgram !== null
-                    ? ftcScoutDetails.yearsInProgram
+                awards: apiTeamDetails && apiTeamDetails.awards ? apiTeamDetails.awards : values.awards,
+                awardHistory: apiTeamDetails && apiTeamDetails.awardHistory ? sortHistoryEntriesMostRecent(apiTeamDetails.awardHistory) : [],
+                yearsInProgram: apiTeamDetails && apiTeamDetails.yearsInProgram !== null
+                    ? apiTeamDetails.yearsInProgram
                     : toNumber(values.yearsInProgram),
-                advancementLevels: ftcScoutDetails && ftcScoutDetails.advancementLevels ? ftcScoutDetails.advancementLevels : [],
-                advancementHistory: ftcScoutDetails && ftcScoutDetails.advancementHistory ? ftcScoutDetails.advancementHistory : [],
+                advancementLevels: apiTeamDetails && apiTeamDetails.advancementLevels ? apiTeamDetails.advancementLevels : [],
+                advancementHistory: apiTeamDetails && apiTeamDetails.advancementHistory ? sortHistoryEntriesMostRecent(apiTeamDetails.advancementHistory) : [],
                 recruiting,
                 verified: true,
                 verifiedAt: new Date(),
-                verificationSource: `FIRST ${PROGRAM_LABELS[program]} search`,
+                verificationSource: `${verification.source || (program === 'FRC' ? 'Blue Alliance' : 'FTC Scout')} lookup`,
                 updatedAt: new Date()
             },
             { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
@@ -750,6 +977,7 @@ router.post('/team-register', async function(req, res) {
             const contactUser = await User.findOne({ email: contact }).select('_id').lean().exec();
             if (contactUser && savedTeam) {
                 await Team.findByIdAndUpdate(savedTeam._id, { $addToSet: { managers: contactUser._id } }).exec();
+                await User.findByIdAndUpdate(contactUser._id, { $set: { teamNumber } }).exec();
             }
         }
 
@@ -827,15 +1055,44 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             successMessage = 'Pending invitations cleared successfully.';
         }
 
-        // Find team associated with this user's email or manager access
+        // Find team associated with this user.
+        // Priority:
+        // 1) team where the user is explicitly listed as a manager
+        // 2) team whose contact email matches the user's email
+        // 3) fallback: teamNumber attached to the user profile
         const normalizedEmail = normalizeEmail(user.email);
-        const foundTeam = await Team.findOne({
-            $or: [
-                { contact: normalizedEmail },
-                { managers: user._id }
-            ]
-        }).lean().exec();
-        const team = await enrichTeamWithFtcScout(foundTeam);
+
+        let foundTeam = null;
+
+        if (Array.isArray(user.teamNumber)) {
+            // (defensive) not expected, but handle gracefully
+            const teamNumbers = user.teamNumber.map(n => Number(n)).filter(Number.isFinite);
+            if (teamNumbers.length) {
+                foundTeam = await Team.findOne({ teamNumber: { $in: teamNumbers } }).lean().exec();
+            }
+        }
+
+        if (!foundTeam) {
+            foundTeam = await Team.findOne({ managers: user._id }).lean().exec();
+        }
+
+        if (!foundTeam && normalizedEmail) {
+            foundTeam = await Team.findOne({ contact: normalizedEmail }).lean().exec();
+        }
+
+        if (!foundTeam && user.teamNumber) {
+            foundTeam = await Team.findOne({ teamNumber: user.teamNumber }).lean().exec();
+        }
+
+        if (!foundTeam && user.teamNumber && typeof user.teamNumber === 'string') {
+            const maybe = Number(user.teamNumber);
+            if (Number.isFinite(maybe)) {
+                foundTeam = await Team.findOne({ teamNumber: maybe }).lean().exec();
+            }
+        }
+
+        const team = await enrichTeamWithApi(foundTeam);
+        const teamTenureLabel = formatTeamTenureLabel(team);
 
         let teamManagers = [];
         let pendingInvitations = [];
@@ -1548,7 +1805,7 @@ router.get('/my-team', ensureAuthenticated, async function(req, res) {
         if (!user || !user.teamNumber) return res.redirect('/');
 
         const foundTeam = await Team.findOne({ teamNumber: user.teamNumber }).lean().exec();
-        const team = await enrichTeamWithFtcScout(foundTeam);
+        const team = await enrichTeamWithApi(foundTeam);
         if (!team) return res.render('pages/my-team', { error: 'Team not found', team: null });
 
         res.render('pages/my-team', { team, user, error: null, teamTenureLabel: formatTeamTenureLabel(team) });
@@ -1894,3 +2151,4 @@ router.get('/logout', function(req, res){
 });
 
 module.exports = router;
+

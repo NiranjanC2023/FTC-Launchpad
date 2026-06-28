@@ -283,6 +283,15 @@ function renderTeams(teams, userCoords) {
     }[char]));
   }
 
+  function normalizeAdvancementLevel(level) {
+    const value = String(level ?? '').trim().toLowerCase();
+    if (!value) return '';
+    if (value.startsWith('qual')) return 'Qualifier';
+    if (value.startsWith('reg')) return 'Regional';
+    if (value.startsWith('world')) return 'Worlds';
+    return level;
+  }
+
   function activateMarkerLabel(teamName) {
     document.querySelectorAll('.marker-label').forEach(el => {
       el.classList.add('marker-label--dim');
@@ -298,13 +307,17 @@ function renderTeams(teams, userCoords) {
     const selectedYears = yearsFilter ? yearsFilter.value : 'all';
     const selectedAdvancement = advancementFilter ? advancementFilter.value : 'all';
     const selectedDistance = distanceFilter ? distanceFilter.value : 'all';
+    const normalizedSelectedAdvancement = normalizeAdvancementLevel(selectedAdvancement);
     let visibleCount = 0;
 
     Object.values(window._teamCards).forEach(card => {
       const matchesProgram = selectedProgram === 'All' || card.dataset.program === selectedProgram;
       const hasAwards = card.dataset.hasAwards === 'true';
       const yearsInProgram = Number(card.dataset.yearsInProgram || '');
-      const advancementLevels = String(card.dataset.advancementLevels || '').split('|').filter(Boolean);
+      const advancementLevels = String(card.dataset.advancementLevels || '')
+        .split('|')
+        .map(normalizeAdvancementLevel)
+        .filter(Boolean);
       const distanceKm = card.dataset.distanceKm ? Number(card.dataset.distanceKm) : NaN;
       const matchesAwards = selectedAwards === 'all'
         || (selectedAwards === 'has-awards' && hasAwards)
@@ -316,7 +329,7 @@ function renderTeams(teams, userCoords) {
         || (selectedYears === 'veteran' && Number.isFinite(yearsInProgram) && yearsInProgram >= 6);
       const matchesAdvancement = selectedAdvancement === 'all'
         || (selectedAdvancement === 'unknown' && advancementLevels.length === 0)
-        || advancementLevels.includes(selectedAdvancement);
+        || advancementLevels.includes(normalizedSelectedAdvancement);
       const maxDistanceKm = distanceThresholdToKm(Number(selectedDistance), distanceUnitPreference);
       const matchesDistance = selectedDistance === 'all'
         || (Number.isFinite(distanceKm) && Number.isFinite(maxDistanceKm) && distanceKm <= maxDistanceKm);
@@ -497,6 +510,27 @@ function renderTeams(teams, userCoords) {
     }
   }
 
+  function renderExpandableHistorySection({ title, iconClass, entries, sectionKey }) {
+    const visibleEntries = entries.slice(0, 2);
+    const hiddenEntries = entries.slice(2);
+    const hasHiddenEntries = hiddenEntries.length > 0;
+
+    return `
+      <div class="team-card-award-history team-history-section" data-history-section="${escapeHTML(sectionKey)}">
+        <strong><i class="${escapeHTML(iconClass)}" aria-hidden="true"></i> ${escapeHTML(title)}</strong>
+        <ul class="team-history-list">
+          ${visibleEntries.map((entry) => `<li>${escapeHTML(entry)}</li>`).join('')}
+          ${hiddenEntries.map((entry) => `<li hidden>${escapeHTML(entry)}</li>`).join('')}
+        </ul>
+        ${hasHiddenEntries ? `
+          <button type="button" class="team-history-toggle" aria-expanded="false" aria-label="Show all ${escapeHTML(title).toLowerCase()}">
+            <span aria-hidden="true">...</span>
+          </button>
+        ` : ''}
+      </div>
+    `;
+  }
+
   teams.forEach(team => {
     const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
     const teamName = String(team.name || 'Unnamed team');
@@ -508,7 +542,9 @@ function renderTeams(teams, userCoords) {
     const awards = String(team.awards || '').trim();
     const awardHistory = Array.isArray(team.awardHistory) ? team.awardHistory.filter(Boolean) : [];
     const yearsInProgram = Number(team.yearsInProgram);
-    const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.filter(Boolean) : [];
+    const advancementLevels = Array.isArray(team.advancementLevels)
+      ? team.advancementLevels.map(normalizeAdvancementLevel).filter(Boolean)
+      : [];
     const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(Boolean) : [];
     const distanceData = Number.isFinite(dist) ? formatDistance(dist, distanceUnitPreference) : null;
 
@@ -529,7 +565,7 @@ function renderTeams(teams, userCoords) {
           <span class="team-card-label">${escapeHTML(teamNumber)}${team.verified ? ' · verified' : ''}</span>
         </div>
         <div class="team-card-toolbar">
-          <button class="btn btn-link goto-marker team-card-icon-button" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-location-dot"></i></button>
+          <button class="btn btn-link goto-marker team-card-icon-button" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-map-pin"></i></button>
           <button class="btn btn-link toggle-details team-card-icon-button" aria-expanded="false" aria-label="Toggle details"><i class="fa-solid fa-chevron-down"></i></button>
         </div>
       </div>
@@ -547,20 +583,20 @@ function renderTeams(teams, userCoords) {
           </div>
         ` : ''}
         ${awardHistory.length ? `
-          <div class="team-card-award-history">
-            <strong><i class="fa-solid fa-medal" aria-hidden="true"></i> Awards achieved</strong>
-            <ul>
-              ${awardHistory.map((entry) => `<li>${escapeHTML(entry)}</li>`).join('')}
-            </ul>
-          </div>
+          ${renderExpandableHistorySection({
+            title: 'Awards achieved',
+            iconClass: 'fa-solid fa-medal',
+            entries: awardHistory,
+            sectionKey: 'awards'
+          })}
         ` : ''}
         ${advancementHistory.length ? `
-          <div class="team-card-award-history">
-            <strong><i class="fa-solid fa-flag-checkered" aria-hidden="true"></i> Advancement</strong>
-            <ul>
-              ${advancementHistory.map((entry) => `<li>${escapeHTML(entry)}</li>`).join('')}
-            </ul>
-          </div>
+          ${renderExpandableHistorySection({
+            title: 'Advancement',
+            iconClass: 'fa-solid fa-flag-checkered',
+            entries: advancementHistory,
+            sectionKey: 'advancement'
+          })}
         ` : ''}
         ${notes ? `<p class="team-card-notes">${escapeHTML(notes)}</p>` : ''}
         ${distanceData ? `<p class="team-distance"><span>Distance</span><strong>${distanceData.label} away</strong></p>` : ''}
@@ -582,6 +618,7 @@ function renderTeams(teams, userCoords) {
 
     const toggleBtn = card.querySelector('.toggle-details');
     const detailsContent = card.querySelector('.team-details-content');
+    const historyToggleButtons = card.querySelectorAll('.team-history-toggle');
     // start collapsed by default for a compact list view
     card.classList.add('collapsed');
     if (detailsContent) {
@@ -592,6 +629,26 @@ function renderTeams(teams, userCoords) {
       detailsContent.style.overflow = 'hidden';
       detailsContent.style.transition = 'max-height 260ms ease, opacity 200ms ease';
     }
+
+    historyToggleButtons.forEach((button) => {
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        const section = button.closest('.team-history-section');
+        if (!section) return;
+
+        section.querySelectorAll('li[hidden]').forEach((item) => {
+          item.hidden = false;
+        });
+        button.hidden = true;
+        button.setAttribute('aria-expanded', 'true');
+
+        if (card.classList.contains('expanded') && detailsContent) {
+          requestAnimationFrame(() => {
+            detailsContent.style.maxHeight = detailsContent.scrollHeight + 'px';
+          });
+        }
+      });
+    });
 
     if (toggleBtn && detailsContent) {
       toggleBtn.addEventListener('click', event => {

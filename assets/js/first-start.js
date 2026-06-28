@@ -12,24 +12,24 @@ document.addEventListener('DOMContentLoaded', function(){
       pagination: true,
       arrows: true,
       accessibility: true,
-      heightRatio: 9/16,
       cover: true,
     }).mount();
   }
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const revealPlan = [
-    ['.first-start-header', 'fs-reveal', 0],
+    ['.navbar', 'fs-reveal', 0],
+    ['.home-hero-copy', 'fs-reveal', 0],
     ['#fs-carousel-home', 'fs-reveal fs-reveal--scale', 110],
-    ['.why-join h3', 'fs-reveal fs-reveal--right', 180],
-    ['.why-join .lead', 'fs-reveal fs-reveal--right', 250],
-    ['.why-join li', 'fs-reveal fs-reveal--right', 320, 70],
-    ['.connect-graphic h3', 'fs-reveal', 0],
-    ['.connect-subtitle', 'fs-reveal', 90],
-    ['.connect-card-join', 'fs-reveal fs-reveal--left', 140],
-    ['.connect-center', 'fs-reveal fs-reveal--scale', 220],
-    ['.connect-card-register', 'fs-reveal fs-reveal--right', 300],
-    ['.site-footer', 'fs-reveal', 0],
+    ['.home-stats .home-stat-card', 'fs-reveal fs-reveal--up', 60, 70],
+    ['.home-why-image', 'fs-reveal fs-reveal--left', 0],
+    ['.home-why-copy', 'fs-reveal fs-reveal--right', 120],
+    ['.home-path-card-students', 'fs-reveal fs-reveal--left', 0],
+    ['.home-path-card-teams', 'fs-reveal fs-reveal--right', 120],
+    ['.team-card', 'fs-reveal fs-reveal--up', 0, 90],
+    ['.testimonial-card', 'fs-reveal fs-reveal--up', 0, 90],
+    ['.home-cta-card', 'fs-reveal fs-reveal--scale', 0],
+    ['.home-footer', 'fs-reveal', 0],
   ];
   const revealItems = [];
 

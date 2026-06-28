@@ -1,152 +1,725 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
+
 <html lang="en">
+
 <head>
+
   <meta charset="UTF-8" />
-  <title>FTC Starter Hub</title>
+
+  <title>FIRST Start</title>
+
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Google Font -->
+  <meta name="description" content="Connects robotics teams with students seeking to join, fostering collaboration and innovation in robotics education and community engagement." />
+
+  <meta name="robots" content="index, follow" />
+
+
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
+
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 
-  <!-- Styles -->
-  <link rel="stylesheet" href="/assets/css/main.css?v=13">
-  <link rel="stylesheet" href="/assets/css/first-start.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.3/dist/css/splide.min.css">
+
+  <link rel="stylesheet" href="/assets/css/main.css?v=18">
+
+  <link rel="stylesheet" href="/assets/css/first-start.css?v=8">
+
 </head>
+
 <body class="home-page">
-  <header>
-    <div class="creator-badge">Created By FTC 25690</div>
-  </header>
 
-  <main>
-    <!-- Legacy homepage sections removed. FIRST Start promotional section is shown below. -->
+  <header></header>
 
-    <!-- FIRST Start promotional section (from FIRST Start page) -->
-    <section class="first-hero">
-      <div class="container">
-        <div class="first-start-header">
-          <h1 class="fs-title">FIRST Start</h1>
-          <p class="fs-subtext">Connecting students to teams — learn practical STEM skills, get mentorship, and compete together.</p>
-        </div>
-        <div class="first-hero-inner">
-          <div class="splide" id="fs-carousel-home" role="region" aria-label="FIRST image carousel">
-            <div class="splide__track">
-              <ul class="splide__list">
-                <% if (typeof carouselImages !== 'undefined' && carouselImages.length) { %>
-                  <% carouselImages.forEach(function(item, idx){ %>
-                    <li class="splide__slide">
-                      <img src="<%= item.src %>" <%= item.srcset ? ('srcset="' + item.srcset + '"') : '' %> alt="FIRST image <%= idx+1 %>">
-                    </li>
-                  <% }); %>
-                <% } else { %>
-                  <li class="splide__slide"><img src="/assets/img/Explaining%20FLL.png" alt="FIRST image 1"></li>
-                  <li class="splide__slide"><img src="/assets/img/FIRST%20Fare.png" alt="FIRST image 2"></li>
-                  <li class="splide__slide"><img src="/assets/img/FIRST%20Team.png" alt="FIRST image 3"></li>
-                  <li class="splide__slide"><img src="/assets/img/FLL%20Robot.png" alt="FIRST image 4"></li>
-                <% } %>
-              </ul>
+
+
+  <% const stats = [
+
+    { value: "524", label: "Active Teams", suffix: "+" },
+
+    { value: "2,400", label: "Students Matched", suffix: "+" },
+
+    { value: "48", label: "States Covered", suffix: "" },
+
+    { value: "91", label: "Placement Rate", suffix: "%" }
+
+  ]; %>
+
+
+
+  <% const benefits = [
+
+    { title: "Hands-On Engineering", description: "Design, build, and program real robots using industry-standard tools and techniques." },
+
+    { title: "Team Collaboration", description: "Work alongside peers who share your passion for technology and problem-solving." },
+
+    { title: "Compete Nationally", description: "Represent your team at regional, state, and national competitions with thousands of students." },
+
+    { title: "Creative Problem Solving", description: "Face new engineering challenges each season that push your creativity and critical thinking." },
+
+    { title: "Scholarship Opportunities", description: "Hundreds of scholarships are awarded each year specifically to robotics competitors." },
+
+    { title: "Industry Mentorship", description: "Get mentored by engineers and professionals from leading tech and manufacturing companies." }
+
+  ]; %>
+
+
+
+  <% const studentSteps = [
+
+    { number: "01", title: "Create your profile", description: "Tell us about your interests, grade level, skills, and location to help us find the right teams." },
+
+    { number: "02", title: "Browse & discover teams", description: "Filter by location, competition league, team culture, and open roles to find your fit." },
+
+    { number: "03", title: "Apply or reach out", description: "Send a message directly to team coaches and captains to express your interest." },
+
+    { number: "04", title: "Join and compete", description: "Get onboarded, start building, and compete in your first season." }
+
+  ]; %>
+
+
+
+  <% const teamSteps = [
+
+    { number: "01", title: "Register your team", description: "List your team's details &mdash; league, location, open roles, and what you're looking for in students." },
+
+    { number: "02", title: "Review applicants", description: "Browse student profiles who match your needs and have expressed interest in your team." },
+
+    { number: "03", title: "Invite students", description: "Reach out to promising candidates and invite them to a tryout or info session." },
+
+    { number: "04", title: "Build your roster", description: "Fill your open spots with motivated, vetted students ready to contribute." }
+
+  ]; %>
+
+
+
+  <% const featuredTeams = [
+
+    { number: "1114", name: "Simbotics", location: "St. Catharines, ON", league: "FRC", members: 35, championships: 3, openRoles: ["Mechanical", "Programming"], color: "#e74c3c", description: "One of FRC's most celebrated teams, known for consistent excellence in design and strategy." },
+
+    { number: "254", name: "Cheesy Poofs", location: "San Jose, CA", league: "FRC", members: 28, championships: 4, openRoles: ["Software", "CAD", "Business"], color: "#f39c12", description: "A powerhouse team with deep ties to Silicon Valley's tech community and strong mentorship culture." },
+
+    { number: "3647", name: "Millennium Falcons", location: "Austin, TX", league: "FTC", members: 12, championships: 1, openRoles: ["Mechanical", "Drive Team", "Media"], color: "#3498db", description: "A growing FTC team built around inclusivity and hands-on learning for students of all backgrounds." }
+
+  ]; %>
+
+
+
+  <% const testimonials = [
+
+    { quote: "FIRST Start connected me to a team within a week. I had zero experience in robotics but they saw my potential and gave me a chance. Two seasons later, I'm the lead programmer.", name: "Maya T.", role: "Student &mdash; FRC Team 2056", grade: "11th Grade, Chicago, IL" },
+
+    { quote: "We used to struggle to fill our mechanical sub-team every year. Since listing on FIRST Start, we've had more qualified applicants than spots &mdash; it's completely changed how we recruit.", name: "Coach Rivera", role: "Head Coach &mdash; FTC Team 3647", grade: "Austin, TX" },
+
+    { quote: "I found three teams in my area I didn't even know existed. The filters made it so easy to find a team whose culture matched what I was looking for.", name: "Jordan K.", role: "Student &mdash; FTC Team 9082", grade: "10th Grade, Seattle, WA" }
+
+  ]; %>
+
+
+
+  <% const footerLinks = {
+
+    Students: ["Browse Teams", "How It Works", "Resources", "Blog", "FAQs"],
+
+    Teams: ["Register Your Team", "Manage Roster", "Recruit Students", "Pricing", "Team Verification"],
+
+    Company: ["About Us", "Careers", "Press Kit", "Contact", "Privacy Policy"],
+
+    Leagues: ["FIRST Robotics (FRC)", "FIRST Tech Challenge (FTC)", "VEX Robotics", "BEST Robotics", "SkillsUSA"]
+
+  }; %>
+
+
+
+  <main class="home-main">
+
+    <section class="home-hero">
+
+      <div class="container home-hero-grid">
+
+        <div class="home-hero-copy">
+
+          <div class="hero-pill">500+ teams looking for students</div>
+
+          <h1>Find your robotics team.<br><span>Build the future.</span></h1>
+
+          <p class="hero-description">
+            FIRST Start helps students discover robotics teams and helps teams recruit motivated members, all in one place.
+            Search by location, compare openings, and reach out when you find the right fit.
+
+          </p>
+
+
+
+          <form class="home-search" action="/teams-nearby" method="GET">
+
+            <div class="home-search-field">
+
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+
+              <input type="search" name="q" placeholder="Search by city, state, or team name..." aria-label="Search teams" />
+
+            </div>
+
+            <button type="submit" class="btn btn-primary home-search-btn">Search Teams</button>
+
+          </form>
+
+
+
+          <div class="hero-actions">
+
+            <a href="/teams-nearby" class="btn btn-primary hero-primary-link">Browse Teams <i class="fa-solid fa-arrow-right"></i></a>
+
+            <a href="/team-register" class="btn btn-secondary hero-secondary-link">Register Your Team</a>
+
+          </div>
+
+
+
+          <div class="hero-proof">
+
+            <div class="hero-avatars" aria-hidden="true">
+
+              <span style="--avatar-color:#6aa8ff;">A</span>
+
+              <span style="--avatar-color:#c06cff;">B</span>
+
+              <span style="--avatar-color:#ffbf45;">C</span>
+
+              <span style="--avatar-color:#ff6f91;">D</span>
+
+              <span style="--avatar-color:#19d3c5;">E</span>
+
+            </div>
+
+            <p><strong>2,400+ students</strong> matched this season</p>
+
+          </div>
+
+          <div class="home-hero-mini" aria-label="How FIRST Start works">
+            <div class="home-mini-card">
+              <span>1</span>
+              <strong>Search teams</strong>
+              <p>Find nearby FTC teams by city, league, or role.</p>
+            </div>
+            <div class="home-mini-card">
+              <span>2</span>
+              <strong>Compare openings</strong>
+              <p>See who is recruiting, what they need, and when they meet.</p>
+            </div>
+            <div class="home-mini-card">
+              <span>3</span>
+              <strong>Join or register</strong>
+              <p>Students can apply, and teams can list openings fast.</p>
             </div>
           </div>
 
-          <div class="why-join">
-            <h3>Why join FIRST</h3>
-            <p class="lead">FIRST builds science, technology, engineering, and math skills through teamwork, mentoring, and hands-on challenges.</p>
+        </div>
+
+
+
+        <div class="home-hero-visual">
+
+          <div class="hero-image-card">
+
+            <div class="splide home-carousel" id="fs-carousel-home" role="region" aria-label="Robotics team carousel">
+
+              <div class="splide__track">
+
+                <ul class="splide__list">
+
+                  <% if (typeof carouselImages !== 'undefined' && carouselImages.length) { %>
+
+                    <% carouselImages.forEach(function(item, idx){ %>
+
+                      <li class="splide__slide">
+
+                        <img src="<%= item.src %>" <%= item.srcset ? ('srcset="' + item.srcset + '"') : '' %> alt="Robotics team image <%= idx + 1 %>">
+
+                      </li>
+
+                    <% }); %>
+
+                  <% } else { %>
+
+                    <li class="splide__slide"><img src="/assets/img/carousel/54353383874_f79a24fab7_c%20(2).jpg" alt="Robotics team image 1"></li>
+
+                    <li class="splide__slide"><img src="/assets/img/carousel/IMG_1014_frame_0_01_2f.jpeg" alt="Robotics team image 2"></li>
+
+                    <li class="splide__slide"><img src="/assets/img/carousel/WhatsApp%20Image%202026-01-17%20at%201.09.15%20PM%20(3).jpeg" alt="Robotics team image 3"></li>
+
+                    <li class="splide__slide"><img src="/assets/img/carousel/Untitled%20design.png" alt="Robotics team image 4"></li>
+
+                  <% } %>
+
+                </ul>
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+
+          <div class="floating-card floating-card-top">
+
+            <span>New openings</span>
+
+            <strong>83</strong>
+
+            <p>posted this week</p>
+
+          </div>
+
+
+
+          <div class="floating-card floating-card-bottom">
+
+            <span>Active teams</span>
+
+            <strong>524</strong>
+
+            <p>across 48 states</p>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+
+      <div class="home-wave">
+        <svg viewBox="0 0 1440 60" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+          <path d="M0 60L1440 60L1440 20C1200 60 960 0 720 20C480 40 240 0 0 20L0 60Z" fill="white" />
+        </svg>
+      </div>
+
+    </section>
+
+
+
+    <div class="home-surface">
+
+    <section class="home-stats">
+
+      <div class="container">
+
+        <div class="home-stats-grid">
+
+          <% stats.forEach(function(stat){ %>
+
+            <article class="home-stat-card">
+
+              <p><%= stat.value %><span><%= stat.suffix %></span></p>
+
+              <span><%= stat.label %></span>
+
+            </article>
+
+          <% }); %>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <section class="home-why">
+
+      <div class="container home-why-grid">
+
+        <div class="home-why-image">
+
+          <img src="/assets/img/why-join-first.png" alt="Students collaborating on an engineering project">
+
+          <div class="why-accent">
+
+            <strong>4 in 5</strong>
+
+            <p>students say robotics shaped their career path</p>
+
+          </div>
+
+        </div>
+
+
+
+        <div class="home-why-copy">
+
+          <p class="section-kicker">Why Robotics?</p>
+
+          <h3>Why join FIRST</h3>
+
+          <p class="lead">FIRST builds science, technology, engineering, and math skills through teamwork, mentoring, and hands-on challenges.</p>
+
+          <ul class="why-join-list">
+            <li>Learn practical STEM skills in a fun environment</li>
+            <li>Get mentorship from adults and college students</li>
+            <li>Develop teamwork, project planning, and communication</li>
+            <li>Compete at events and showcase your innovations</li>
+          </ul>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <section id="how-it-works" class="home-how">
+
+      <div class="container">
+
+        <div class="section-heading">
+
+          <p class="section-kicker">How It Works</p>
+
+          <h2>Simple for students. Simple for teams.</h2>
+
+          <p>We built the platform so the hard part is building robots, not finding each other.</p>
+
+        </div>
+
+
+
+        <div class="home-how-grid">
+
+          <div class="home-path-card home-path-card-students">
+
+            <div class="pill">For Students</div>
+
+            <h3>Find your team in 4 steps</h3>
+
+            <div class="steps-list">
+
+              <% studentSteps.forEach(function(step, index){ %>
+
+                <div class="step-row">
+
+                  <div class="step-marker">
+
+                    <span><%= step.number %></span>
+
+                  </div>
+
+                  <div class="step-copy">
+
+                    <h4><%= step.title %></h4>
+
+                    <p><%= step.description %></p>
+
+                  </div>
+
+                </div>
+
+              <% }); %>
+
+            </div>
+
+            <a href="/teams-nearby" class="path-button">Find a Team &rarr;</a>
+
+          </div>
+
+
+
+          <div class="home-path-card home-path-card-teams" id="for-teams">
+
+            <div class="pill pill-alt">For Teams</div>
+
+            <h3>Recruit top talent in 4 steps</h3>
+
+            <div class="steps-list">
+
+              <% teamSteps.forEach(function(step, index){ %>
+
+                <div class="step-row">
+
+                  <div class="step-marker step-marker-alt">
+
+                    <span><%= step.number %></span>
+
+                  </div>
+
+                  <div class="step-copy">
+
+                    <h4><%= step.title %></h4>
+
+                    <p><%= step.description %></p>
+
+                  </div>
+
+                </div>
+
+              <% }); %>
+
+            </div>
+
+            <a href="/team-register" class="path-button path-button-alt">Register Your Team &rarr;</a>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <section id="teams" class="home-teams">
+
+      <div class="container">
+
+        <div class="section-heading section-heading-left">
+
+          <div>
+
+            <p class="section-kicker">Featured Teams</p>
+
+            <h2>Teams actively recruiting</h2>
+
+          </div>
+
+          <a href="/teams-nearby" class="section-link">View all teams <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></a>
+
+        </div>
+
+
+
+        <div class="home-teams-grid">
+
+          <% featuredTeams.forEach(function(team){ %>
+
+            <article class="team-card">
+
+              <div class="team-card-bar" style="background-color: <%= team.color %>"></div>
+
+              <div class="team-card-body">
+
+                <div class="team-card-top">
+
+                  <div class="team-number" style="border-color: <%= team.color %>33; background-color: <%= team.color %>15; color: <%= team.color %>">#<%= team.number %></div>
+
+                  <span class="league-pill"><%= team.league %></span>
+
+                </div>
+
+                <h3><%= team.name %></h3>
+
+                <p class="team-location"><i class="fa-solid fa-map-pin" aria-hidden="true"></i> <%= team.location %></p>
+
+                <p class="team-description"><%= team.description %></p>
+
+                <div class="team-meta">
+
+                  <span><i class="fa-solid fa-users" aria-hidden="true"></i> <%= team.members %> members</span>
+
+                  <span><i class="fa-solid fa-trophy" aria-hidden="true"></i> <%= team.championships %> championship<%= team.championships !== 1 ? 's' : '' %></span>
+
+                </div>
+
+                <div class="team-roles">
+
+                  <% team.openRoles.forEach(function(role){ %>
+
+                    <span><%= role %></span>
+
+                  <% }); %>
+
+                </div>
+
+                <button type="button" class="team-button">View Team & Apply</button>
+
+              </div>
+
+            </article>
+
+          <% }); %>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <section class="home-testimonials">
+
+      <div class="container">
+
+        <div class="section-heading">
+
+          <p class="section-kicker">Stories</p>
+
+          <h2>From students and coaches</h2>
+
+        </div>
+
+
+
+        <div class="home-testimonials-grid">
+
+          <% testimonials.forEach(function(testimonial, index){ %>
+
+            <article class="testimonial-card">
+
+              <div class="stars" aria-hidden="true">
+
+                <span>&#9733;</span><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span>
+
+              </div>
+
+              <p class="testimonial-quote">"<%= testimonial.quote %>"</p>
+
+              <div class="testimonial-meta">
+
+                <div class="testimonial-avatar"><%= testimonial.name.charAt(0) %></div>
+
+                <div>
+
+                  <strong><%= testimonial.name %></strong>
+
+                  <span><%= testimonial.role %></span>
+
+                  <span><%= testimonial.grade %></span>
+
+                </div>
+
+              </div>
+
+            </article>
+
+          <% }); %>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <section class="home-cta">
+
+      <div class="container">
+
+        <div class="home-cta-card">
+
+          <div class="home-cta-overlay"></div>
+
+          <div class="home-cta-content">
+
+            <h2>Your robotics journey starts with finding the right team.</h2>
+
+            <p>Whether you're a student ready to build something incredible, or a team looking for your next star recruit &mdash; FIRST Start is where it begins.</p>
+
+            <div class="hero-actions hero-actions-center">
+
+              <a href="/teams-nearby" class="btn btn-primary hero-primary-link">Find a Team <i class="fa-solid fa-arrow-right"></i></a>
+
+              <a href="/team-register" class="btn btn-secondary hero-secondary-link">Register Your Team</a>
+
+            </div>
+
+            <span class="cta-note">Free to join. No experience required. Open to all K-12 students.</span>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    </div>
+
+
+
+    <footer class="site-footer home-footer">
+
+      <div class="container home-footer-grid">
+
+        <div class="home-footer-brand">
+
+          <div class="home-footer-logo">
+
+            <span>FIRST Start</span>
+
+          </div>
+
+          <p>Connecting passionate students with competitive robotics teams across the country.</p>
+
+        </div>
+
+
+
+        <% Object.entries(footerLinks).forEach(function(entry){ 
+
+          const group = entry[0];
+
+          const links = entry[1];
+
+        %>
+
+          <div class="home-footer-column">
+
+            <strong><%= group %></strong>
+
             <ul>
-              <li>Learn practical STEM skills in a fun environment</li>
-              <li>Get mentorship from adults and college students</li>
-              <li>Develop teamwork, project planning, and communication</li>
-              <li>Compete at events and showcase your innovations</li>
+
+              <% links.forEach(function(link){ %>
+
+                <li><a href="#"><%= link %></a></li>
+
+              <% }); %>
+
             </ul>
-            
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <section class="connect-graphic">
-      <div class="container">
-        <h3>Connecting students to teams</h3>
-        <p class="connect-subtitle">A simple path to getting involved with FIRST.</p>
-        <div class="connect-stage" aria-label="Connecting students to teams diagram">
-          <a class="connect-card connect-card-join" href="/teams-nearby">
-            Join a team
-            <span>For students who want to get started</span>
-          </a>
-
-          <div class="connect-center" aria-hidden="true">
-            <svg class="connect-illustration" viewBox="0 0 760 440" aria-hidden="true">
-              <defs>
-                <linearGradient id="connectNodeFill" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#f7fff9" />
-                  <stop offset="100%" stop-color="#def5e5" />
-                </linearGradient>
-                <linearGradient id="connectLine" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#28a34a" />
-                  <stop offset="100%" stop-color="#0f8a37" />
-                </linearGradient>
-                <linearGradient id="avatarHead" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stop-color="#ffba76" />
-                  <stop offset="50%" stop-color="#ffc07e" />
-                  <stop offset="50%" stop-color="#f7a764" />
-                  <stop offset="100%" stop-color="#f2a05c" />
-                </linearGradient>
-                <linearGradient id="avatarBody" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stop-color="#6fa8ff" />
-                  <stop offset="50%" stop-color="#6fa8ff" />
-                  <stop offset="50%" stop-color="#2f86ff" />
-                  <stop offset="100%" stop-color="#2f86ff" />
-                </linearGradient>
-              </defs>
-
-              <line x1="166" y1="112" x2="574" y2="332" class="connect-route" stroke="url(#connectLine)" />
-
-              <g transform="translate(52 4)">
-                <rect x="0" y="0" width="166" height="166" rx="36" fill="url(#connectNodeFill)" stroke="#21a74f" stroke-width="2" />
-                <circle cx="83" cy="52" r="27" fill="url(#avatarHead)" />
-                <path d="M42 146c0-33 18-56 41-56h0c23 0 41 23 41 56" fill="url(#avatarBody)" />
-              </g>
-
-              <g transform="translate(470 244)">
-                <rect x="0" y="0" width="210" height="210" rx="44" fill="url(#connectNodeFill)" stroke="#21a74f" stroke-width="2" />
-                <g transform="translate(34 40)">
-                  <circle cx="18" cy="18" r="14" fill="url(#avatarHead)" />
-                  <path d="M4 96c0-22 10-38 20-38h0c10 0 20 16 20 38" fill="url(#avatarBody)" />
-                </g>
-                <g transform="translate(84 30)">
-                  <circle cx="18" cy="18" r="16" fill="url(#avatarHead)" />
-                  <path d="M2 108c0-26 12-44 22-44h0c10 0 22 18 22 44" fill="url(#avatarBody)" />
-                </g>
-                <g transform="translate(134 40)">
-                  <circle cx="18" cy="18" r="14" fill="url(#avatarHead)" />
-                  <path d="M4 96c0-22 10-38 20-38h0c10 0 20 16 20 38" fill="url(#avatarBody)" />
-                </g>
-              </g>
-
-            </svg>
           </div>
 
-          <a class="connect-card connect-card-register" href="/team-register">
-            Register a team
-            <span>For mentors, coaches, and organizers</span>
-          </a>
-        </div>
-      </div>
-    </section>
+        <% }); %>
 
-    <footer class="site-footer">
-      <div class="container">
-        <p><strong>Built by Evergreen Tech-a-Trons</strong> — a student engineering team focused on accessibility
-           and outreach for FIRST programs. To contribute, report an issue, or request a feature, please visit
-           the contact page or reach out to the Evergreen Tech-a-Trons via the site.</p>
-        <p class="small">© Evergreen Tech-a-Trons — All rights reserved.</p>
+      </div>
+
+
+
+      <div class="home-footer-bottom">
+        <div class="container">
+          <p><strong>Built by Evergreen Tech-a-Trons</strong> &mdash; a student engineering team focused on accessibility and outreach for FIRST programs.</p>
+          <p>&copy; Evergreen Tech-a-Trons &mdash; All rights reserved.</p>
+        </div>
       </div>
     </footer>
+
   </main>
 
-  <script src="/assets/js/main.js?v=8"></script>
+
+
+  <script src="/assets/js/main.js?v=9"></script>
+
   <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.3/dist/js/splide.min.js"></script>
-  <script src="/assets/js/first-start.js"></script>
+
+  <script src="/assets/js/first-start.js?v=8"></script>
+
 </body>
+
 </html>
+
+
+
+
+
+
+
