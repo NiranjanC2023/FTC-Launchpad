@@ -195,7 +195,7 @@ function mapTeam(team) {
         awardHistory: sortHistoryEntriesMostRecent(team.awardHistory || []),
         yearsInProgram: team.yearsInProgram,
         advancementLevels: team.advancementLevels,
-        advancementHistory: sortHistoryEntriesMostRecent(team.advancementHistory || []),
+        advancementHistory: team.advancementHistory,
         recruiting: team.recruiting,
         verified: team.verified,
         radiusMeters: 1000,
@@ -251,15 +251,51 @@ function normalizeProgram(program) {
     return PROGRAM_LABELS[value] ? value : 'FTC';
 }
 
-function shouldUseTeamApi(program, teamNumber) {
-    const normalizedProgram = normalizeProgram(program);
-    return (normalizedProgram === 'FTC' || normalizedProgram === 'FRC') && Number.isFinite(Number(teamNumber));
+function formatFtcScoutAwardType(value) {
+    const normalized = String(value || '')
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .trim();
+    if (!normalized) return '';
+    const compact = normalized.replace(/\s+/g, '');
+    if (FTC_AWARD_TYPE_LABELS[compact]) return FTC_AWARD_TYPE_LABELS[compact];
+    if (FTC_AWARD_TYPE_LABELS[normalized]) return FTC_AWARD_TYPE_LABELS[normalized];
+    if (/award$/i.test(normalized) || /(alliance|finalist|winner)/i.test(normalized)) return normalized;
+    return `${normalized} Award`;
 }
 
-function formatSeasonLabel(program, season) {
-    const value = Number(season);
-    if (!Number.isFinite(value)) return '';
-    return normalizeProgram(program) === 'FTC' ? `${value}-${value + 1}` : String(value);
+function formatFtcScoutPlacement(placement, awardType) {
+    const place = Number(placement);
+    if (!Number.isFinite(place) || place <= 1) return '';
+    if (/alliance/i.test(String(awardType || ''))) return '';
+    if (place === 2) return '2nd Place';
+    if (place === 3) return '3rd Place';
+    return `${place}th Place`;
+}
+
+function formatScoutSeasonLabel(season) {
+    const startYear = Number(season);
+    if (!Number.isFinite(startYear)) return '';
+    return `${startYear}-${startYear + 1}`;
+}
+
+function formatCompetitionRegionLabel(team) {
+    const events = Array.isArray(team && team.events) ? team.events : [];
+    const sourceEvent = events.find(event => event && (event.regionCode || event.districtCode));
+    const code = String(sourceEvent && (sourceEvent.regionCode || sourceEvent.districtCode) || '').trim();
+    if (!code) return '';
+    return `Region ${code}`;
+}
+
+function filterAdvancementValues(values) {
+    return Array.isArray(values)
+        ? values.filter(value => value === 'Regional' || value === 'Worlds')
+        : [];
+}
+
+function filterAdvancementHistoryValues(values) {
+    return Array.isArray(values)
+        ? values.filter(value => /^(Regional|Worlds)\b/i.test(String(value || '').trim()))
+        : [];
 }
 
 function formatTeamTenureLabel(team) {
@@ -281,35 +317,19 @@ function formatTeamTenureLabel(team) {
     return `${yearsElapsed} year${yearsElapsed === 1 ? '' : 's'}`;
 }
 
-function normalizeApiList(payload, singularKey, pluralKey) {
-    if (!payload || typeof payload !== 'object') return [];
-    const candidates = [
-        payload[pluralKey],
-        payload[pluralKey && pluralKey[0].toUpperCase() + pluralKey.slice(1)],
-        payload[singularKey],
-        payload[singularKey && singularKey[0].toUpperCase() + singularKey.slice(1)]
-    ];
-    for (const value of candidates) {
-        if (Array.isArray(value)) return value;
-    }
-    return [];
+function formatAwardHistoryEntry(award) {
+    const awardType = formatFtcScoutAwardType(award && award.type);
+    if (!awardType) return null;
+    const placementLabel = formatFtcScoutPlacement(award && award.placement, awardType);
+    const seasonLabel = formatScoutSeasonLabel(award && award.season);
+    return [awardType, placementLabel, seasonLabel].filter(Boolean).join(' ').trim();
 }
 
 function mapAdvancementLevel(program, eventType) {
     const type = String(eventType || '').trim();
-    if (!type) return null;
-
-    if (normalizeProgram(program) === 'FTC') {
-        if (type === 'Qualifier' || type === 'SuperQualifier' || type === 'LeagueTournament' || type === 'LeagueMeet') return 'Qualifier';
-        if (type === 'Championship' || type === 'Premier') return 'Regional';
-        if (type === 'FIRSTChampionship') return 'Worlds';
-        return type.replace(/([a-z])([A-Z])/g, '$1 $2');
-    }
-
-    if (type === 'DistrictEvent') return 'District';
-    if (type === 'DistrictChampionship') return 'District Championship';
-    if (type === 'Regional' || type === 'RegionalEvent') return 'Regional';
-    if (type === 'Championship' || type === 'ChampionshipDivision') return 'Championship';
+    if (type === 'Qualifier' || type === 'SuperQualifier' || type === 'LeagueTournament' || type === 'LeagueMeet') return 'Qualifier';
+    if (type === 'Championship' || type === 'Premier') return 'Regional';
+    if (type === 'FIRSTChampionship') return 'Worlds';
     return null;
 }
 
@@ -327,307 +347,51 @@ function getUniqueNumericValues(values) {
     )).sort((a, b) => a - b);
 }
 
-function isConfiguredCredential(value) {
-    const text = String(value || '').trim();
-    if (!text) return false;
-    return !/^your[_-]/i.test(text) && text.toLowerCase() !== 'your_ftc_api_token' && text.toLowerCase() !== 'your_frc_api_token';
-}
-
-function buildBlueAllianceHeaders() {
-    if (!isConfiguredCredential(BLUE_ALLIANCE_AUTH_KEY)) return null;
-    return {
-        'X-TBA-Auth-Key': BLUE_ALLIANCE_AUTH_KEY,
-        Accept: 'application/json',
-        'User-Agent': 'FTC-Starter-Hub/1.0'
+async function fetchFtcScoutTeamDetails(teamNumber) {
+    const body = {
+        query: 'query($number:Int!){ teamByNumber(number:$number){ rookieYear awards { type placement season } matches { season event { type } } activeSeasons } }',
+        variables: { number: Number(teamNumber) }
     };
-}
 
-async function fetchApiJson(url, headers = null) {
-    const response = await fetch(url, {
-        headers: headers || {
-            Accept: 'application/json',
-            'User-Agent': 'FTC-Starter-Hub/1.0'
-        }
+    const response = await fetch(FTC_SCOUT_GRAPHQL_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
     });
 
     if (!response.ok) return null;
 
-    try {
-        return await response.json();
-    } catch (error) {
-        return null;
-    }
-}
+    const payload = await response.json();
+    const team = payload && payload.data ? payload.data.teamByNumber : null;
+    if (!team) return null;
 
-function uniqueList(values) {
-    return Array.from(new Set((Array.isArray(values) ? values : []).map(value => String(value || '').trim()).filter(Boolean)));
-}
+    const matchParticipations = Array.isArray(team.matches) ? team.matches : [];
+    const awards = Array.isArray(team.awards) ? team.awards : [];
+    const awardHistory = Array.from(new Set(awards.map(formatAwardHistoryEntry).filter(Boolean)));
+    const uniqueAwardTypes = Array.from(new Set(awards.map(award => formatFtcScoutAwardType(award.type)).filter(Boolean)));
+    const awardSeasons = getUniqueNumericValues(awards.map(award => award && award.season));
+    const matchSeasons = getUniqueNumericValues(matchParticipations.map(participation => participation && participation.season));
+    const competitionSeasons = matchSeasons.length ? matchSeasons : (awardSeasons.length ? awardSeasons : getUniqueNumericValues(team.activeSeasons));
+    const advancementLevels = [];
+    const advancementHistory = [];
 
-function extractSeasonSortValue(entry) {
-    const text = String(entry || '').trim();
-    if (!text) return -Infinity;
-    const seasonMatch = text.match(/(\d{4})-(\d{4})\s*$/) || text.match(/(\d{4})\s*$/);
-    if (!seasonMatch) return -Infinity;
-    return Number(seasonMatch[1]);
-}
-
-function sortHistoryEntriesMostRecent(entries) {
-    return uniqueList(entries).sort((left, right) => {
-        const rightSeason = extractSeasonSortValue(right);
-        const leftSeason = extractSeasonSortValue(left);
-        if (rightSeason !== leftSeason) return rightSeason - leftSeason;
-        return String(right).localeCompare(String(left));
+    matchParticipations.forEach((participation) => {
+        const level = mapAdvancementLevel(participation && participation.event ? participation.event.type : null);
+        if (level && !advancementLevels.includes(level)) advancementLevels.push(level);
+        const historyEntry = formatAdvancementHistoryEntry(level, participation && participation.season);
+        if (historyEntry && !advancementHistory.includes(historyEntry)) advancementHistory.push(historyEntry);
     });
+
+    return {
+        yearsInProgram: competitionSeasons.length || null,
+        awards: uniqueAwardTypes.slice(0, 6).join(', ') || null,
+        awardHistory,
+        advancementLevels,
+        advancementHistory
+    };
 }
 
-function createSeasonRange(startSeason, endSeason) {
-    const seasons = [];
-    for (let season = startSeason; season <= endSeason; season++) {
-        seasons.push(season);
-    }
-    return seasons;
-}
-
-function extractTeamDisplayName(team) {
-    return String((team && (team.nickname || team.team_nickname || team.name || team.team_name || team.teamName)) || '').trim();
-}
-
-function extractAwardName(award) {
-    return String((award && (award.type || award.award_type || award.awardType || award.name || award.award_name || award.award)) || '').trim();
-}
-
-function extractAwardEventName(award) {
-    return String((award && (award.eventCode || award.event_code || award.event_key || award.eventName || award.event_name || award.event)) || '').trim();
-}
-
-function mapAwardCompetitionLevel(program, award) {
-    const normalizedProgram = normalizeProgram(program);
-    const eventCode = extractAwardEventName(award).toUpperCase();
-    const eventType = String(mapBlueAllianceEventType(award) || '').trim().toUpperCase();
-
-    if (normalizedProgram === 'FTC') {
-        if (!eventCode) return null;
-        if (eventCode.includes('CMP') || eventCode.includes('CHAMP')) return 'Worlds';
-        if (eventCode.includes('REG')) return 'Regionals';
-        if (eventCode.includes('QUAL') || /Q\d*$/.test(eventCode) || eventCode.includes('LEAGUE')) return 'Qualifiers';
-        return null;
-    }
-
-    if (!eventType) return null;
-    if (eventType.includes('CHAMP')) return 'Worlds';
-    if (eventType.includes('REG') || eventType.includes('DISTRICT')) return 'Regionals';
-    if (eventType.includes('QUAL')) return 'Qualifiers';
-    return null;
-}
-
-function mapBlueAllianceEventType(event) {
-    const raw = event && (event.event_type_string || event.event_type_str || event.eventTypeString || event.type_string || event.type || event.event_type);
-    if (typeof raw === 'string') {
-        const value = raw.trim();
-        if (!value) return null;
-        return value.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
-    }
-
-    const numeric = Number(raw);
-    if (!Number.isFinite(numeric)) return null;
-
-    switch (numeric) {
-        case 0: return 'Regional';
-        case 1: return 'District';
-        case 2: return 'District Championship';
-        case 3: return 'Championship';
-        case 4: return 'Offseason';
-        case 5: return 'Preseason';
-        case 6: return 'District Championship';
-        default: return `Event Type ${numeric}`;
-    }
-}
-
-function mapFtcScoutEventType(eventCode) {
-    const code = String(eventCode || '').toUpperCase();
-    if (!code) return null;
-    if (code.includes('CMP')) return 'Championship';
-    if (code.includes('LEAGUE')) return 'League';
-    if (code.includes('JQ') || /Q\d*$/.test(code) || code.includes('QUAL')) return 'Qualifier';
-    return 'Qualifier';
-}
-
-function buildAwardHistoryEntries(awards, seasonLabelOrResolver, formatEventLabel = award => mapAwardCompetitionLevel('', award)) {
-    return uniqueList(
-        (Array.isArray(awards) ? awards : [])
-            .map((award) => {
-                const awardName = extractAwardName(award);
-                if (!awardName) return null;
-                const placement = award && award.placement !== undefined && award.placement !== null && award.placement !== ''
-                    ? String(award.placement).trim()
-                    : '';
-                const eventLabel = formatEventLabel(award);
-                const seasonLabel = typeof seasonLabelOrResolver === 'function'
-                    ? seasonLabelOrResolver(award)
-                    : seasonLabelOrResolver;
-                const detailParts = [awardName];
-                if (placement) detailParts.push(`Place ${placement}`);
-                if (eventLabel) detailParts.push(eventLabel);
-                if (seasonLabel) detailParts.push(seasonLabel);
-                return detailParts.join(' - ');
-            })
-            .filter(Boolean)
-    );
-}
-
-async function fetchFtcScoutTeamDetails(teamNumber) {
-    const cacheKey = `FTC:${Number(teamNumber)}`;
-    if (teamApiDetailsCache.has(cacheKey)) {
-        return teamApiDetailsCache.get(cacheKey);
-    }
-
-    const promise = (async () => {
-        const teamUrl = `${FTC_SCOUT_API_BASE}/teams/${encodeURIComponent(teamNumber)}`;
-        const teamProfile = await fetchApiJson(teamUrl);
-        if (!teamProfile) return null;
-
-        const rookieYear = Number(teamProfile.rookieYear);
-        const currentYear = new Date().getFullYear();
-        const startSeason = Number.isFinite(rookieYear) ? rookieYear : currentYear - 1;
-        const seasonRange = createSeasonRange(startSeason, currentYear);
-
-        const [awardsPayload, ...seasonEventsPayload] = await Promise.all([
-            fetchApiJson(`${FTC_SCOUT_API_BASE}/teams/${encodeURIComponent(teamNumber)}/awards`),
-            ...seasonRange.map(season => fetchApiJson(`${FTC_SCOUT_API_BASE}/teams/${encodeURIComponent(teamNumber)}/events/${season}`))
-        ]);
-
-        const awards = Array.isArray(awardsPayload) ? awardsPayload : [];
-        const awardNames = uniqueList(awards.map(extractAwardName));
-        const awardHistory = sortHistoryEntriesMostRecent(
-            buildAwardHistoryEntries(
-                awards,
-                award => formatSeasonLabel('FTC', Number(award && (award.season || award.year))),
-                award => mapAwardCompetitionLevel('FTC', award)
-            )
-        );
-
-        const advancementLevels = [];
-        const advancementHistory = [];
-        seasonEventsPayload.forEach((eventsPayload, index) => {
-            const season = seasonRange[index];
-            const events = Array.isArray(eventsPayload) ? eventsPayload : [];
-            events.forEach((event) => {
-                const level = mapFtcScoutEventType(event && event.eventCode);
-                if (level && !advancementLevels.includes(level)) advancementLevels.push(level);
-                const historyEntry = formatAdvancementHistoryEntry('FTC', level, season);
-                if (historyEntry && !advancementHistory.includes(historyEntry)) advancementHistory.push(historyEntry);
-            });
-        });
-
-        return {
-            yearsInProgram: Number.isFinite(rookieYear) ? Math.max(0, currentYear - rookieYear + 1) : null,
-            awards: awardNames.slice(0, 6).join(', ') || null,
-            awardHistory,
-            advancementLevels,
-            advancementHistory: sortHistoryEntriesMostRecent(advancementHistory),
-            profile: teamProfile
-        };
-    })();
-
-    teamApiDetailsCache.set(cacheKey, promise);
-    const result = await promise;
-    if (result) {
-        teamApiDetailsCache.set(cacheKey, result);
-    } else {
-        teamApiDetailsCache.delete(cacheKey);
-    }
-    return result;
-}
-
-async function fetchBlueAllianceTeamDetails(teamNumber) {
-    if (!isConfiguredCredential(BLUE_ALLIANCE_AUTH_KEY)) return null;
-
-    const cacheKey = `FRC:${Number(teamNumber)}`;
-    if (teamApiDetailsCache.has(cacheKey)) {
-        return teamApiDetailsCache.get(cacheKey);
-    }
-
-    const promise = (async () => {
-        const headers = buildBlueAllianceHeaders();
-        if (!headers) return null;
-
-        const teamUrl = `${BLUE_ALLIANCE_API_BASE}/team/frc${encodeURIComponent(teamNumber)}`;
-        const teamProfile = await fetchApiJson(teamUrl, headers);
-        if (!teamProfile) return null;
-
-        const rookieYear = Number(teamProfile.rookie_year);
-        const currentYear = new Date().getFullYear();
-        const startSeason = Number.isFinite(rookieYear) ? rookieYear : currentYear - 1;
-        const seasonRange = createSeasonRange(startSeason, currentYear);
-
-        const seasonPayloads = await Promise.all(seasonRange.map(async (season) => {
-            const [awardsPayload, eventsPayload] = await Promise.all([
-                fetchApiJson(`${BLUE_ALLIANCE_API_BASE}/team/frc${encodeURIComponent(teamNumber)}/awards/${season}`, headers),
-                fetchApiJson(`${BLUE_ALLIANCE_API_BASE}/team/frc${encodeURIComponent(teamNumber)}/events/${season}`, headers)
-            ]);
-            return { season, awardsPayload, eventsPayload };
-        }));
-
-        const awardNames = [];
-        const awardHistory = [];
-        const advancementLevels = [];
-        const advancementHistory = [];
-
-        seasonPayloads.forEach(({ season, awardsPayload, eventsPayload }) => {
-            const seasonLabel = formatSeasonLabel('FRC', season);
-            const awards = Array.isArray(awardsPayload) ? awardsPayload : [];
-            awards.forEach((award) => {
-                const awardName = extractAwardName(award);
-                if (awardName && !awardNames.includes(awardName)) awardNames.push(awardName);
-            });
-            buildAwardHistoryEntries(
-                awards,
-                award => formatSeasonLabel('FRC', Number(award && (award.year || award.season))),
-                award => mapAwardCompetitionLevel('FRC', award)
-            )
-                .forEach(entry => {
-                    if (entry && !awardHistory.includes(entry)) awardHistory.push(entry);
-                });
-
-            const events = Array.isArray(eventsPayload) ? eventsPayload : [];
-            events.forEach((event) => {
-                const level = mapBlueAllianceEventType(event);
-                if (level && !advancementLevels.includes(level)) advancementLevels.push(level);
-                const historyEntry = formatAdvancementHistoryEntry('FRC', level, season);
-                if (historyEntry && !advancementHistory.includes(historyEntry)) advancementHistory.push(historyEntry);
-            });
-        });
-
-        return {
-            yearsInProgram: Number.isFinite(rookieYear) ? Math.max(0, currentYear - rookieYear + 1) : null,
-            awards: awardNames.slice(0, 6).join(', ') || null,
-            awardHistory: sortHistoryEntriesMostRecent(awardHistory),
-            advancementLevels,
-            advancementHistory: sortHistoryEntriesMostRecent(advancementHistory),
-            profile: teamProfile
-        };
-    })();
-
-    teamApiDetailsCache.set(cacheKey, promise);
-    const result = await promise;
-    if (result) {
-        teamApiDetailsCache.set(cacheKey, result);
-    } else {
-        teamApiDetailsCache.delete(cacheKey);
-    }
-    return result;
-}
-
-async function fetchTeamDetailsViaApi(program, teamNumber) {
-    if (!shouldUseTeamApi(program, teamNumber)) return null;
-    const normalizedProgram = normalizeProgram(program);
-    if (normalizedProgram === 'FRC') {
-        return fetchBlueAllianceTeamDetails(teamNumber).catch(() => null);
-    }
-    return fetchFtcScoutTeamDetails(teamNumber).catch(() => null);
-}
-
-async function enrichTeamWithApi(team) {
+async function enrichTeamWithFtcScout(team) {
     if (!team || !team.teamNumber) return team;
     if (!shouldUseTeamApi(team.program || 'FTC', team.teamNumber)) return team;
 
@@ -644,17 +408,15 @@ async function enrichTeamWithApi(team) {
         yearsInProgram: apiDetails.yearsInProgram !== null && apiDetails.yearsInProgram !== undefined
             ? apiDetails.yearsInProgram
             : team.yearsInProgram,
-        advancementLevels: apiDetails.advancementLevels && apiDetails.advancementLevels.length ? apiDetails.advancementLevels : (team.advancementLevels || []),
-        advancementHistory: apiDetails.advancementHistory && apiDetails.advancementHistory.length
-            ? sortHistoryEntriesMostRecent(apiDetails.advancementHistory)
-            : sortHistoryEntriesMostRecent(team.advancementHistory || [])
-    };
-
-    const teamTenureLabel = formatTeamTenureLabel(enrichedTeam);
+            advancementLevels: ftcScoutDetails.advancementLevels && ftcScoutDetails.advancementLevels.length ? ftcScoutDetails.advancementLevels : (team.advancementLevels || []),
+            advancementHistory: ftcScoutDetails.advancementHistory && ftcScoutDetails.advancementHistory.length ? ftcScoutDetails.advancementHistory : (team.advancementHistory || [])
+        };
+        const teamTenureLabel = formatTeamTenureLabel(enrichedTeam);
 
     const needsSave = enrichedTeam.awards !== team.awards
         || enrichedTeam.yearsInProgram !== team.yearsInProgram
         || JSON.stringify(enrichedTeam.awardHistory || []) !== JSON.stringify(team.awardHistory || [])
+        || String(enrichedTeam.competitionRegionLabel || '') !== String(team.competitionRegionLabel || '')
         || JSON.stringify(enrichedTeam.advancementLevels || []) !== JSON.stringify(team.advancementLevels || [])
         || JSON.stringify(enrichedTeam.advancementHistory || []) !== JSON.stringify(team.advancementHistory || []);
     if (needsSave && team._id) {
@@ -664,6 +426,7 @@ async function enrichTeamWithApi(team) {
                 awards: enrichedTeam.awards,
                 yearsInProgram: enrichedTeam.yearsInProgram,
                 awardHistory: enrichedTeam.awardHistory,
+                competitionRegionLabel: enrichedTeam.competitionRegionLabel,
                 advancementLevels: enrichedTeam.advancementLevels,
                 advancementHistory: enrichedTeam.advancementHistory,
                 updatedAt: new Date()
@@ -892,7 +655,19 @@ router.get("/teams-nearby", async function(req, res){
             }
         }
 
-        res.render("pages/teams-nearby", { teams: teams.map(mapTeam), studentApp, user: currentUser });
+        const enrichedTeams = await Promise.all(
+            teams.map(async (team) => {
+                const hasOldAwardFormat = Array.isArray(team && team.awardHistory) && team.awardHistory.some(entry => !/\(.*\)/.test(String(entry || '')));
+                const hasOldAdvancementFormat = Array.isArray(team && team.advancementLevels) && team.advancementLevels.some(level => level === 'Qualifier');
+                if (team && team.program === 'FTC' && (!team.competitionRegionLabel || hasOldAwardFormat || hasOldAdvancementFormat || !team.advancementHistory || !team.advancementHistory.length)) {
+                    const enriched = await enrichTeamWithFtcScout(team).catch(() => team);
+                    return enriched || team;
+                }
+                return team;
+            })
+        );
+
+        res.render("pages/teams-nearby", { teams: enrichedTeams.map(mapTeam), studentApp, user: currentUser });
     } catch (err) {
         console.error('Failed to load nearby teams:', err);
         res.render("pages/teams-nearby", { teams: [] });
@@ -962,8 +737,8 @@ router.post('/team-register', async function(req, res) {
                 yearsInProgram: apiTeamDetails && apiTeamDetails.yearsInProgram !== null
                     ? apiTeamDetails.yearsInProgram
                     : toNumber(values.yearsInProgram),
-                advancementLevels: apiTeamDetails && apiTeamDetails.advancementLevels ? apiTeamDetails.advancementLevels : [],
-                advancementHistory: apiTeamDetails && apiTeamDetails.advancementHistory ? sortHistoryEntriesMostRecent(apiTeamDetails.advancementHistory) : [],
+                advancementLevels: ftcScoutDetails && ftcScoutDetails.advancementLevels ? ftcScoutDetails.advancementLevels : [],
+                advancementHistory: ftcScoutDetails && ftcScoutDetails.advancementHistory ? ftcScoutDetails.advancementHistory : [],
                 recruiting,
                 verified: true,
                 verifiedAt: new Date(),
@@ -995,7 +770,7 @@ router.post('/team-register', async function(req, res) {
 // Team Management Dashboard
 router.get('/manage-team', ensureAuthenticated, async function(req, res) {
     try {
-        if (!isDatabaseConnected()) return res.render('pages/manage-team', { error: databaseErrorMessage(), pendingInvitations: [] });
+        if (!isDatabaseConnected()) return res.render('pages/manage-team', { error: databaseErrorMessage(), pendingInvitations: [], teamTenureLabel: null });
         
         const user = await User.findById(req.session.userId).lean().exec();
         if (!user) return res.redirect('/logout');
@@ -1061,38 +836,13 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         // 2) team whose contact email matches the user's email
         // 3) fallback: teamNumber attached to the user profile
         const normalizedEmail = normalizeEmail(user.email);
-
-        let foundTeam = null;
-
-        if (Array.isArray(user.teamNumber)) {
-            // (defensive) not expected, but handle gracefully
-            const teamNumbers = user.teamNumber.map(n => Number(n)).filter(Number.isFinite);
-            if (teamNumbers.length) {
-                foundTeam = await Team.findOne({ teamNumber: { $in: teamNumbers } }).lean().exec();
-            }
-        }
-
-        if (!foundTeam) {
-            foundTeam = await Team.findOne({ managers: user._id }).lean().exec();
-        }
-
-        if (!foundTeam && normalizedEmail) {
-            foundTeam = await Team.findOne({ contact: normalizedEmail }).lean().exec();
-        }
-
-        if (!foundTeam && user.teamNumber) {
-            foundTeam = await Team.findOne({ teamNumber: user.teamNumber }).lean().exec();
-        }
-
-        if (!foundTeam && user.teamNumber && typeof user.teamNumber === 'string') {
-            const maybe = Number(user.teamNumber);
-            if (Number.isFinite(maybe)) {
-                foundTeam = await Team.findOne({ teamNumber: maybe }).lean().exec();
-            }
-        }
-
-        const team = await enrichTeamWithApi(foundTeam);
-        const teamTenureLabel = formatTeamTenureLabel(team);
+        const foundTeam = await Team.findOne({
+            $or: [
+                { contact: normalizedEmail },
+                { managers: user._id }
+            ]
+        }).lean().exec();
+        const team = await enrichTeamWithFtcScout(foundTeam);
 
         let teamManagers = [];
         let pendingInvitations = [];
@@ -1157,6 +907,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
                 acceptedCount: 0,
                 waitlistCount: 0,
                 rejectedCount: 0,
+                teamTenureLabel: null,
                 error: 'You are no longer a manager on any team.',
                 success: null
             });
@@ -1190,7 +941,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         console.error('Management page error:', err);
         res.render('pages/manage-team', { 
             error: 'Failed to load dashboard',
-            user: null, team: null, recruits: [], pendingInvitations: [] 
+            user: null, team: null, recruits: [], pendingInvitations: [], teamTenureLabel: null
         });
     }
 });
@@ -2051,7 +1802,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             });
         }
 
-        await User.findByIdAndUpdate(req.session.userId, {
+        const updatedUser = await User.findByIdAndUpdate(req.session.userId, {
             name,
             age: age ? Number(age) : undefined,
             email: normalizedEmail,
@@ -2069,6 +1820,16 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             student.phone = phone;
             student.email = normalizedEmail;
             await student.save();
+        }
+
+        const emailChanged = normalizeEmail(currentUser.email) !== normalizeEmail(updatedUser && updatedUser.email ? updatedUser.email : normalizedEmail);
+        if (emailChanged) {
+            return req.session.destroy((sessionErr) => {
+                if (sessionErr) {
+                    console.error('Failed to destroy session after email change:', sessionErr);
+                }
+                return res.redirect(`/login?notice=${encodeURIComponent('Your email was updated. Please sign in again.')}`);
+            });
         }
 
         res.render('pages/account-signup-info', {
@@ -2102,6 +1863,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
 router.get('/login', function(req, res){
     res.render('pages/login', {
         error: null,
+        notice: req.query.notice || null,
         inviteToken: req.query.inviteToken || null,
         nextPath: sanitizeNextPath(req.query.next, '')
     });
@@ -2121,16 +1883,16 @@ router.get('/auth-gate', function(req, res){
 
 router.post('/login', async function(req, res){
     try {
-        if (!isDatabaseConnected()) return res.render('pages/login', { error: databaseErrorMessage(), inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
+        if (!isDatabaseConnected()) return res.render('pages/login', { error: databaseErrorMessage(), notice: null, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
         const { email, password, inviteToken } = req.body;
         const nextPath = sanitizeNextPath(req.body.next, '');
         const remember = req.body && (req.body.remember === '1' || req.body.remember === 'on' || req.body.remember === true);
         const normalizedEmail = normalizeEmail(email);
-        if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required', inviteToken: inviteToken || null, nextPath });
+        if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required', notice: null, inviteToken: inviteToken || null, nextPath });
         const user = await User.findOne({ email: normalizedEmail }).exec();
-        if (!user) return res.render('pages/login', { error: 'Invalid credentials', inviteToken: inviteToken || null, nextPath });
+        if (!user) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
         const ok = await user.validatePassword(password);
-        if (!ok) return res.render('pages/login', { error: 'Invalid credentials', inviteToken: inviteToken || null, nextPath });
+        if (!ok) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
         signIn(req, user);
         applyRememberMe(req, remember);
 
@@ -2142,7 +1904,7 @@ router.post('/login', async function(req, res){
         if (nextPath) return res.redirect(nextPath);
         res.redirect(await getPostLoginRedirect(user));
     } catch (err) {
-        res.render('pages/login', { error: err.message, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null, nextPath: sanitizeNextPath(req.body && req.body.next, '') });
+        res.render('pages/login', { error: err.message, notice: null, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null, nextPath: sanitizeNextPath(req.body && req.body.next, '') });
     }
 });
 

@@ -399,8 +399,14 @@ header .navbar {
 }
 
 .creator-badge:hover {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.32);
+  color: #d9fce5;
+  background: rgba(208, 255, 225, 0.18);
+  border-color: rgba(208, 255, 225, 0.42);
+}
+
+.creator-badge:hover::before,
+.creator-badge:focus::before {
+  background: #d9fce5;
 }
 
 .account-menu {
@@ -657,6 +663,12 @@ header .navbar {
   background: rgba(255,255,255,0.04) !important;
   border-color: rgba(255,255,255,0.06) !important;
   color: rgba(255,255,255,0.95) !important;
+}
+
+[data-theme="dark"] .creator-badge:hover {
+  color: #d9fce5 !important;
+  background: rgba(208, 255, 225, 0.14) !important;
+  border-color: rgba(208, 255, 225, 0.35) !important;
 }
 
 [data-theme="dark"] .fa-marker-icon i {

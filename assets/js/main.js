@@ -225,7 +225,6 @@ function renderTeams(teams, userCoords) {
             <label for="teamsAdvancementFilter">Advancement</label>
             <select id="teamsAdvancementFilter" class="teams-program-filter" aria-label="Filter teams by advancement level">
               <option value="all">All advancement</option>
-              <option value="Qualifier">Qualifiers</option>
               <option value="Regional">Regionals</option>
               <option value="Worlds">Worlds</option>
               <option value="unknown">Unknown</option>
@@ -538,13 +537,12 @@ function renderTeams(teams, userCoords) {
     const teamNumber = team.teamNumber ? `${programLabel} ${team.teamNumber}` : `${programLabel} team`;
     const contact = String(team.contact || 'Contact unavailable');
     const location = String(team.location || '').trim();
+    const regionLabel = String(team.competitionRegionLabel || team.regionLabel || '').trim();
     const notes = String(team.notes || '').trim();
     const awards = String(team.awards || '').trim();
     const awardHistory = Array.isArray(team.awardHistory) ? team.awardHistory.filter(Boolean) : [];
     const yearsInProgram = Number(team.yearsInProgram);
-    const advancementLevels = Array.isArray(team.advancementLevels)
-      ? team.advancementLevels.map(normalizeAdvancementLevel).filter(Boolean)
-      : [];
+    const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.filter(Boolean) : [];
     const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(Boolean) : [];
     const distanceData = Number.isFinite(dist) ? formatDistance(dist, distanceUnitPreference) : null;
 
@@ -556,13 +554,14 @@ function renderTeams(teams, userCoords) {
     card.dataset.hasAwards = awards ? 'true' : 'false';
     card.dataset.yearsInProgram = Number.isFinite(yearsInProgram) ? String(yearsInProgram) : '';
     card.dataset.advancementLevels = advancementLevels.join('|');
+    card.dataset.regionLabel = regionLabel;
     card.dataset.distanceKm = Number.isFinite(dist) ? String(dist) : '';
-    card.dataset.search = `${teamName} ${teamNumber} ${contact} ${location} ${notes} ${awards} ${awardHistory.join(' ')} ${advancementLevels.join(' ')} ${advancementHistory.join(' ')}`.toLowerCase();
+    card.dataset.search = `${teamName} ${teamNumber} ${contact} ${location} ${regionLabel} ${notes} ${awards} ${awardHistory.join(' ')} ${advancementLevels.join(' ')} ${advancementHistory.join(' ')}`.toLowerCase();
     card.innerHTML = `
       <div class="team-card-head">
         <div class="team-card-heading">
           <h3 class="team-card-title">${escapeHTML(teamName)}</h3>
-          <span class="team-card-label">${escapeHTML(teamNumber)}${team.verified ? ' · verified' : ''}</span>
+          <span class="team-card-label">${escapeHTML(teamNumber)}${regionLabel ? ` · ${escapeHTML(regionLabel)}` : ''}${team.verified ? ' · verified' : ''}</span>
         </div>
         <div class="team-card-toolbar">
           <button class="btn btn-link goto-marker team-card-icon-button" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-map-pin"></i></button>
@@ -571,7 +570,7 @@ function renderTeams(teams, userCoords) {
       </div>
       <div class="team-details-content" style="margin-top: 12px; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 260ms ease, opacity 200ms ease;">
         <p class="team-card-contact">${escapeHTML(contact)}</p>
-        ${location ? `<p class="team-card-meta">${escapeHTML(location)}</p>` : ''}
+        ${(location || regionLabel) ? `<p class="team-card-meta">${escapeHTML([location, regionLabel].filter(Boolean).join(' · '))}</p>` : ''}
         ${Number.isFinite(yearsInProgram) ? `
           <div class="team-card-stats">
             ${Number.isFinite(yearsInProgram) ? `
@@ -1305,13 +1304,13 @@ function loadSiteShells() {
             // Toggle visibility based on auth status
             const target = a.getAttribute('data-href');
             const navItem = a.closest('li') || a;
+            const intent = (() => { try { return sessionStorage.getItem('signup_intent'); } catch (e) { return null; }})();
             if (target === '/login' || target === '/signup') {
               navItem.style.display = user ? 'none' : '';
               if (user) a.setAttribute('href', target);
             } else if (target === '/team-register') {
               // Only show the "Register Team" link when the user is an authenticated team contact
               // or on the home/start page for anonymous visitors.
-              const intent = (() => { try { return sessionStorage.getItem('signup_intent'); } catch (e) { return null; }})();
               const isStartPage = window.location.pathname === '/';
               const allowedForUser = user ? !!user.hasTeam : false;
               navItem.style.display = (allowedForUser || intent === 'manager' || (!user && isStartPage)) ? '' : 'none';
@@ -1320,9 +1319,9 @@ function loadSiteShells() {
               navItem.style.display = (user && user.hasTeam) ? '' : 'none';
               if (user) a.setAttribute('href', target);
             } else if (target === '/my-applications' || target === '/join-form') {
-              // Show applications and join form only for students (logged in users without a team)
-              // We hide these if the user is already a team manager
-              navItem.style.display = (user && !user.hasTeam) ? '' : 'none';
+              // Show applications/join form only for students.
+              // If the user is focused on registering a team, keep the header focused on that path instead.
+              navItem.style.display = (user && !user.hasTeam && intent !== 'manager') ? '' : 'none';
               a.setAttribute('href', user ? target : `/auth-gate?next=${encodeURIComponent(target)}&label=${encodeURIComponent((a.textContent || '').trim())}`);
             } else if (target === '/my-team') {
               navItem.style.display = (user && user.teamNumber) ? '' : 'none';

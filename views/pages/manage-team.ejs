@@ -316,21 +316,6 @@
             overflow-wrap: anywhere;
             white-space: pre-wrap;
         }
-        @media (max-width: 1180px) {
-            .dashboard-columns {
-                grid-template-columns: 1fr;
-            }
-            .dashboard-sidebar {
-                position: static;
-                display: flex;
-            }
-            .sidebar-card-grid {
-                grid-template-columns: 1fr;
-            }
-            .team-history-grid {
-                grid-template-columns: 1fr;
-            }
-        }
         @media (max-width: 640px) {
             .dashboard-wrapper {
                 width: min(100% - 16px, 1400px);
@@ -369,6 +354,20 @@
         <% } %>
 
         <% if (team) { %>
+            <% function normalizeCaptainRole(role) { const value = String(role || '').trim().toLowerCase(); return ['captain', 'outreach captain', 'technical captain'].includes(value) ? value : ''; } %>
+            <% function formatCaptainRole(role) { const value = normalizeCaptainRole(role); if (value === 'captain') return 'Captain'; if (value === 'outreach captain') return 'Outreach Captain'; if (value === 'technical captain') return 'Technical Captain'; return ''; } %>
+            <% const isPrimary = (user && user.email && team && team.contact && user.email.toLowerCase() === team.contact.toLowerCase()); %>
+            <% const isCaptain = ['captain', 'outreach captain', 'technical captain'].includes(String(user && user.role || '').trim().toLowerCase()); %>
+            <% const captainRoleOptions = [
+                { value: 'captain', label: 'Captain' },
+                { value: 'outreach captain', label: 'Outreach Captain' },
+                { value: 'technical captain', label: 'Technical Captain' }
+            ]; %>
+            <% const currentCaptainAssignments = { captain: null, 'outreach captain': null, 'technical captain': null }; %>
+            <% if (teamManagers && teamManagers.length > 0) { %>
+                <% teamManagers.forEach(function(manager) { const roleKey = normalizeCaptainRole(manager.role); if (roleKey && !currentCaptainAssignments[roleKey]) { currentCaptainAssignments[roleKey] = manager; } }); %>
+            <% } %>
+
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-icon" style="background: #fff7ed; color: #ea580c;"><i class="fa-solid fa-location-crosshairs"></i></div>
@@ -382,6 +381,13 @@
                     <div class="stat-content">
                         <h4>Time as a Team</h4>
                         <p><%= teamTenureLabel || 'Not available' %></p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #dcfce7; color: #166534;"><i class="fa-solid fa-globe"></i></div>
+                    <div class="stat-content">
+                        <h4>FTC Region</h4>
+                        <p><%= team.competitionRegionLabel || 'Region not available' %></p>
                     </div>
                 </div>
                 <div class="stat-card">
@@ -421,47 +427,39 @@
                             <h3><i class="fa-solid fa-trophy"></i> Team Snapshot</h3>
                         </div>
                         <div class="panel-body">
-                            <div class="dashboard-subpanel">
-                                <p style="margin: 0 0 10px; font-weight: 900;">Time as a Team</p>
-                                <p style="margin: 0; font-size: 1.35rem; font-weight: 900; color: var(--accent-primary);"><%= teamTenureLabel || 'Not available' %></p>
-                            </div>
-                            <div class="dashboard-subpanel">
-                                <p style="margin: 0 0 10px; font-weight: 900;">Awards Achieved</p>
-                                <% if (team.awardHistory && team.awardHistory.length) { %>
-                                    <ul style="margin: 0; padding-left: 18px;">
-                                        <% team.awardHistory.forEach(function(entry) { %>
-                                            <li><i class="fa-solid fa-trophy" style="margin-right: 8px; color: var(--accent-primary);"></i><%= entry %></li>
-                                        <% }) %>
-                                    </ul>
-                                <% } else { %>
-                                    <p style="margin: 0;">No award history listed yet.</p>
-                                <% } %>
-                            </div>
-                            <div class="dashboard-subpanel">
-                                <p style="margin: 0 0 10px; font-weight: 900;">Competition History</p>
-                                <% if (team.advancementHistory && team.advancementHistory.length) { %>
-                                    <ul style="margin: 0; padding-left: 18px;">
-                                        <% team.advancementHistory.forEach(function(entry) { %>
-                                            <li><i class="fa-solid fa-flag-checkered" style="margin-right: 8px; color: var(--accent-primary);"></i><%= entry %></li>
-                                        <% }) %>
-                                    </ul>
-                                <% } else { %>
-                                    <p style="margin: 0;">No competition history listed yet.</p>
-                                <% } %>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="dashboard-panel">
-                        <div class="panel-head">
-                            <h3><i class="fa-solid fa-sliders"></i> Settings</h3>
-                        </div>
-                        <div class="panel-body">
-                            <form action="/manage-team/update" method="POST" class="settings-form">
+                            <form action="/manage-team/update" method="POST" class="text-left">
                                 <div class="mb-3">
                                     <label class="form-label">Recruiting Bio</label>
                                     <textarea name="notes" class="form-control" rows="8" placeholder="Tell students about your team culture..."><%= team.notes %></textarea>
                                     <small class="text-muted">This bio appears on the public map.</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Awards Achieved</label>
+                                    <div class="team-history-panel" style="margin: 0;">
+                                        <% if (team.awardHistory && team.awardHistory.length) { %>
+                                            <ul style="margin: 0; padding-left: 18px;">
+                                                <% team.awardHistory.forEach(function(entry) { %>
+                                                    <li>🏅 <%= entry %></li>
+                                                <% }) %>
+                                            </ul>
+                                        <% } else { %>
+                                            No award history listed yet.
+                                        <% } %>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Competition History</label>
+                                    <div class="team-history-panel" style="margin: 0;">
+                                        <% if (team.advancementHistory && team.advancementHistory.length) { %>
+                                            <ul style="margin: 0; padding-left: 18px;">
+                                                <% team.advancementHistory.forEach(function(entry) { %>
+                                                    <li>🏁 <%= entry %></li>
+                                                <% }) %>
+                                            </ul>
+                                        <% } else { %>
+                                            No competition history listed yet.
+                                        <% } %>
+                                    </div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="checkbox" style="margin: 0; padding: 15px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; display: block;">
@@ -474,184 +472,167 @@
                                     <i class="fa-solid fa-circle-check"></i> Save Changes
                                 </button>
                             </form>
-                        </div>
-                    </div>
 
-                    <div class="dashboard-panel">
-                        <div class="panel-head">
-                            <h3><i class="fa-solid fa-users"></i> Team Managers</h3>
-                        </div>
-                        <div class="panel-body">
-                            <% function normalizeCaptainRole(role) { const value = String(role || '').trim().toLowerCase(); return ['captain', 'outreach captain', 'technical captain'].includes(value) ? value : ''; } %>
-                            <% function formatCaptainRole(role) { const value = normalizeCaptainRole(role); if (value === 'captain') return 'Captain'; if (value === 'outreach captain') return 'Outreach Captain'; if (value === 'technical captain') return 'Technical Captain'; return ''; } %>
-                            <% const isPrimary = (user && user.email && team && team.contact && user.email.toLowerCase() === team.contact.toLowerCase()); %>
-                            <% const isCaptain = ['captain', 'outreach captain', 'technical captain'].includes(String(user && user.role || '').trim().toLowerCase()); %>
-                            <% const captainRoleOptions = [
-                                { value: 'captain', label: 'Captain' },
-                                { value: 'outreach captain', label: 'Outreach Captain' },
-                                { value: 'technical captain', label: 'Technical Captain' }
-                            ]; %>
-                            <% const currentCaptainAssignments = { captain: null, 'outreach captain': null, 'technical captain': null }; %>
-                            <% if (teamManagers && teamManagers.length > 0) { %>
-                                <% teamManagers.forEach(function(manager) { const roleKey = normalizeCaptainRole(manager.role); if (roleKey && !currentCaptainAssignments[roleKey]) { currentCaptainAssignments[roleKey] = manager; } }); %>
-                            <% } %>
-                            <% if (isPrimary && teamManagers && teamManagers.length > 0) { %>
-                                <div class="dashboard-subpanel">
-                                    <p style="margin: 0 0 10px; font-weight: 800;">Current captain roles</p>
-                                    <ul style="margin: 0; padding-left: 18px;">
-                                        <% captainRoleOptions.forEach(function(roleOption) { %>
-                                            <li>
-                                                <strong><%= roleOption.label %>:</strong>
-                                                <%= currentCaptainAssignments[roleOption.value] ? currentCaptainAssignments[roleOption.value].name : 'Unassigned' %>
+                            <hr style="border-top: 1px solid var(--border-color); margin: 30px 0;">
+                            <div class="panel-body" style="padding: 0;">
+                                <% function normalizeCaptainRole(role) { const value = String(role || '').trim().toLowerCase(); return ['captain', 'outreach captain', 'technical captain'].includes(value) ? value : ''; } %>
+                                <% function formatCaptainRole(role) { const value = normalizeCaptainRole(role); if (value === 'captain') return 'Captain'; if (value === 'outreach captain') return 'Outreach Captain'; if (value === 'technical captain') return 'Technical Captain'; return ''; } %>
+                                <% const isPrimary = (user && user.email && team && team.contact && user.email.toLowerCase() === team.contact.toLowerCase()); %>
+                                <% const isCaptain = ['captain', 'outreach captain', 'technical captain'].includes(String(user && user.role || '').trim().toLowerCase()); %>
+                                <h4 style="margin: 0 0 18px; font-size: 1rem; font-weight: 700;">Team Managers</h4>
+                                <% const captainRoleOptions = [
+                                    { value: 'captain', label: 'Captain' },
+                                    { value: 'outreach captain', label: 'Outreach Captain' },
+                                    { value: 'technical captain', label: 'Technical Captain' }
+                                ]; %>
+                                <% const currentCaptainAssignments = { captain: null, 'outreach captain': null, 'technical captain': null }; %>
+                                <% if (teamManagers && teamManagers.length > 0) { %>
+                                    <% teamManagers.forEach(function(manager) { const roleKey = normalizeCaptainRole(manager.role); if (roleKey && !currentCaptainAssignments[roleKey]) { currentCaptainAssignments[roleKey] = manager; } }); %>
+                                <% } %>
+                                <% if (isPrimary && teamManagers && teamManagers.length > 0) { %>
+                                    <div class="team-history-panel" style="margin-bottom: 18px;">
+                                        <p style="margin: 0 0 10px; font-weight: 800;">Current captain roles</p>
+                                        <ul style="margin: 0; padding-left: 18px;">
+                                            <% captainRoleOptions.forEach(function(roleOption) { %>
+                                                <li>
+                                                    <strong><%= roleOption.label %>:</strong>
+                                                    <%= currentCaptainAssignments[roleOption.value] ? currentCaptainAssignments[roleOption.value].name : 'Unassigned' %>
+                                                </li>
+                                            <% }); %>
+                                        </ul>
+                                    </div>
+                                    <form action="/manage-team/managers/captain" method="POST" class="text-left" style="margin-bottom: 18px;">
+                                        <div class="mb-3">
+                                            <label class="form-label">Captain role assignment</label>
+                                            <select name="managerUserId" class="form-control" required style="margin-bottom: 10px;">
+                                                <option value="">Select a manager</option>
+                                                <% teamManagers.forEach(function(manager) { %>
+                                                    <option value="<%= manager._id %>"><%= manager.name %></option>
+                                                <% }); %>
+                                            </select>
+                                            <select name="captainRole" class="form-control">
+                                                <option value="">Select a role</option>
+                                                <% captainRoleOptions.forEach(function(roleOption) { %>
+                                                    <option value="<%= roleOption.value %>"><%= roleOption.label %></option>
+                                                <% }); %>
+                                                <option value="">Clear role</option>
+                                            </select>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary btn-block" style="width: 100%;">
+                                            <i class="fa-solid fa-star"></i> Save Role
+                                        </button>
+                                    </form>
+                                <% } %>
+                                <% if (teamManagers && teamManagers.length > 0) { %>
+                                    <ul style="list-style: none; padding: 0; margin: 0 0 22px 0;">
+                                        <% teamManagers.forEach(function(manager) { %>
+                                            <li class="manager-card" style="position: relative; margin-bottom: 10px; padding: 12px 14px 20px 14px; padding-right: 56px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--surface); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                                                <div class="manager-card-main">
+                                                    <strong><%= manager.name %></strong>
+                                                    <% if (manager.primary) { %>
+                                                        <span class="status-pill" style="background: #fee2e2; color: #b91c1c; margin-left: 8px;"><i class="fa-solid fa-star" style="margin-right:4px;"></i>Primary</span>
+                                                    <% } %>
+                                                    <% const managerCaptainRole = normalizeCaptainRole(manager.role); %>
+                                                    <% if (managerCaptainRole) { %>
+                                                        <span class="status-pill" style="background: #ede9fe; color: #7c3aed; margin-left: 8px;"><%= formatCaptainRole(managerCaptainRole) %></span>
+                                                    <% } %>
+                                                </div>
+                                                <% const isSelf = (user && manager && String(manager._id) === String(user._id)); %>
+                                                <% const hasAction = isPrimary || isSelf || isCaptain; %>
+                                                <% if (hasAction) { %>
+                                                    <details class="manager-actions-dropdown">
+                                                        <summary aria-label="Toggle manager actions" role="button"><span aria-hidden="true">▾</span></summary>
+                                                        <div class="actions-menu">
+                                                            <% if (isPrimary) { %>
+                                                                <form action="/manage-team/managers/captain" method="POST">
+                                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                                    <input type="hidden" name="captainRole" value="captain" />
+                                                                    <button type="submit" class="btn btn-tertiary action-button">
+                                                                        Set as Captain
+                                                                    </button>
+                                                                </form>
+                                                                <form action="/manage-team/managers/captain" method="POST">
+                                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                                    <input type="hidden" name="captainRole" value="outreach captain" />
+                                                                    <button type="submit" class="btn btn-tertiary action-button">
+                                                                        Set as Outreach Captain
+                                                                    </button>
+                                                                </form>
+                                                                <form action="/manage-team/managers/captain" method="POST">
+                                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                                    <input type="hidden" name="captainRole" value="technical captain" />
+                                                                    <button type="submit" class="btn btn-tertiary action-button">
+                                                                        Set as Technical Captain
+                                                                    </button>
+                                                                </form>
+                                                                <form action="/manage-team/managers/captain" method="POST">
+                                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                                    <input type="hidden" name="captainRole" value="" />
+                                                                    <button type="submit" class="btn btn-tertiary action-button">
+                                                                        Clear Role
+                                                                    </button>
+                                                                </form>
+                                                            <% } %>
+                                                            <% if (!manager.primary && (isPrimary || isSelf || (isCaptain && !managerCaptainRole))) { %>
+                                                                <form action="/manage-team/managers/remove" method="POST">
+                                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                                    <button type="submit" class="btn btn-tertiary action-button">Remove</button>
+                                                                </form>
+                                                            <% } %>
+                                                        </div>
+                                                    </details>
+                                                <% } %>
                                             </li>
                                         <% }); %>
                                     </ul>
-                                </div>
-                                <form action="/manage-team/managers/captain" method="POST" class="dashboard-subpanel">
-                                    <div class="mb-3">
-                                        <label class="form-label">Captain role assignment</label>
-                                        <select name="managerUserId" class="form-control" required style="margin-bottom: 10px;">
-                                            <option value="">Select a manager</option>
-                                            <% teamManagers.forEach(function(manager) { %>
-                                                <option value="<%= manager._id %>"><%= manager.name %></option>
-                                            <% }); %>
-                                        </select>
-                                        <select name="captainRole" class="form-control">
-                                            <option value="">Select a role</option>
-                                            <% captainRoleOptions.forEach(function(roleOption) { %>
-                                                <option value="<%= roleOption.value %>"><%= roleOption.label %></option>
-                                            <% }); %>
-                                            <option value="">Clear role</option>
-                                        </select>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary btn-block" style="width: 100%;">
-                                        <i class="fa-solid fa-star"></i> Save Role
-                                    </button>
-                                </form>
-                            <% } %>
-                            <% if (teamManagers && teamManagers.length > 0) { %>
-                                <ul class="managers-list">
-                                    <% teamManagers.forEach(function(manager) { %>
-                                        <li class="manager-card" style="position: relative; margin-bottom: 10px; padding: 12px 14px 20px 14px; padding-right: 56px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--surface); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
-                                            <div class="manager-card-main">
-                                                <strong><%= manager.name %></strong>
-                                                <% if (manager.primary) { %>
-                                                    <span class="status-pill" style="background: #fee2e2; color: #b91c1c; margin-left: 8px;"><i class="fa-solid fa-star" style="margin-right:4px;"></i>Primary</span>
-                                                <% } %>
-                                                <% const managerCaptainRole = normalizeCaptainRole(manager.role); %>
-                                                <% if (managerCaptainRole) { %>
-                                                    <span class="status-pill" style="background: #ede9fe; color: #7c3aed; margin-left: 8px;"><%= formatCaptainRole(managerCaptainRole) %></span>
-                                                <% } %>
-                                            </div>
-                                            <% const isSelf = (user && manager && String(manager._id) === String(user._id)); %>
-                                            <% const hasAction = isPrimary || isSelf || isCaptain; %>
-                                            <% if (hasAction) { %>
-                                                <details class="manager-actions-dropdown">
-                                                    <summary aria-label="Toggle manager actions" role="button"><span aria-hidden="true">?</span></summary>
-                                                    <div class="actions-menu">
-                                                        <% if (isPrimary) { %>
-                                                            <form action="/manage-team/managers/captain" method="POST">
-                                                                <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
-                                                                <input type="hidden" name="captainRole" value="captain" />
-                                                                <button type="submit" class="btn btn-tertiary action-button">
-                                                                    Set as Captain
-                                                                </button>
-                                                            </form>
-                                                            <form action="/manage-team/managers/captain" method="POST">
-                                                                <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
-                                                                <input type="hidden" name="captainRole" value="outreach captain" />
-                                                                <button type="submit" class="btn btn-tertiary action-button">
-                                                                    Set as Outreach Captain
-                                                                </button>
-                                                            </form>
-                                                            <form action="/manage-team/managers/captain" method="POST">
-                                                                <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
-                                                                <input type="hidden" name="captainRole" value="technical captain" />
-                                                                <button type="submit" class="btn btn-tertiary action-button">
-                                                                    Set as Technical Captain
-                                                                </button>
-                                                            </form>
-                                                            <form action="/manage-team/managers/captain" method="POST">
-                                                                <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
-                                                                <input type="hidden" name="captainRole" value="" />
-                                                                <button type="submit" class="btn btn-tertiary action-button">
-                                                                    Clear Role
-                                                                </button>
-                                                            </form>
-                                                        <% } %>
-                                                        <% if (!manager.primary && (isPrimary || isSelf || (isCaptain && !managerCaptainRole))) { %>
-                                                            <form action="/manage-team/managers/remove" method="POST">
-                                                                <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
-                                                                <button type="submit" class="btn btn-tertiary action-button">Remove</button>
-                                                            </form>
-                                                        <% } %>
-                                                    </div>
-                                                </details>
-                                            <% } %>
-                                        </li>
-                                    <% }); %>
-                                </ul>
-                            <% } else { %>
-                                <p class="text-muted" style="margin-bottom: 18px;">Currently only the primary contact has management access.</p>
-                            <% } %>
-                        </div>
-                    </div>
+                                <% } else { %>
+                                    <p class="text-muted" style="margin-bottom: 18px;">Currently only the primary contact has management access.</p>
+                                <% } %>
 
-                    <div class="dashboard-panel">
-                        <div class="panel-head">
-                            <h3><i class="fa-solid fa-bell"></i> Pending Invitations</h3>
-                        </div>
-                        <div class="panel-body">
-                            <% if (pendingInvitations && pendingInvitations.length > 0) { %>
-                                <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;">
-                                    <% if (isPrimary || isCaptain) { %>
-                                        <form action="/manage-team/invitations/clear" method="POST" onsubmit="return confirm('Clear all pending invitations for this team?');" style="margin:0;">
-                                            <button type="submit" class="btn btn-tertiary btn-sm" style="color:#b91c1c !important; border-color:#fca5a5 !important;">
-                                                <i class="fa-solid fa-broom"></i> Clear All
-                                            </button>
-                                        </form>
+                                <div style="margin-bottom: 24px; text-align: left;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom: 12px;">
+                                        <h4 style="margin: 0; font-size: 0.9rem; font-weight: 900; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;">Pending Invitations</h4>
+                                        <% if (pendingInvitations && pendingInvitations.length > 0 && (isPrimary || isCaptain)) { %>
+                                            <form action="/manage-team/invitations/clear" method="POST" onsubmit="return confirm('Clear all pending invitations for this team?');" style="margin:0;">
+                                                <button type="submit" class="btn btn-tertiary btn-sm" style="color:#b91c1c !important; border-color:#fca5a5 !important;">
+                                                    <i class="fa-solid fa-broom"></i> Clear All
+                                                </button>
+                                            </form>
+                                        <% } %>
+                                    </div>
+                                    <% if (pendingInvitations && pendingInvitations.length > 0) { %>
+                                        <div class="pending-invite-list">
+                                            <% pendingInvitations.forEach(function(invite) { %>
+                                                <div class="pending-invite-card">
+                                                    <strong><%= invite.email %></strong>
+                                                    <p class="pending-invite-meta">
+                                                        Sent <%= invite.createdAt ? new Date(invite.createdAt).toLocaleString() : 'recently' %>
+                                                    </p>
+                                                </div>
+                                            <% }); %>
+                                        </div>
+                                    <% } else { %>
+                                        <div class="alert alert-info" style="margin: 0;">No pending invitations right now.</div>
                                     <% } %>
                                 </div>
-                                <div class="pending-invite-list">
-                                    <% pendingInvitations.forEach(function(invite) { %>
-                                        <div class="pending-invite-card">
-                                            <strong><%= invite.email %></strong>
-                                            <p class="pending-invite-meta">
-                                                Sent <%= invite.createdAt ? new Date(invite.createdAt).toLocaleString() : 'recently' %>
-                                            </p>
-                                        </div>
-                                    <% }); %>
-                                </div>
-                            <% } else { %>
-                                <div class="alert alert-info" style="margin: 0;">No pending invitations right now.</div>
-                            <% } %>
-                        </div>
-                    </div>
 
-                    <div class="dashboard-panel">
-                        <div class="panel-head">
-                            <h3><i class="fa-solid fa-paper-plane"></i> Invite Manager</h3>
-                        </div>
-                        <div class="panel-body">
-                            <form action="/manage-team/invite" method="POST" class="invite-box">
-                                <div class="mb-3">
-                                    <label class="form-label">Invite a new manager by email</label>
-                                    <input type="email" name="email" class="form-control" placeholder="Enter their email" required style="text-align: left;" />
-                                    <small class="form-text text-muted">If they don???t have an account yet, they???ll be asked to sign up with this email.</small>
-                                </div>
-                                <button type="submit" class="btn btn-secondary btn-block" style="width: 100%;">
-                                    <i class="fa-solid fa-envelope"></i> Send Invitation
-                                </button>
-                            </form>
-                        </div>
-                    </div>
+                                <hr style="border-top: 1px solid var(--border-color); margin: 30px 24px;">
 
-                    <div class="dashboard-panel">
-                        <div class="panel-head">
-                            <h3><i class="fa-solid fa-triangle-exclamation"></i> Danger Zone</h3>
-                        </div>
-                        <div class="panel-body">
-                            <div class="danger-box" style="text-align: left;">
+                                <form action="/manage-team/invite" method="POST" class="text-left" style="margin: 0 24px 24px; text-align: left;">
+                                    <div class="mb-3">
+                                        <label class="form-label">Invite a new manager by email</label>
+                                        <input type="email" name="email" class="form-control" placeholder="Enter their email" required style="text-align: left;" />
+                                        <small class="form-text text-muted">If they don’t have an account yet, they’ll be asked to sign up with this email.</small>
+                                    </div>
+                                    <button type="submit" class="btn btn-secondary btn-block" style="width: 100%;">
+                                        <i class="fa-solid fa-envelope"></i> Send Invitation
+                                    </button>
+                                </form>
+                            </div>
+
+                            <hr style="border-top: 1px solid var(--border-color); margin: 30px 0;">
+                            <div class="danger-zone" style="text-align: left;">
+                                <h4 style="color: #dc2626; font-size: 0.8rem; font-weight: 800; text-transform: uppercase; margin-bottom: 5px;">Danger Zone</h4>
                                 <p class="small text-muted" style="margin-bottom: 15px;">Deleting your team will remove it from the map and recruitment feed. This is permanent.</p>
                                 <form action="/manage-team/delete" method="POST" onsubmit="return confirm('Are you absolutely sure you want to delete your team? This action cannot be undone.');">
                                     <button type="submit" class="btn btn-tertiary btn-block" style="color: #dc2626 !important; border-color: #fca5a5 !important;">
@@ -808,6 +789,179 @@
                                     <p class="text-muted" style="margin:0;">No one is currently on the waitlist.</p>
                                 </div>
                             <% } %>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-panel" style="margin-top: 30px;">
+                        <div class="panel-head">
+                            <h3><i class="fa-solid fa-users-gear"></i> Team Managers</h3>
+                            <span class="badge" style="background: var(--accent-secondary);"><%= teamManagers ? teamManagers.length : 0 %> Members</span>
+                        </div>
+                        <div class="panel-body">
+                            <div class="settings-tabs" role="tablist" aria-label="Team manager settings tabs" style="margin: 0 0 20px; border-bottom: 0; padding-bottom: 0;">
+                                <button type="button" class="settings-tab-button is-active" data-settings-tab="managers" role="tab" aria-selected="true">
+                                    Team Managers
+                                </button>
+                                <button type="button" class="settings-tab-button" data-settings-tab="admin" role="tab" aria-selected="false">
+                                    Invitations & Admin
+                                </button>
+                            </div>
+
+                            <div class="settings-tab-panel" data-settings-panel="managers">
+                                <% if (isPrimary && teamManagers && teamManagers.length > 0) { %>
+                                    <div class="team-history-panel" style="margin-bottom: 18px;">
+                                        <p style="margin: 0 0 10px; font-weight: 800;">Current captain roles</p>
+                                        <ul style="margin: 0; padding-left: 18px;">
+                                            <% captainRoleOptions.forEach(function(roleOption) { %>
+                                                <li>
+                                                    <strong><%= roleOption.label %>:</strong>
+                                                    <%= currentCaptainAssignments[roleOption.value] ? currentCaptainAssignments[roleOption.value].name : 'Unassigned' %>
+                                                </li>
+                                            <% }); %>
+                                        </ul>
+                                    </div>
+                                    <form action="/manage-team/managers/captain" method="POST" class="text-left" style="margin-bottom: 18px;">
+                                        <div class="mb-3">
+                                            <label class="form-label">Captain role assignment</label>
+                                            <select name="managerUserId" class="form-control" required style="margin-bottom: 10px;">
+                                                <option value="">Select a manager</option>
+                                                <% teamManagers.forEach(function(manager) { %>
+                                                    <option value="<%= manager._id %>"><%= manager.name %></option>
+                                                <% }); %>
+                                            </select>
+                                            <select name="captainRole" class="form-control">
+                                                <option value="">Select a role</option>
+                                                <% captainRoleOptions.forEach(function(roleOption) { %>
+                                                    <option value="<%= roleOption.value %>"><%= roleOption.label %></option>
+                                                <% }); %>
+                                                <option value="">Clear role</option>
+                                            </select>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary btn-block" style="width: 100%;">
+                                            <i class="fa-solid fa-star"></i> Save Role
+                                        </button>
+                                    </form>
+                                <% } %>
+
+                                <% if (teamManagers && teamManagers.length > 0) { %>
+                                    <ul style="list-style: none; padding: 0; margin: 0 0 22px 0;">
+                                        <% teamManagers.forEach(function(manager) { %>
+                                            <li class="manager-card" style="position: relative; margin-bottom: 10px; padding: 12px 14px 20px 14px; padding-right: 56px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--surface); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                                                <div class="manager-card-main">
+                                                    <strong><%= manager.name %></strong>
+                                                    <% if (manager.primary) { %>
+                                                        <span class="status-pill" style="background: #fee2e2; color: #b91c1c; margin-left: 8px;"><i class="fa-solid fa-star" style="margin-right:4px;"></i>Primary</span>
+                                                    <% } %>
+                                                    <% const managerCaptainRole = normalizeCaptainRole(manager.role); %>
+                                                    <% if (managerCaptainRole) { %>
+                                                        <span class="status-pill" style="background: #ede9fe; color: #7c3aed; margin-left: 8px;"><%= formatCaptainRole(managerCaptainRole) %></span>
+                                                    <% } %>
+                                                </div>
+                                                <% const isSelf = (user && manager && String(manager._id) === String(user._id)); %>
+                                                <% const hasAction = isPrimary || isSelf || isCaptain; %>
+                                                <% if (hasAction) { %>
+                                                    <details class="manager-actions-dropdown">
+                                                        <summary aria-label="Toggle manager actions" role="button"><span aria-hidden="true">▾</span></summary>
+                                                        <div class="actions-menu">
+                                                            <% if (isPrimary) { %>
+                                                                <form action="/manage-team/managers/captain" method="POST">
+                                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                                    <input type="hidden" name="captainRole" value="captain" />
+                                                                    <button type="submit" class="btn btn-tertiary action-button">
+                                                                        Set as Captain
+                                                                    </button>
+                                                                </form>
+                                                                <form action="/manage-team/managers/captain" method="POST">
+                                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                                    <input type="hidden" name="captainRole" value="outreach captain" />
+                                                                    <button type="submit" class="btn btn-tertiary action-button">
+                                                                        Set as Outreach Captain
+                                                                    </button>
+                                                                </form>
+                                                                <form action="/manage-team/managers/captain" method="POST">
+                                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                                    <input type="hidden" name="captainRole" value="technical captain" />
+                                                                    <button type="submit" class="btn btn-tertiary action-button">
+                                                                        Set as Technical Captain
+                                                                    </button>
+                                                                </form>
+                                                                <form action="/manage-team/managers/captain" method="POST">
+                                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                                    <input type="hidden" name="captainRole" value="" />
+                                                                    <button type="submit" class="btn btn-tertiary action-button">
+                                                                        Clear Role
+                                                                    </button>
+                                                                </form>
+                                                            <% } %>
+                                                            <% if (!manager.primary && (isPrimary || isSelf || (isCaptain && !managerCaptainRole))) { %>
+                                                                <form action="/manage-team/managers/remove" method="POST">
+                                                                    <input type="hidden" name="managerUserId" value="<%= manager._id %>" />
+                                                                    <button type="submit" class="btn btn-tertiary action-button">Remove</button>
+                                                                </form>
+                                                            <% } %>
+                                                        </div>
+                                                    </details>
+                                                <% } %>
+                                            </li>
+                                        <% }); %>
+                                    </ul>
+                                <% } else { %>
+                                    <p class="text-muted" style="margin-bottom: 18px;">Currently only the primary contact has management access.</p>
+                                <% } %>
+                            </div>
+
+                            <div class="settings-tab-panel" data-settings-panel="admin" hidden>
+                                <div style="margin-bottom: 24px; text-align: left;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom: 12px;">
+                                        <h4 style="margin: 0; font-size: 0.9rem; font-weight: 900; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;">Pending Invitations</h4>
+                                        <% if (pendingInvitations && pendingInvitations.length > 0 && (isPrimary || isCaptain)) { %>
+                                            <form action="/manage-team/invitations/clear" method="POST" onsubmit="return confirm('Clear all pending invitations for this team?');" style="margin:0;">
+                                                <button type="submit" class="btn btn-tertiary btn-sm" style="color:#b91c1c !important; border-color:#fca5a5 !important;">
+                                                    <i class="fa-solid fa-broom"></i> Clear All
+                                                </button>
+                                            </form>
+                                        <% } %>
+                                    </div>
+                                    <% if (pendingInvitations && pendingInvitations.length > 0) { %>
+                                        <div class="pending-invite-list">
+                                            <% pendingInvitations.forEach(function(invite) { %>
+                                                <div class="pending-invite-card">
+                                                    <strong><%= invite.email %></strong>
+                                                    <p class="pending-invite-meta">
+                                                        Sent <%= invite.createdAt ? new Date(invite.createdAt).toLocaleString() : 'recently' %>
+                                                    </p>
+                                                </div>
+                                            <% }); %>
+                                        </div>
+                                    <% } else { %>
+                                        <div class="alert alert-info" style="margin: 0;">No pending invitations right now.</div>
+                                    <% } %>
+                                </div>
+
+                                <hr style="border-top: 1px solid var(--border-color); margin: 30px 24px;">
+
+                                <form action="/manage-team/invite" method="POST" class="text-left" style="margin: 0 24px 24px; text-align: left;">
+                                    <div class="mb-3">
+                                        <label class="form-label">Invite a new manager by email</label>
+                                        <input type="email" name="email" class="form-control" placeholder="Enter their email" required style="text-align: left;" />
+                                        <small class="form-text text-muted">If they don’t have an account yet, they’ll be asked to sign up with this email.</small>
+                                    </div>
+                                    <button type="submit" class="btn btn-secondary btn-block" style="width: 100%;">
+                                        <i class="fa-solid fa-envelope"></i> Send Invitation
+                                    </button>
+                                </form>
+
+                                <hr style="border-top: 1px solid var(--border-color); margin: 30px 0;">
+                                <div class="danger-zone" style="text-align: left;">
+                                    <h4 style="color: #dc2626; font-size: 0.8rem; font-weight: 800; text-transform: uppercase; margin-bottom: 5px;">Danger Zone</h4>
+                                    <p class="small text-muted" style="margin-bottom: 15px;">Deleting your team will remove it from the map and recruitment feed. This is permanent.</p>
+                                    <form action="/manage-team/delete" method="POST" onsubmit="return confirm('Are you absolutely sure you want to delete your team? This action cannot be undone.');">
+                                        <button type="submit" class="btn btn-tertiary btn-block" style="color: #dc2626 !important; border-color: #fca5a5 !important;">
+                                            <i class="fa-solid fa-trash-can"></i> Delete Team Permanently
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -971,6 +1125,28 @@
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const tabButtons = document.querySelectorAll('[data-settings-tab]');
+            const tabPanels = document.querySelectorAll('[data-settings-panel]');
+
+            function activateTab(name) {
+                tabButtons.forEach(function(button) {
+                    const isActive = button.dataset.settingsTab === name;
+                    button.classList.toggle('is-active', isActive);
+                    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                });
+                tabPanels.forEach(function(panel) {
+                    panel.hidden = panel.dataset.settingsPanel !== name;
+                });
+            }
+
+            tabButtons.forEach(function(button) {
+                button.addEventListener('click', function() {
+                    activateTab(this.dataset.settingsTab);
+                });
+            });
+
+            activateTab('managers');
+
             document.querySelectorAll('.manager-actions-dropdown').forEach(function(dropdown) {
                 dropdown.addEventListener('toggle', function() {
                     var card = dropdown.closest('.manager-card');
