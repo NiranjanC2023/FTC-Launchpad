@@ -24,7 +24,7 @@ function formatAwardHistoryDisplayEntry(entry) {
 }
 
 app.set("port", process.env.PORT || 3000);
-app.set("host", process.env.HOST || "127.0.0.1");
+app.set("host", process.env.HOST || "0.0.0.0");
 
 // Static files - serve FIRST before setting up routes/views
 app.use("/assets", express.static(path.join(__dirname, "assets")));
