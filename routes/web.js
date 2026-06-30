@@ -4,41 +4,56 @@ const mongoose = require('mongoose');
 const User = require('../models/user');
 const Team = require('../models/team');
 const ManagerInvite = require('../models/managerInvite');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const Student = require('../models/student');
 const { createNotification, normalizeEmail } = require('../lib/notifications');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER || 'evergreentechatrons.contact@gmail.com',
-        pass: process.env.EMAIL_PASS || 'iftg tyjt luey pqsc'
-    },
-    connectionTimeout: 10000, // 10 seconds
-    greetingTimeout: 10000,
-    socketTimeout: 10000
-});
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const DEFAULT_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+const DEFAULT_FROM_NAME = process.env.EMAIL_NAME || 'FTC Starter Hub';
+const DEFAULT_FROM = process.env.EMAIL_FROM || `"${DEFAULT_FROM_NAME}" <${DEFAULT_FROM_EMAIL}>`;
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
-// Check connection on startup
-transporter.verify((error) => {
-    if (error) {
-        console.error('Nodemailer Config Error (Check .env):', error.message);
-    } else {
-        console.log('Nodemailer: Server is ready to send invitation emails');
+async function sendEmail(mailOptions) {
+    if (!resend) {
+        throw new Error('Resend is not configured.');
     }
-});
+
+    const normalizedRecipients = Array.isArray(mailOptions.to)
+        ? mailOptions.to
+        : String(mailOptions.to || '')
+            .split(',')
+            .map(value => value.trim())
+            .filter(Boolean);
+
+    const result = await resend.emails.send({
+        from: mailOptions.from || DEFAULT_FROM,
+        to: normalizedRecipients,
+        subject: mailOptions.subject || '',
+        html: mailOptions.html || '',
+        text: mailOptions.text || undefined,
+        replyTo: mailOptions.replyTo || mailOptions.reply_to || undefined
+    });
+
+    if (result && result.error) {
+        throw new Error(result.error.message || 'Resend send failed.');
+    }
+
+    return result;
+}
 
 function signIn(req, user) {
     req.session.userId = user._id.toString();
 }
 
 async function getPostLoginRedirect(user) {
-    const normalizedEmail = normalizeEmail(user.email);
+    const contactQuery = buildContactEmailQuery(user.email);
     const teamAccessConditions = [
-        { contact: normalizedEmail },
+        { contact: contactQuery },
         { managers: user._id }
     ];
 
@@ -55,8 +70,66 @@ async function getPostLoginRedirect(user) {
     return '/';
 }
 
+async function getAccessibleTeamsForUser(user) {
+    if (!user) return [];
+    const contactQuery = buildContactEmailQuery(user.email);
+    const query = {
+        $or: [
+            { contact: contactQuery },
+            { managers: user._id }
+        ]
+    };
+    if (user.teamNumber) {
+        query.$or.push({ teamNumber: user.teamNumber });
+    }
+
+    const teams = await Team.find(query)
+        .sort({ updatedAt: -1, createdAt: -1, teamNumber: 1, name: 1 })
+        .lean()
+        .exec();
+
+    const enrichedTeams = [];
+    for (const team of teams) {
+        enrichedTeams.push(await enrichTeamWithApi(team));
+    }
+    return enrichedTeams.filter(Boolean);
+}
+
+function hasTeamAccess(user, team) {
+    if (!user || !team) return false;
+    const normalizedEmail = normalizeEmail(user.email);
+    return Boolean(
+        (team.contact && normalizeEmail(team.contact) === normalizedEmail)
+        || (Array.isArray(team.managers) && team.managers.some(managerId => String(managerId) === String(user._id)))
+        || (user.teamNumber && Number(user.teamNumber) === Number(team.teamNumber))
+    );
+}
+
 function createInviteToken() {
     return crypto.randomBytes(24).toString('hex');
+}
+
+function generateNewTeamNumber(seedParts) {
+    const source = Array.isArray(seedParts) ? seedParts.filter(Boolean).join('|') : String(seedParts || '');
+    const digest = crypto.createHash('sha1').update(source).digest('hex').slice(0, 10);
+    const numeric = Number.parseInt(digest, 16);
+    return Number.isFinite(numeric) ? -Math.abs(numeric) : -Date.now();
+}
+
+function hashResetToken(token) {
+    return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+function buildContactEmailQuery(email) {
+    const normalized = normalizeEmail(email);
+    const raw = String(email || '').trim();
+    const values = [...new Set([normalized, raw].filter(Boolean))];
+    if (values.length === 1) return values[0];
+    return { $in: values };
+}
+
+function getAppBaseUrl(req) {
+    return String(process.env.APP_URL || process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
 }
 
 async function acceptInviteToken(token, user) {
@@ -99,6 +172,8 @@ function anonymousAllowedPath(pathname) {
     const path = String(pathname || '/').split('?')[0];
     return path === '/'
         || path === '/login'
+        || path === '/forgot-password'
+        || path.startsWith('/reset-password')
         || path === '/signup'
         || path === '/signup/seeker'
         || path === '/signup/manager'
@@ -132,19 +207,30 @@ function getSignupInfoBackTarget(back) {
     return String(back || '').trim() === 'applications' ? 'applications' : 'account';
 }
 
-const CAPTAIN_ROLE_OPTIONS = new Map([
-    ['captain', 'Captain'],
-    ['outreach captain', 'Outreach Captain'],
-    ['technical captain', 'Technical Captain']
-]);
-
-function normalizeCaptainRole(role) {
+function normalizeManagerRole(role) {
     const value = String(role || '').trim().toLowerCase();
-    return CAPTAIN_ROLE_OPTIONS.has(value) ? value : '';
+    return value === 'manager' ? 'manager' : '';
 }
 
-function isCaptainRole(role) {
-    return Boolean(normalizeCaptainRole(role));
+function isManagerRole(role) {
+    return Boolean(normalizeManagerRole(role));
+}
+
+function getTeamManagerRole(team, userId) {
+    if (!team || !userId) return '';
+    const managerIds = Array.isArray(team.managers) ? team.managers : [];
+    const isTeamManager = managerIds.some((managerId) => String(managerId) === String(userId));
+    return isTeamManager ? 'manager' : '';
+}
+
+function setTeamManagerRole(team, userId, role) {
+    if (!team || !userId) return;
+    if (!Array.isArray(team.managers)) {
+        team.managers = [];
+    }
+    if (!team.managers.some((managerId) => String(managerId) === String(userId))) {
+        team.managers.push(userId);
+    }
 }
 
 function toNumber(value) {
@@ -171,6 +257,30 @@ function privacyOffsetCoords(lat, lon, seedParts) {
     };
 }
 
+var sortHistoryEntriesMostRecent = function(entries) {
+    const seen = new Set();
+    const normalized = Array.isArray(entries)
+        ? entries.map((entry, index) => ({
+            entry: String(entry || '').trim(),
+            year: extractHistorySortYear(entry),
+            index
+        })).filter(item => Boolean(item.entry))
+        : [];
+
+    return normalized
+        .sort((left, right) => {
+            if (left.year !== right.year) return right.year - left.year;
+            if (left.index !== right.index) return left.index - right.index;
+            return left.entry.localeCompare(right.entry);
+        })
+        .filter(item => {
+            if (seen.has(item.entry)) return false;
+            seen.add(item.entry);
+            return true;
+        })
+        .map(item => item.entry);
+};
+
 function mapTeam(team) {
     const location = team.city
         ? [team.city, team.state, team.country].filter(Boolean).join(', ')
@@ -190,12 +300,13 @@ function mapTeam(team) {
         contact: team.contact,
         lat: displayCoords.lat,
         lon: displayCoords.lon,
+        isNewTeam: Boolean(team.isNewTeam),
         notes: team.notes,
         awards: team.awards,
         awardHistory: sortHistoryEntriesMostRecent(team.awardHistory || []),
         yearsInProgram: team.yearsInProgram,
         advancementLevels: team.advancementLevels,
-        advancementHistory: team.advancementHistory,
+        advancementHistory: sortHistoryEntriesMostRecent(team.advancementHistory || []),
         recruiting: team.recruiting,
         verified: team.verified,
         radiusMeters: 1000,
@@ -211,28 +322,47 @@ function buildAddress(values) {
 }
 
 async function geocodeAddress(values) {
-    const address = buildAddress(values);
-    if (!address) return null;
+    const variants = [
+        [values.address, values.city, values.state, values.country],
+        [values.address, values.city, values.state],
+        [values.address, values.city, values.country],
+        [values.city, values.state, values.country],
+        [values.city, values.country],
+        [values.state, values.country],
+        [values.address, values.country],
+        [values.city],
+        [values.address]
+    ]
+        .map(parts => parts.map(value => (value || '').trim()).filter(Boolean).join(', '))
+        .filter(Boolean);
 
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
-    const response = await fetch(url, {
-        headers: {
-            'User-Agent': 'FTC-Starter-Hub/1.0',
-            Accept: 'application/json'
+    for (const address of variants) {
+        try {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'FTC-Starter-Hub/1.0',
+                    Accept: 'application/json'
+                }
+            });
+
+            if (!response.ok) continue;
+
+            const results = await response.json();
+            const first = Array.isArray(results) ? results[0] : null;
+            if (!first) continue;
+
+            const lat = toNumber(first.lat);
+            const lon = toNumber(first.lon);
+            if (lat === null || lon === null) continue;
+
+            return { lat, lon };
+        } catch (err) {
+            continue;
         }
-    });
+    }
 
-    if (!response.ok) return null;
-
-    const results = await response.json();
-    const first = Array.isArray(results) ? results[0] : null;
-    if (!first) return null;
-
-    const lat = toNumber(first.lat);
-    const lon = toNumber(first.lon);
-    if (lat === null || lon === null) return null;
-
-    return { lat, lon };
+    return null;
 }
 
 const PROGRAM_LABELS = {
@@ -242,13 +372,55 @@ const PROGRAM_LABELS = {
     'FLL Explore': 'FIRST LEGO League Explore'
 };
 const FTC_SCOUT_API_BASE = 'https://api.ftcscout.org/rest/v1';
+const FTC_SCOUT_GRAPHQL_ENDPOINT = 'https://api.ftcscout.org/graphql';
 const BLUE_ALLIANCE_API_BASE = 'https://www.thebluealliance.com/api/v3';
 const BLUE_ALLIANCE_AUTH_KEY = process.env.TBA_AUTH_KEY || process.env.BLUE_ALLIANCE_API_KEY || process.env.BLUE_ALLIANCE_AUTH_KEY || '';
 const teamApiDetailsCache = new Map();
+const FTC_AWARD_TYPE_LABELS = {};
 
 function normalizeProgram(program) {
     const value = String(program || '').trim();
     return PROGRAM_LABELS[value] ? value : 'FTC';
+}
+
+function isConfiguredCredential(value) {
+    return Boolean(String(value || '').trim());
+}
+
+function shouldUseTeamApi(program, teamNumber) {
+    if (!teamNumber) return false;
+    const normalizedProgram = normalizeProgram(program);
+    if (normalizedProgram === 'FTC') return true;
+    if (normalizedProgram === 'FRC') return isConfiguredCredential(BLUE_ALLIANCE_AUTH_KEY);
+    return false;
+}
+
+function extractHistorySortYear(entry) {
+    const text = String(entry || '').trim();
+    if (!text) return 0;
+
+    const matches = text.match(/(?:19|20)\d{2}/g);
+    if (!matches || !matches.length) return 0;
+
+    return Number(matches[0]) || 0;
+}
+
+function formatSeasonLabel(program, season) {
+    const value = Number(season);
+    if (!Number.isFinite(value)) return '';
+    return `${value}-${value + 1}`;
+}
+
+function extractTeamDisplayName(team) {
+    if (!team) return '';
+    return String(
+        team.team_nickname
+        || team.nickname
+        || team.name
+        || team.team_name
+        || team.teamName
+        || ''
+    ).trim();
 }
 
 function formatFtcScoutAwardType(value) {
@@ -288,14 +460,43 @@ function formatCompetitionRegionLabel(team) {
 
 function filterAdvancementValues(values) {
     return Array.isArray(values)
-        ? values.filter(value => value === 'Regional' || value === 'Worlds')
+        ? values.filter(value => value === 'Qualifier' || value === 'Regional' || value === 'Worlds')
         : [];
 }
 
 function filterAdvancementHistoryValues(values) {
     return Array.isArray(values)
-        ? values.filter(value => /^(Regional|Worlds)\b/i.test(String(value || '').trim()))
+        ? values.filter(value => /^(Qualifier|Regional|Worlds)\b/i.test(String(value || '').trim()))
         : [];
+}
+
+function formatAdvancementEventLabel(eventType) {
+    const type = String(eventType || '').trim();
+    if (!type) return '';
+    const normalized = type.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/\s+/g, ' ').trim();
+    const compact = normalized.replace(/\s+/g, '').toLowerCase();
+
+    if (compact === 'scrimmage' || compact === 'scrimages') return '';
+    if (compact === 'firstchampionship' || compact === 'worldchampionship' || compact === 'worlds') return 'Worlds';
+    if (compact === 'superqualifier' || compact === 'superqual') return 'Super Qualifier';
+    if (compact === 'leaguetournament') return 'League Tournament';
+    if (compact === 'leaguemeet') return 'League Meet';
+    if (compact === 'premier') return 'Premier';
+    if (compact === 'championship') return 'Championship';
+    if (compact === 'regional') return 'Regional';
+    if (compact === 'qualifier') return 'Qualifier';
+
+    return normalized;
+}
+
+function mapAdvancementCategory(eventType) {
+    const label = formatAdvancementEventLabel(eventType);
+    const compact = label.replace(/\s+/g, '').toLowerCase();
+    if (!compact) return null;
+    if (compact === 'worlds') return 'Worlds';
+    if (compact === 'superqualifier' || compact === 'leaguetournament' || compact === 'leaguemeet' || compact === 'qualifier') return 'Qualifier';
+    if (compact === 'premier' || compact === 'championship' || compact === 'regional') return 'Regional';
+    return null;
 }
 
 function formatTeamTenureLabel(team) {
@@ -320,23 +521,21 @@ function formatTeamTenureLabel(team) {
 function formatAwardHistoryEntry(award) {
     const awardType = formatFtcScoutAwardType(award && award.type);
     if (!awardType) return null;
+    const displayAwardType = String(awardType || '').replace(/^\s*(Winner|Finalist)\b/i, function(match, word) {
+        return word.toLowerCase() === 'winner' ? 'Winning Alliance' : 'Finalist Alliance';
+    });
     const placementLabel = formatFtcScoutPlacement(award && award.placement, awardType);
     const seasonLabel = formatScoutSeasonLabel(award && award.season);
-    return [awardType, placementLabel, seasonLabel].filter(Boolean).join(' ').trim();
+    const parts = [displayAwardType];
+    if (placementLabel) parts.push(placementLabel);
+    if (seasonLabel) parts.push(seasonLabel);
+    return parts.join(' - ').trim();
 }
 
-function mapAdvancementLevel(program, eventType) {
-    const type = String(eventType || '').trim();
-    if (type === 'Qualifier' || type === 'SuperQualifier' || type === 'LeagueTournament' || type === 'LeagueMeet') return 'Qualifier';
-    if (type === 'Championship' || type === 'Premier') return 'Regional';
-    if (type === 'FIRSTChampionship') return 'Worlds';
-    return null;
-}
-
-function formatAdvancementHistoryEntry(program, level, season) {
+function formatAdvancementHistoryEntry(level, season) {
     if (!level) return null;
-    const seasonLabel = formatSeasonLabel(program, season);
-    return `${level}${seasonLabel ? ' ' + seasonLabel : ''}`.trim();
+    const yearLabel = Number(season);
+    return Number.isFinite(yearLabel) ? `${level} - ${yearLabel}` : level;
 }
 
 function getUniqueNumericValues(values) {
@@ -367,20 +566,40 @@ async function fetchFtcScoutTeamDetails(teamNumber) {
 
     const matchParticipations = Array.isArray(team.matches) ? team.matches : [];
     const awards = Array.isArray(team.awards) ? team.awards : [];
-    const awardHistory = Array.from(new Set(awards.map(formatAwardHistoryEntry).filter(Boolean)));
+    const awardHistory = sortHistoryEntriesMostRecent(awards.map(formatAwardHistoryEntry).filter(Boolean));
     const uniqueAwardTypes = Array.from(new Set(awards.map(award => formatFtcScoutAwardType(award.type)).filter(Boolean)));
     const awardSeasons = getUniqueNumericValues(awards.map(award => award && award.season));
     const matchSeasons = getUniqueNumericValues(matchParticipations.map(participation => participation && participation.season));
     const competitionSeasons = matchSeasons.length ? matchSeasons : (awardSeasons.length ? awardSeasons : getUniqueNumericValues(team.activeSeasons));
     const advancementLevels = [];
-    const advancementHistory = [];
+    const advancementHistoryRecords = [];
 
-    matchParticipations.forEach((participation) => {
-        const level = mapAdvancementLevel(participation && participation.event ? participation.event.type : null);
+    matchParticipations.forEach((participation, index) => {
+        const eventType = participation && participation.event ? participation.event.type : null;
+        const displayLabel = formatAdvancementEventLabel(eventType);
+        const level = mapAdvancementCategory(eventType);
         if (level && !advancementLevels.includes(level)) advancementLevels.push(level);
-        const historyEntry = formatAdvancementHistoryEntry(level, participation && participation.season);
-        if (historyEntry && !advancementHistory.includes(historyEntry)) advancementHistory.push(historyEntry);
+        if (displayLabel && !advancementLevels.includes(displayLabel)) advancementLevels.push(displayLabel);
+        const historyLabel = level === 'Regional' && displayLabel === 'Championship' ? 'Regional' : (displayLabel || level);
+        const historyEntry = formatAdvancementHistoryEntry(historyLabel, participation && participation.season);
+        if (historyEntry) {
+            advancementHistoryRecords.push({
+                entry: historyEntry,
+                year: Number(participation && participation.season) || 0,
+                levelRank: level === 'Worlds' ? 3 : level === 'Regional' ? 2 : level === 'Qualifier' ? 1 : 0,
+                index
+            });
+        }
     });
+
+    const advancementHistory = advancementHistoryRecords
+        .sort((left, right) => {
+            if (left.year !== right.year) return right.year - left.year;
+            if (left.levelRank !== right.levelRank) return right.levelRank - left.levelRank;
+            return left.index - right.index;
+        })
+        .filter((item, index, list) => list.findIndex(candidate => candidate.entry === item.entry) === index)
+        .map(item => item.entry);
 
     return {
         yearsInProgram: competitionSeasons.length || null,
@@ -391,8 +610,56 @@ async function fetchFtcScoutTeamDetails(teamNumber) {
     };
 }
 
+async function fetchTeamDetailsViaApi(program, teamNumber) {
+    const normalizedProgram = normalizeProgram(program);
+    const cacheKey = `${normalizedProgram}:${Number(teamNumber)}`;
+    if (teamApiDetailsCache.has(cacheKey)) {
+        return teamApiDetailsCache.get(cacheKey);
+    }
+
+    const request = (async () => {
+        if (normalizedProgram === 'FTC') {
+            const ftcScoutDetails = await fetchFtcScoutTeamDetails(teamNumber).catch(() => null);
+            if (!ftcScoutDetails) return null;
+            return {
+                profile: { team_number: Number(teamNumber) },
+                awards: ftcScoutDetails.awards,
+                awardHistory: ftcScoutDetails.awardHistory,
+                yearsInProgram: ftcScoutDetails.yearsInProgram,
+                advancementLevels: ftcScoutDetails.advancementLevels,
+                advancementHistory: ftcScoutDetails.advancementHistory
+            };
+        }
+
+        if (normalizedProgram === 'FRC') {
+            if (!isConfiguredCredential(BLUE_ALLIANCE_AUTH_KEY)) return null;
+            const response = await fetch(`${BLUE_ALLIANCE_API_BASE}/team/frc${Number(teamNumber)}`, {
+                headers: {
+                    'X-TBA-Auth-Key': BLUE_ALLIANCE_AUTH_KEY,
+                    Accept: 'application/json'
+                }
+            });
+            if (!response.ok) return null;
+            const profile = await response.json();
+            return {
+                profile,
+                awards: null,
+                awardHistory: [],
+                yearsInProgram: null,
+                advancementLevels: [],
+                advancementHistory: []
+            };
+        }
+
+        return null;
+    })();
+
+    teamApiDetailsCache.set(cacheKey, request);
+    return request;
+}
+
 async function enrichTeamWithFtcScout(team) {
-    if (!team || !team.teamNumber) return team;
+    if (!team || !team.teamNumber || team.isNewTeam) return team;
     if (!shouldUseTeamApi(team.program || 'FTC', team.teamNumber)) return team;
 
     const apiDetails = await fetchTeamDetailsViaApi(team.program || 'FTC', team.teamNumber).catch(() => null);
@@ -408,10 +675,14 @@ async function enrichTeamWithFtcScout(team) {
         yearsInProgram: apiDetails.yearsInProgram !== null && apiDetails.yearsInProgram !== undefined
             ? apiDetails.yearsInProgram
             : team.yearsInProgram,
-            advancementLevels: ftcScoutDetails.advancementLevels && ftcScoutDetails.advancementLevels.length ? ftcScoutDetails.advancementLevels : (team.advancementLevels || []),
-            advancementHistory: ftcScoutDetails.advancementHistory && ftcScoutDetails.advancementHistory.length ? ftcScoutDetails.advancementHistory : (team.advancementHistory || [])
-        };
-        const teamTenureLabel = formatTeamTenureLabel(enrichedTeam);
+        advancementLevels: apiDetails.advancementLevels && apiDetails.advancementLevels.length
+            ? apiDetails.advancementLevels
+            : (team.advancementLevels || []),
+        advancementHistory: apiDetails.advancementHistory && apiDetails.advancementHistory.length
+            ? sortHistoryEntriesMostRecent(apiDetails.advancementHistory)
+            : sortHistoryEntriesMostRecent(team.advancementHistory || [])
+    };
+    const teamTenureLabel = formatTeamTenureLabel(enrichedTeam);
 
     const needsSave = enrichedTeam.awards !== team.awards
         || enrichedTeam.yearsInProgram !== team.yearsInProgram
@@ -435,6 +706,10 @@ async function enrichTeamWithFtcScout(team) {
     }
 
     return enrichedTeam;
+}
+
+async function enrichTeamWithApi(team) {
+    return enrichTeamWithFtcScout(team);
 }
 
 async function verifyTeamWithApi(teamNumber, program) {
@@ -468,6 +743,7 @@ async function verifyTeamWithApi(teamNumber, program) {
 // Home page
 router.get("/", function(req, res){
     let carouselImages = [];
+    let featuredTeams = [];
     try {
         const dir = path.join(__dirname, '..', 'assets', 'img', 'carousel');
         if (fs.existsSync(dir)) {
@@ -495,7 +771,41 @@ router.get("/", function(req, res){
         carouselImages = [];
     }
 
-    res.render("index", { carouselImages: carouselImages });
+    Team.find({ recruiting: true, $or: [{ verified: true }, { isNewTeam: true }] })
+        .sort({ updatedAt: -1, teamNumber: 1 })
+        .limit(3)
+        .lean()
+        .exec()
+        .then(async (teams) => {
+            const enrichedTeams = await Promise.all((Array.isArray(teams) ? teams : []).map(async (team) => {
+                if (team && team.program === 'FTC') {
+                    return enrichTeamWithFtcScout(team).catch(() => team) || team;
+                }
+                return team;
+            }));
+
+            featuredTeams = enrichedTeams.map((team) => ({
+                program: team.program || 'FTC',
+                teamNumber: team.teamNumber,
+                name: team.name,
+                location: [team.city, team.state, team.country].filter(Boolean).join(', ') || team.address || 'Location not listed',
+                notes: team.notes || '',
+                awards: team.awards || '',
+                awardHistory: sortHistoryEntriesMostRecent(team.awardHistory || []),
+                yearsInProgram: team.yearsInProgram,
+                advancementLevels: Array.isArray(team.advancementLevels) ? team.advancementLevels : [],
+                advancementHistory: sortHistoryEntriesMostRecent(team.advancementHistory || []),
+                recruiting: team.recruiting,
+                verified: team.verified,
+                isNewTeam: Boolean(team.isNewTeam)
+            }));
+        })
+        .catch(() => {
+            featuredTeams = [];
+        })
+        .finally(() => {
+            res.render("index", { carouselImages: carouselImages, featuredTeams: featuredTeams });
+        });
 });
 
 
@@ -632,7 +942,7 @@ router.get("/team-org", function(req, res){
 router.get("/teams-nearby", async function(req, res){
     try {
         if (!isDatabaseConnected()) return res.render("pages/teams-nearby", { teams: [] });
-        const teams = await Team.find({ verified: true, recruiting: true })
+        const teams = await Team.find({ recruiting: true, $or: [{ verified: true }, { isNewTeam: true }] })
             .sort({ teamNumber: 1 })
             .limit(300)
             .lean()
@@ -657,13 +967,27 @@ router.get("/teams-nearby", async function(req, res){
 
         const enrichedTeams = await Promise.all(
             teams.map(async (team) => {
-                const hasOldAwardFormat = Array.isArray(team && team.awardHistory) && team.awardHistory.some(entry => !/\(.*\)/.test(String(entry || '')));
-                const hasOldAdvancementFormat = Array.isArray(team && team.advancementLevels) && team.advancementLevels.some(level => level === 'Qualifier');
-                if (team && team.program === 'FTC' && (!team.competitionRegionLabel || hasOldAwardFormat || hasOldAdvancementFormat || !team.advancementHistory || !team.advancementHistory.length)) {
-                    const enriched = await enrichTeamWithFtcScout(team).catch(() => team);
-                    return enriched || team;
-                }
-                return team;
+                if (!team || team.program !== 'FTC' || team.isNewTeam || !team.teamNumber) return team;
+
+                const apiDetails = await fetchTeamDetailsViaApi('FTC', team.teamNumber).catch(() => null);
+                if (!apiDetails) return team;
+
+                return {
+                    ...team,
+                    awards: apiDetails.awards || team.awards || '',
+                    awardHistory: apiDetails.awardHistory && apiDetails.awardHistory.length
+                        ? sortHistoryEntriesMostRecent(apiDetails.awardHistory)
+                        : sortHistoryEntriesMostRecent(team.awardHistory || []),
+                    yearsInProgram: apiDetails.yearsInProgram !== null && apiDetails.yearsInProgram !== undefined
+                        ? apiDetails.yearsInProgram
+                        : team.yearsInProgram,
+                    advancementLevels: apiDetails.advancementLevels && apiDetails.advancementLevels.length
+                        ? apiDetails.advancementLevels
+                        : (team.advancementLevels || []),
+                    advancementHistory: apiDetails.advancementHistory && apiDetails.advancementHistory.length
+                        ? sortHistoryEntriesMostRecent(apiDetails.advancementHistory)
+                        : sortHistoryEntriesMostRecent(team.advancementHistory || [])
+                };
             })
         );
 
@@ -675,7 +999,7 @@ router.get("/teams-nearby", async function(req, res){
 });
 
 router.get('/team-register', function(req, res) {
-    res.render('pages/team-register', { error: null, message: null, values: {} });
+    res.render('pages/team-register', { error: null, message: null, values: { registrationMode: 'existing' } });
 });
 
 router.post('/team-register', async function(req, res) {
@@ -686,65 +1010,84 @@ router.post('/team-register', async function(req, res) {
             return res.render('pages/team-register', { error: databaseErrorMessage(), message: null, values });
         }
 
-        const teamNumber = toNumber(values.teamNumber);
         const program = normalizeProgram(values.program);
+        const registrationMode = String(values.registrationMode || 'existing').toLowerCase() === 'new' ? 'new' : 'existing';
+        const isNewTeam = registrationMode === 'new';
         const contact = normalizeEmail(values.contact);
+        const teamNumber = isNewTeam ? null : toNumber(values.teamNumber);
         const hasLocation = Boolean([values.address, values.city].some(value => (value || '').trim()));
 
-        if (!teamNumber || !values.name || !contact || !hasLocation || !values.country) {
+        if ((!isNewTeam && !teamNumber) || !values.name || !contact || !hasLocation || !values.country) {
             return res.render('pages/team-register', {
-                error: 'Program, team number, team name, contact email, city or street, and country are required.',
+                error: isNewTeam
+                    ? 'Program, team name, contact email, address, and country are required for a new team.'
+                    : 'Program, team number, team name, contact email, address, and country are required.',
                 message: null,
                 values
             });
         }
 
-        const verification = await verifyTeamWithApi(teamNumber, program);
-        if (!verification.ok) {
-            return res.render('pages/team-register', { error: verification.error, message: null, values });
+        let verification = { ok: true, team: null, source: 'Self-reported' };
+        if (!isNewTeam) {
+            verification = await verifyTeamWithApi(teamNumber, program);
+            if (!verification.ok) {
+                return res.render('pages/team-register', { error: verification.error, message: null, values });
+            }
         }
 
         const official = verification.team;
-        const officialName = extractTeamDisplayName(official) || official.team_nickname || official.team_name_calc || official.team_name || values.name;
+        const officialName = isNewTeam
+            ? String(values.name || '').trim()
+            : (extractTeamDisplayName(official) || official.team_nickname || official.team_name_calc || official.team_name || values.name);
         const recruiting = values.recruiting === 'on';
+        const allowFllExtras = program === 'FLL Challenge' || program === 'FLL Explore';
         const coords = await geocodeAddress(values);
-        const apiTeamDetails = shouldUseTeamApi(program, teamNumber) ? await fetchTeamDetailsViaApi(program, teamNumber).catch(() => null) : null;
+        const apiTeamDetails = !isNewTeam && shouldUseTeamApi(program, teamNumber) ? await fetchTeamDetailsViaApi(program, teamNumber).catch(() => null) : null;
 
         if (!coords) {
             return res.render('pages/team-register', {
-                error: 'Could not find that city or street on the map. Check the location, state, and country.',
+                error: 'Could not find that location on the map. Try adding the city, state, and country, or use a more specific address.',
                 message: null,
                 values
             });
         }
 
+        const teamFilter = isNewTeam
+            ? { program, contact, name: officialName }
+            : { teamNumber, program };
+
+        const teamData = {
+            program,
+            ...(isNewTeam ? {} : { teamNumber }),
+            isNewTeam,
+            name: officialName,
+            contact,
+            address: values.address || values.city,
+            city: values.city,
+            state: values.state,
+            country: values.country || 'USA',
+            lat: coords.lat,
+            lon: coords.lon,
+            notes: values.notes,
+            awards: allowFllExtras
+                ? (apiTeamDetails && apiTeamDetails.awards ? apiTeamDetails.awards : values.awards)
+                : '',
+            awardHistory: apiTeamDetails && apiTeamDetails.awardHistory ? sortHistoryEntriesMostRecent(apiTeamDetails.awardHistory) : [],
+            yearsInProgram: apiTeamDetails && apiTeamDetails.yearsInProgram !== null
+                ? apiTeamDetails.yearsInProgram
+                : (allowFllExtras ? toNumber(values.yearsInProgram) : null),
+            advancementLevels: apiTeamDetails && apiTeamDetails.advancementLevels ? apiTeamDetails.advancementLevels : [],
+            advancementHistory: apiTeamDetails && apiTeamDetails.advancementHistory ? sortHistoryEntriesMostRecent(apiTeamDetails.advancementHistory) : [],
+            recruiting,
+            verified: !isNewTeam,
+            verifiedAt: isNewTeam ? null : new Date(),
+            verificationSource: isNewTeam ? 'Self-reported new team' : `${verification.source || (program === 'FRC' ? 'Blue Alliance' : 'FTC Scout')} lookup`,
+            updatedAt: new Date()
+        };
+
         const savedTeam = await Team.findOneAndUpdate(
-            { teamNumber, program },
-            {
-                program,
-                teamNumber,
-                name: officialName,
-                contact,
-                address: values.address || values.city,
-                city: values.city,
-                state: values.state,
-                country: values.country || 'USA',
-                lat: coords.lat,
-                lon: coords.lon,
-                notes: values.notes,
-                awards: apiTeamDetails && apiTeamDetails.awards ? apiTeamDetails.awards : values.awards,
-                awardHistory: apiTeamDetails && apiTeamDetails.awardHistory ? sortHistoryEntriesMostRecent(apiTeamDetails.awardHistory) : [],
-                yearsInProgram: apiTeamDetails && apiTeamDetails.yearsInProgram !== null
-                    ? apiTeamDetails.yearsInProgram
-                    : toNumber(values.yearsInProgram),
-                advancementLevels: ftcScoutDetails && ftcScoutDetails.advancementLevels ? ftcScoutDetails.advancementLevels : [],
-                advancementHistory: ftcScoutDetails && ftcScoutDetails.advancementHistory ? ftcScoutDetails.advancementHistory : [],
-                recruiting,
-                verified: true,
-                verifiedAt: new Date(),
-                verificationSource: `${verification.source || (program === 'FRC' ? 'Blue Alliance' : 'FTC Scout')} lookup`,
-                updatedAt: new Date()
-            },
+            teamFilter,
+            teamData,
             { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
         ).exec();
 
@@ -752,14 +1095,25 @@ router.post('/team-register', async function(req, res) {
             const contactUser = await User.findOne({ email: contact }).select('_id').lean().exec();
             if (contactUser && savedTeam) {
                 await Team.findByIdAndUpdate(savedTeam._id, { $addToSet: { managers: contactUser._id } }).exec();
-                await User.findByIdAndUpdate(contactUser._id, { $set: { teamNumber } }).exec();
+                if (!isNewTeam) {
+                    await User.findByIdAndUpdate(contactUser._id, { $set: { teamNumber } }).exec();
+                }
+            }
+        }
+
+        if (req.session && req.session.userId && savedTeam) {
+            await Team.findByIdAndUpdate(savedTeam._id, { $addToSet: { managers: req.session.userId } }).exec();
+            if (!isNewTeam) {
+                await User.findByIdAndUpdate(req.session.userId, { $set: { teamNumber } }).exec();
             }
         }
 
         res.render('pages/team-register', {
             error: null,
-            message: `${PROGRAM_LABELS[program]} team ${teamNumber} verified and saved. Recruiting is ${recruiting ? 'on' : 'off'}.`,
-            values: {}
+            message: isNewTeam
+                ? `${program} new team saved. It will appear on the map as a new team. Recruiting is ${recruiting ? 'on' : 'off'}.`
+                : `${PROGRAM_LABELS[program]} team ${teamNumber} verified and saved. Recruiting is ${recruiting ? 'on' : 'off'}.`,
+            values: { registrationMode: 'existing' }
         });
     } catch (err) {
         console.error('Team registration failed:', err);
@@ -770,7 +1124,7 @@ router.post('/team-register', async function(req, res) {
 // Team Management Dashboard
 router.get('/manage-team', ensureAuthenticated, async function(req, res) {
     try {
-        if (!isDatabaseConnected()) return res.render('pages/manage-team', { error: databaseErrorMessage(), pendingInvitations: [], teamTenureLabel: null });
+        if (!isDatabaseConnected()) return res.render('pages/manage-team', { error: databaseErrorMessage(), pendingInvitations: [], teamTenureLabel: null, teamOptions: [], teamSelectionOnly: false, currentTeamRole: '', teamManagers: [], recruits: [], waitlisted: [], acceptedCount: 0, waitlistCount: 0, rejectedCount: 0 });
         
         const user = await User.findById(req.session.userId).lean().exec();
         if (!user) return res.redirect('/logout');
@@ -783,6 +1137,8 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             errorMessage = 'Failed to send the invitation email. Please check your email configuration.';
         } else if (queryError === 'invite_invalid') {
             errorMessage = 'Invalid invitation email or token. Please enter a valid email address.';
+        } else if (queryError === 'invite_send_failed') {
+            errorMessage = 'The invitation was saved, but the email could not be sent. Check your Resend sender settings and try again.';
         } else if (queryError === 'invite_denied') {
             errorMessage = 'You do not have permission to invite managers for this team.';
         } else if (queryError === 'update_failed') {
@@ -818,6 +1174,10 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             successMessage = 'Manager added successfully!';
         } else if (querySuccess === 'manager_removed') {
             successMessage = 'Manager removed successfully.';
+        } else if (querySuccess === 'member_removed') {
+            successMessage = 'Member removed from the team successfully.';
+        } else if (querySuccess === 'ownership_transferred') {
+            successMessage = 'Team ownership transferred successfully.';
         } else if (querySuccess === 'status_updated') {
             successMessage = 'Status updated and email sent successfully.';
         } else if (querySuccess === 'recruitment_cleared') {
@@ -826,23 +1186,32 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             successMessage = 'Captain role updated successfully.';
         } else if (querySuccess === 'role_cleared') {
             successMessage = 'Captain role cleared successfully.';
+        } else if (querySuccess === 'role_removed') {
+            successMessage = 'Manager role removed successfully.';
+        } else if (querySuccess === 'left_team') {
+            successMessage = 'You left the team successfully.';
         } else if (querySuccess === 'pending_invitations_cleared') {
             successMessage = 'Pending invitations cleared successfully.';
         }
 
-        // Find team associated with this user.
-        // Priority:
-        // 1) team where the user is explicitly listed as a manager
-        // 2) team whose contact email matches the user's email
-        // 3) fallback: teamNumber attached to the user profile
-        const normalizedEmail = normalizeEmail(user.email);
-        const foundTeam = await Team.findOne({
-            $or: [
-                { contact: normalizedEmail },
-                { managers: user._id }
-            ]
-        }).lean().exec();
-        const team = await enrichTeamWithFtcScout(foundTeam);
+        const teamOptions = await getAccessibleTeamsForUser(user);
+        const selectedTeamId = String(req.query.team || req.session.activeTeamId || '').trim();
+        let team = selectedTeamId
+            ? teamOptions.find(option => String(option._id) === selectedTeamId) || null
+            : null;
+        const hasAccessibleTeams = teamOptions.length > 0;
+
+        if (!team && hasAccessibleTeams) {
+            team = teamOptions[0];
+        }
+
+        if (team) {
+            req.session.activeTeamId = String(team._id);
+        }
+
+        const teamTenureLabel = team ? formatTeamTenureLabel(team) : null;
+        const currentTeamRole = team ? getTeamManagerRole(team, user._id) : '';
+        const isCaptainForTeam = Boolean(currentTeamRole);
 
         let teamManagers = [];
         let pendingInvitations = [];
@@ -864,16 +1233,22 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
                 const alreadyPresent = teamManagers.some(manager => String(manager._id) === String(primaryManager._id));
                 if (!alreadyPresent) {
                     primaryManager.primary = true;
+                    primaryManager.teamRole = getTeamManagerRole(team, primaryManager._id);
                     teamManagers.unshift(primaryManager);
                 } else {
                     teamManagers = teamManagers.map(manager => {
                         if (String(manager._id) === String(primaryManager._id)) {
-                            return { ...manager, primary: true };
+                            return { ...manager, primary: true, teamRole: getTeamManagerRole(team, manager._id) };
                         }
                         return manager;
                     });
                 }
             }
+
+            teamManagers = teamManagers.map(manager => ({
+                ...manager,
+                teamRole: getTeamManagerRole(team, manager._id)
+            }));
 
             const managerEmails = new Set(
                 teamManagers
@@ -897,10 +1272,16 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         }
 
         if (!team) {
+            const teamPickerError = hasAccessibleTeams
+                ? 'Choose one of your teams below to open My Team.'
+                : 'You are not currently managing a team.';
             return res.render('pages/manage-team', {
                 user,
                 team: null,
+                teamOptions,
+                teamSelectionOnly: hasAccessibleTeams,
                 teamManagers: [],
+                currentTeamRole: '',
                 pendingInvitations: [],
                 recruits: [],
                 waitlisted: [],
@@ -908,7 +1289,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
                 waitlistCount: 0,
                 rejectedCount: 0,
                 teamTenureLabel: null,
-                error: 'You are no longer a manager on any team.',
+                error: teamPickerError,
                 success: null
             });
         }
@@ -926,7 +1307,10 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         res.render('pages/manage-team', { 
             user, 
             team, 
+            teamOptions,
+            teamSelectionOnly: false,
             teamManagers,
+            currentTeamRole,
             pendingInvitations,
             recruits,
             waitlisted,
@@ -941,7 +1325,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         console.error('Management page error:', err);
         res.render('pages/manage-team', { 
             error: 'Failed to load dashboard',
-            user: null, team: null, recruits: [], pendingInvitations: [], teamTenureLabel: null
+            user: null, team: null, teamOptions: [], teamSelectionOnly: false, currentTeamRole: '', recruits: [], pendingInvitations: [], teamTenureLabel: null
         });
     }
 });
@@ -1001,7 +1385,7 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
         const team = await Team.findOneAndUpdate(
             {
                 $or: [
-                    { contact: user.email },
+                    { contact: buildContactEmailQuery(user.email) },
                     { managers: user._id }
                 ]
             },
@@ -1016,7 +1400,7 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
         if (!team) {
             return res.render('pages/manage-team', { 
                 error: 'Team not found or you do not have permission to edit it.',
-                user, team: null, recruits: [], pendingInvitations: [] 
+                user, team: null, recruits: [], pendingInvitations: [], currentTeamRole: '', teamOptions: [], teamSelectionOnly: false, teamManagers: [], waitlisted: [], acceptedCount: 0, waitlistCount: 0, rejectedCount: 0
             });
         }
 
@@ -1037,7 +1421,7 @@ router.post('/manage-team/managers/add', ensureAuthenticated, async function(req
 
         const team = await Team.findOne({
             $or: [
-                { contact: user.email },
+                    { contact: buildContactEmailQuery(user.email) },
                 { managers: user._id }
             ]
         }).exec();
@@ -1074,7 +1458,7 @@ router.post('/manage-team/managers/remove', ensureAuthenticated, async function(
 
         const team = await Team.findOne({
             $or: [
-                { contact: user.email },
+                    { contact: buildContactEmailQuery(user.email) },
                 { managers: user._id }
             ]
         }).exec();
@@ -1096,23 +1480,23 @@ router.post('/manage-team/managers/remove', ensureAuthenticated, async function(
         const normalizedContact = normalizeEmail(team.contact);
         const targetIsPrimary = normalizeEmail(managerToRemove.email) === normalizedContact;
         const isPrimary = normalizeEmail(user.email) === normalizedContact;
-        const isCaptain = isCaptainRole(user.role);
+        const isManager = Boolean(getTeamManagerRole(team, user._id));
         const isSelf = String(managerUserId) === String(user._id);
-        const targetIsCaptain = isCaptainRole(managerToRemove.role);
 
         if (targetIsPrimary) {
             return res.redirect('/manage-team?error=manager_remove_denied');
         }
 
-        if (targetIsCaptain && !isPrimary) {
+        if (!isSelf && !isPrimary && !isManager) {
             return res.redirect('/manage-team?error=manager_remove_denied');
         }
 
-        if (!isSelf && !isPrimary && !isCaptain) {
-            return res.redirect('/manage-team?error=manager_remove_denied');
-        }
-
-        await Team.findByIdAndUpdate(team._id, { $pull: { managers: managerUserId } }).exec();
+        await Team.findByIdAndUpdate(team._id, {
+            $pull: {
+                managers: managerUserId,
+                managerRoles: { userId: managerToRemove._id }
+            }
+        }).exec();
 
         if (isSelf) {
             return res.redirect('/account?success=self_removed');
@@ -1125,7 +1509,263 @@ router.post('/manage-team/managers/remove', ensureAuthenticated, async function(
     }
 });
 
-// Update a manager's captain role
+// Remove manager role but keep the person on the team
+router.post('/manage-team/managers/remove-role', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const team = await Team.findOne({
+            $or: [
+                { contact: buildContactEmailQuery(user.email) },
+                { managers: user._id }
+            ]
+        }).exec();
+
+        if (!team) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
+        const managerUserId = req.body.managerUserId;
+        if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
+            return res.redirect('/manage-team?error=manager_remove_invalid');
+        }
+
+        const managerToRemove = await User.findById(managerUserId).lean().exec();
+        if (!managerToRemove) {
+            return res.redirect('/manage-team?error=manager_remove_invalid');
+        }
+
+        const normalizedContact = normalizeEmail(team.contact);
+        const isPrimary = normalizeEmail(user.email) === normalizedContact;
+        const isManager = Boolean(getTeamManagerRole(team, user._id));
+        const isSelf = String(managerUserId) === String(user._id);
+        const targetIsPrimary = normalizeEmail(managerToRemove.email) === normalizedContact;
+
+        if (targetIsPrimary) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
+        if (!isSelf && !isPrimary && !isManager) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
+        await Team.findByIdAndUpdate(team._id, {
+            $pull: {
+                managers: managerUserId,
+                managerRoles: { userId: managerToRemove._id }
+            },
+            updatedAt: new Date()
+        }).exec();
+
+        if (isSelf) {
+            return res.redirect('/account?success=role_removed');
+        }
+
+        res.redirect('/manage-team?success=role_cleared');
+    } catch (err) {
+        console.error('Remove manager role error:', err);
+        res.redirect('/manage-team?error=role_update_failed');
+    }
+});
+
+// Transfer team ownership to another manager/member
+router.post('/manage-team/managers/transfer-ownership', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const team = await Team.findOne({
+            $or: [
+                { contact: buildContactEmailQuery(user.email) },
+                { managers: user._id }
+            ]
+        }).exec();
+
+        if (!team) {
+            return res.redirect('/manage-team?error=role_update_denied');
+        }
+
+        const normalizedContact = normalizeEmail(team.contact);
+        const isPrimary = normalizeEmail(user.email) === normalizedContact;
+        if (!isPrimary) {
+            return res.redirect('/manage-team?error=role_update_denied');
+        }
+
+        const managerUserId = req.body.managerUserId;
+        if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
+            return res.redirect('/manage-team?error=role_update_invalid');
+        }
+
+        const targetUser = await User.findById(managerUserId).exec();
+        if (!targetUser || (team.teamNumber && Number(targetUser.teamNumber) !== Number(team.teamNumber))) {
+            return res.redirect('/manage-team?error=role_update_invalid');
+        }
+
+        team.contact = normalizeEmail(targetUser.email);
+        if (!Array.isArray(team.managers)) {
+            team.managers = [];
+        }
+        if (!team.managers.some(id => String(id) === String(targetUser._id))) {
+            team.managers.push(targetUser._id);
+        }
+        if (!Array.isArray(team.managerRoles)) {
+            team.managerRoles = [];
+        }
+        team.managerRoles = team.managerRoles.filter(entry => String(entry.userId) !== String(targetUser._id));
+        team.managerRoles.push({ userId: targetUser._id, role: 'manager' });
+        team.updatedAt = new Date();
+        await team.save();
+
+        if (team.teamNumber) {
+            await User.findByIdAndUpdate(targetUser._id, { $set: { teamNumber: team.teamNumber } }).exec();
+        }
+
+        res.redirect('/manage-team?success=ownership_transferred');
+    } catch (err) {
+        console.error('Transfer ownership error:', err);
+        res.redirect('/manage-team?error=role_update_failed');
+    }
+});
+
+// Remove a member from the team entirely
+router.post('/manage-team/managers/remove-member', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const team = await Team.findOne({
+            $or: [
+                { contact: buildContactEmailQuery(user.email) },
+                { managers: user._id }
+            ]
+        }).exec();
+
+        if (!team) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
+        const managerUserId = req.body.managerUserId;
+        if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
+            return res.redirect('/manage-team?error=manager_remove_invalid');
+        }
+
+        const memberToRemove = await User.findById(managerUserId).lean().exec();
+        if (!memberToRemove) {
+            return res.redirect('/manage-team?error=manager_remove_invalid');
+        }
+
+        const normalizedContact = normalizeEmail(team.contact);
+        const targetIsPrimary = normalizeEmail(memberToRemove.email) === normalizedContact;
+        const isPrimary = normalizeEmail(user.email) === normalizedContact;
+        const isManager = Boolean(getTeamManagerRole(team, user._id));
+        const isSelf = String(managerUserId) === String(user._id);
+
+        if (targetIsPrimary) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
+        if (!isSelf && !isPrimary && !isManager) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
+        await Team.findByIdAndUpdate(team._id, {
+            $pull: {
+                managers: managerUserId,
+                managerRoles: { userId: memberToRemove._id }
+            },
+            updatedAt: new Date()
+        }).exec();
+
+        if (team.teamNumber && Number(memberToRemove.teamNumber) === Number(team.teamNumber)) {
+            await User.findByIdAndUpdate(memberToRemove._id, { $unset: { teamNumber: "" } }).exec();
+        }
+
+        if (isSelf) {
+            return res.redirect('/account?success=removed_from_team');
+        }
+
+        res.redirect('/manage-team?success=member_removed');
+    } catch (err) {
+        console.error('Remove member error:', err);
+        res.redirect('/manage-team?error=manager_remove_failed');
+    }
+});
+
+// Leave team as the current user
+router.post('/manage-team/managers/leave-team', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const team = await Team.findOne({
+            $or: [
+                { contact: buildContactEmailQuery(user.email) },
+                { managers: user._id }
+            ]
+        }).exec();
+
+        if (!team) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
+        const isPrimary = normalizeEmail(user.email) === normalizeEmail(team.contact);
+        const isManager = Boolean(getTeamManagerRole(team, user._id));
+        if (!isPrimary && !isManager) {
+            return res.redirect('/manage-team?error=manager_remove_denied');
+        }
+
+        if (isPrimary) {
+            const remainingManagers = await User.find({
+                _id: { $in: (Array.isArray(team.managers) ? team.managers : []).filter(id => String(id) !== String(user._id)) }
+            }).sort({ createdAt: 1 }).lean().exec();
+
+            const nextOwner = remainingManagers[0];
+            if (!nextOwner) {
+                return res.redirect('/manage-team?error=manager_remove_denied');
+            }
+
+            team.contact = normalizeEmail(nextOwner.email);
+            team.managers = (Array.isArray(team.managers) ? team.managers : []).filter(id => String(id) !== String(user._id));
+            team.managerRoles = (Array.isArray(team.managerRoles) ? team.managerRoles : []).filter(entry => String(entry.userId) !== String(user._id));
+            if (!team.managers.some(id => String(id) === String(nextOwner._id))) {
+                team.managers.push(nextOwner._id);
+            }
+            team.managerRoles.push({ userId: nextOwner._id, role: 'manager' });
+            team.updatedAt = new Date();
+            await team.save();
+
+            if (team.teamNumber) {
+                await User.findByIdAndUpdate(nextOwner._id, { $set: { teamNumber: team.teamNumber } }).exec();
+            }
+        } else {
+            await Team.findByIdAndUpdate(team._id, {
+                $pull: {
+                    managers: user._id,
+                    managerRoles: { userId: user._id }
+                },
+                updatedAt: new Date()
+            }).exec();
+        }
+
+        await User.findByIdAndUpdate(user._id, { $unset: { teamNumber: "" } }).exec();
+        req.session.activeTeamId = null;
+        return res.redirect('/my-team?success=left_team');
+    } catch (err) {
+        console.error('Leave team error:', err);
+        res.redirect('/manage-team?error=manager_remove_failed');
+    }
+});
+
+// Update a manager assignment
 router.post('/manage-team/managers/captain', ensureAuthenticated, async function(req, res) {
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
@@ -1135,7 +1775,7 @@ router.post('/manage-team/managers/captain', ensureAuthenticated, async function
 
         const team = await Team.findOne({
             $or: [
-                { contact: user.email },
+                    { contact: buildContactEmailQuery(user.email) },
                 { managers: user._id }
             ]
         }).exec();
@@ -1167,29 +1807,8 @@ router.post('/manage-team/managers/captain', ensureAuthenticated, async function
             return res.redirect('/manage-team?error=role_update_invalid');
         }
 
-        const requestedRole = normalizeCaptainRole(req.body.captainRole || req.body.role);
-        if (!requestedRole) {
-            manager.role = undefined;
-            await manager.save();
-            return res.redirect('/manage-team?success=role_cleared');
-        }
-
-        const managerIds = Array.isArray(team.managers) ? team.managers.map(id => String(id)) : [];
-        if (primaryContactUser) {
-            managerIds.push(String(primaryContactUser._id));
-        }
-        const distinctRoleHolderIds = [...new Set(managerIds)];
-
-        await User.updateMany(
-            {
-                _id: { $in: distinctRoleHolderIds, $ne: manager._id },
-                role: requestedRole
-            },
-            { $unset: { role: '' } }
-        ).exec();
-
-        manager.role = requestedRole;
-        await manager.save();
+        setTeamManagerRole(team, manager._id, 'manager');
+        await team.save();
 
         res.redirect('/manage-team?success=role_updated');
     } catch (err) {
@@ -1207,7 +1826,7 @@ router.post('/manage-team/invitations/clear', ensureAuthenticated, async functio
 
         const team = await Team.findOne({
             $or: [
-                { contact: user.email },
+                    { contact: buildContactEmailQuery(user.email) },
                 { managers: user._id }
             ]
         }).lean().exec();
@@ -1218,8 +1837,8 @@ router.post('/manage-team/invitations/clear', ensureAuthenticated, async functio
 
         const normalizedContact = normalizeEmail(team.contact);
         const isPrimary = normalizeEmail(user.email) === normalizedContact;
-        const isCaptain = isCaptainRole(user.role);
-        if (!isPrimary && !isCaptain) {
+        const isManager = Boolean(getTeamManagerRole(team, user._id));
+        if (!isPrimary && !isManager) {
             return res.redirect('/manage-team?error=pending_invites_clear_denied');
         }
 
@@ -1245,7 +1864,7 @@ router.post('/manage-team/recruitment/clear', ensureAuthenticated, async functio
 
         const team = await Team.findOne({
             $or: [
-                { contact: user.email },
+                    { contact: buildContactEmailQuery(user.email) },
                 { managers: user._id }
             ]
         }).exec();
@@ -1255,8 +1874,8 @@ router.post('/manage-team/recruitment/clear', ensureAuthenticated, async functio
         }
 
         const isPrimary = normalizeEmail(user.email) === normalizeEmail(team.contact);
-        const isCaptain = isCaptainRole(user.role);
-        if (!isPrimary && !isCaptain) {
+        const isManager = Boolean(getTeamManagerRole(team, user._id));
+        if (!isPrimary && !isManager) {
             return res.redirect('/manage-team?error=manager_remove_denied');
         }
 
@@ -1285,7 +1904,7 @@ router.post('/manage-team/invite', ensureAuthenticated, async function(req, res)
 
         const team = await Team.findOne({
             $or: [
-                { contact: user.email },
+                { contact: buildContactEmailQuery(user.email) },
                 { managers: user._id }
             ]
         }).exec();
@@ -1310,7 +1929,7 @@ router.post('/manage-team/invite', ensureAuthenticated, async function(req, res)
         const inviteLink = `${baseUrl}/invite/${invite.token}`;
 
         const mailOptions = {
-            from: `"${team.name}" <${process.env.EMAIL_USER}>`,
+            from: DEFAULT_FROM,
             to: inviteEmail,
             subject: `Invitation to manage ${team.name}`,
             html: `
@@ -1324,7 +1943,6 @@ router.post('/manage-team/invite', ensureAuthenticated, async function(req, res)
             `
         };
 
-        await transporter.sendMail(mailOptions);
         await createNotification({
             recipientEmail: inviteEmail,
             type: 'manager-invite',
@@ -1333,7 +1951,14 @@ router.post('/manage-team/invite', ensureAuthenticated, async function(req, res)
             link: `/invite/${invite.token}`,
             metadata: { teamId: String(team._id), teamName: team.name }
         });
-        res.redirect('/manage-team?success=invite_sent');
+
+        try {
+            await sendEmail(mailOptions);
+            res.redirect('/manage-team?success=invite_sent');
+        } catch (mailErr) {
+            console.error('Invite email delivery failed:', mailErr);
+            res.redirect('/manage-team?error=invite_send_failed');
+        }
     } catch (err) {
         console.error('Invite send error:', err);
         res.redirect('/manage-team?error=invite_invalid');
@@ -1349,7 +1974,7 @@ router.post('/manage-team/delete', ensureAuthenticated, async function(req, res)
         if (!user) return res.redirect('/logout');
 
         // Delete the team where the contact email matches the logged-in user
-        const result = await Team.findOneAndDelete({ contact: user.email }).exec();
+        const result = await Team.findOneAndDelete({ contact: buildContactEmailQuery(user.email) }).exec();
 
         if (result) {
             // Also remove the team association from the user record
@@ -1358,7 +1983,7 @@ router.post('/manage-team/delete', ensureAuthenticated, async function(req, res)
         } else {
             res.render('pages/manage-team', { 
                 error: 'No team found associated with your account to delete.',
-                user, team: null, recruits: [], pendingInvitations: [] 
+                user, team: null, recruits: [], pendingInvitations: [], currentTeamRole: '', teamOptions: [], teamSelectionOnly: false, teamManagers: [], waitlisted: [], acceptedCount: 0, waitlistCount: 0, rejectedCount: 0
             });
         }
     } catch (err) {
@@ -1374,7 +1999,7 @@ router.get('/manage-team/contact/:recruitId', ensureAuthenticated, async functio
         const user = await User.findById(req.session.userId).lean().exec();
         const team = await Team.findOne({
             $or: [
-                { contact: user.email },
+                { contact: buildContactEmailQuery(user.email) },
                 { managers: user._id }
             ]
         }).lean().exec();
@@ -1401,7 +2026,7 @@ router.post('/manage-team/recruit/:recruitId/status', ensureAuthenticated, async
 
         const team = await Team.findOne({
             $or: [
-                { contact: user.email },
+                { contact: buildContactEmailQuery(user.email) },
                 { managers: user._id }
             ]
         }).lean().exec();
@@ -1436,7 +2061,7 @@ router.post('/manage-team/recruit/:recruitId/status', ensureAuthenticated, async
         }
 
         const mailOptions = {
-            from: `"${team.name}" <${process.env.EMAIL_USER}>`,
+            from: DEFAULT_FROM,
             replyTo: team.contact,
             to: recruit.email,
             subject,
@@ -1447,12 +2072,12 @@ router.post('/manage-team/recruit/:recruitId/status', ensureAuthenticated, async
                     ${customBlock}
                     <p style="margin-top: 20px;">If you have questions, please reply to this message at <strong>${team.contact}</strong>.</p>
                     <hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;" />
-                    <p style="font-size: 0.85rem; color: #6b7280;">Sent via FTC Starter Hub Command Center</p>
+                    <p style="font-size: 0.85rem; color: #6b7280;">Sent via FTC Starter Hub My Team</p>
                 </div>
             `
         };
 
-        await transporter.sendMail(mailOptions);
+        await sendEmail(mailOptions);
         await createNotification({
             recipientEmail: recruit.email,
             type: 'application-status',
@@ -1484,7 +2109,7 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
         const user = await User.findById(req.session.userId).lean().exec();
         const team = await Team.findOne({
             $or: [
-                { contact: user.email },
+                { contact: buildContactEmailQuery(user.email) },
                 { managers: user._id }
             ]
         }).lean().exec();
@@ -1496,7 +2121,7 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
         const location = meetingLocation || 'To be determined';
 
         const mailOptions = {
-            from: `"${team.name}" <${process.env.EMAIL_USER}>`,
+            from: DEFAULT_FROM,
             replyTo: team.contact,
             to: recruit.email,
             subject: `Invitation from ${team.program || 'FIRST'} Team ${team.teamNumber}: ${team.name}`,
@@ -1520,7 +2145,7 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
             `
         };
 
-        await transporter.sendMail(mailOptions);
+        await sendEmail(mailOptions);
         await createNotification({
             recipientEmail: recruit.email,
             type: 'team-contact',
@@ -1532,17 +2157,11 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
         console.log(`Invitation successfully sent to ${recruit.email} from ${team.name}`);
         return res.redirect('/manage-team?success=mail_sent');
     } catch (err) {
-        console.error('--- NODEMAILER ERROR ---');
+        console.error('--- RESEND ERROR ---');
         console.error('Code:', err.code);
         console.error('Response:', err.response);
-        
-        if (err.code === 'EAUTH') {
-            console.error('EMAIL ERROR: Authentication failed. Verify EMAIL_USER and EMAIL_PASS (App Password) in .env');
-        } else if (err.code === 'ESOCKET') {
-            console.error('EMAIL ERROR: Connection timeout. Check your internet connection.');
-        } else {
-            console.error('Nodemailer Send Error Detail:', err);
-        }
+        console.error('EMAIL ERROR: Unable to send through Resend. Verify RESEND_API_KEY and RESEND_FROM_EMAIL in .env.');
+        console.error('Resend Send Error Detail:', err);
         res.redirect('/manage-team?error=mail_failed');
     }
 });
@@ -1550,44 +2169,45 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
 // Member Team Page
 router.get('/my-team', ensureAuthenticated, async function(req, res) {
     try {
-        if (!isDatabaseConnected()) return res.render('pages/my-team', { error: databaseErrorMessage() });
-        
-        const user = await User.findById(req.session.userId).lean().exec();
-        if (!user || !user.teamNumber) return res.redirect('/');
+        if (!isDatabaseConnected()) return res.redirect('/manage-team');
 
-        const foundTeam = await Team.findOne({ teamNumber: user.teamNumber }).lean().exec();
-        const team = await enrichTeamWithApi(foundTeam);
-        if (!team) return res.render('pages/my-team', { error: 'Team not found', team: null });
-
-        res.render('pages/my-team', { team, user, error: null, teamTenureLabel: formatTeamTenureLabel(team) });
+        const selectedTeamId = String(req.query.team || req.session.activeTeamId || '').trim();
+        const query = selectedTeamId ? `?team=${encodeURIComponent(selectedTeamId)}` : '';
+        return res.redirect(`/manage-team${query}`);
     } catch (err) {
-        res.render('pages/my-team', { error: 'Error loading team page', team: null });
+        res.redirect('/manage-team');
     }
 });
 
 router.get('/account', ensureAuthenticated, async function(req, res) {
     try {
         if (!isDatabaseConnected()) {
-            return res.render('pages/account', { error: databaseErrorMessage(), user: null, studentProfile: null, team: null });
+            return res.render('pages/account', { error: databaseErrorMessage(), user: null, studentProfile: null, team: null, teamOptions: [] });
         }
 
         const user = await User.findById(req.session.userId).lean().exec();
         if (!user) return res.redirect('/logout');
 
-        const teamByContact = await Team.findOne({ contact: user.email }).lean().exec();
+        const teamOptions = await getAccessibleTeamsForUser(user);
+        const teamByContact = await Team.findOne({ contact: buildContactEmailQuery(user.email) }).lean().exec();
         const teamByManager = await Team.findOne({ managers: user._id }).lean().exec();
         const teamByNumber = user.teamNumber ? await Team.findOne({ teamNumber: user.teamNumber }).lean().exec() : null;
         const studentProfile = await Student.findOne({ email: user.email }).lean().exec();
+        const selectedTeam = teamOptions.find(option => String(option._id) === String(req.query.team || req.session.activeTeamId || '')) || teamOptions[0] || teamByContact || teamByNumber || teamByManager || null;
+        if (selectedTeam) {
+            req.session.activeTeamId = String(selectedTeam._id);
+        }
 
         res.render('pages/account', {
             error: null,
             user,
-            team: teamByContact || teamByNumber || teamByManager,
+            team: selectedTeam,
+            teamOptions,
             studentProfile
         });
     } catch (err) {
         console.error('Failed to load account page:', err);
-        res.render('pages/account', { error: 'Unable to load account page right now.', user: null, studentProfile: null, team: null });
+        res.render('pages/account', { error: 'Unable to load account page right now.', user: null, studentProfile: null, team: null, teamOptions: [] });
     }
 });
 
@@ -1670,18 +2290,27 @@ router.post('/signup', async function(req, res){
         const { name, email, password, age, phone, profilePicture, interests, experience, role, inviteToken } = req.body;
         const nextPath = sanitizeNextPath(req.body.next, '');
         const normalizedEmail = normalizeEmail(email);
-        if (!name || !normalizedEmail || !password) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body, inviteToken: inviteToken || null, nextPath });
+        const requiredFields = mode === 'manager'
+            ? { name, normalizedEmail, password, team: req.body.team, role, phone, profilePicture }
+            : { name, normalizedEmail, password, age, phone, profilePicture, interests, experience };
+        const hasMissingRequiredField = Object.values(requiredFields).some(value => !String(value ?? '').trim());
+        if (hasMissingRequiredField) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body, inviteToken: inviteToken || null, nextPath });
+
+        const numericAge = Number(age);
+        if (mode === 'seeker' && (!Number.isFinite(numericAge) || numericAge < 6)) {
+            return res.render(`pages/signup-${mode}`, { error: 'Please enter a valid age.', values: req.body, inviteToken: inviteToken || null, nextPath });
+        }
         const existing = await User.findOne({ email: normalizedEmail }).exec();
         if (existing) return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body, inviteToken: inviteToken || null, nextPath });
         const user = new User({
             name: name.trim(),
             email: normalizedEmail,
-            age: age ? Number(age) : undefined,
-            phone,
-            profilePicture,
-            interests,
-            experience,
-            role: role ? String(role).trim() : undefined
+            age: mode === 'seeker' ? numericAge : undefined,
+            phone: String(phone).trim(),
+            profilePicture: String(profilePicture).trim(),
+            interests: mode === 'seeker' ? String(interests).trim() : undefined,
+            experience: mode === 'seeker' ? String(experience).trim() : undefined,
+            role: String(role).trim()
         });
         await user.setPassword(password);
         await user.save();
@@ -1720,7 +2349,7 @@ router.post('/account', ensureAuthenticated, async function(req, res) {
 
         if (!updatedUser) return res.redirect('/logout');
 
-        const teamByContact = await Team.findOne({ contact: updatedUser.email }).lean().exec();
+        const teamByContact = await Team.findOne({ contact: buildContactEmailQuery(updatedUser.email) }).lean().exec();
         const teamByNumber = updatedUser.teamNumber ? await Team.findOne({ teamNumber: updatedUser.teamNumber }).lean().exec() : null;
         const studentProfile = await Student.findOne({ email: updatedUser.email }).lean().exec();
 
@@ -1867,6 +2496,188 @@ router.get('/login', function(req, res){
         inviteToken: req.query.inviteToken || null,
         nextPath: sanitizeNextPath(req.query.next, '')
     });
+});
+
+router.get('/forgot-password', function(req, res){
+    res.render('pages/forgot-password', {
+        supportEmail: SUPPORT_EMAIL,
+        error: null,
+        success: null,
+        email: ''
+    });
+});
+
+router.post('/forgot-password', async function(req, res){
+    const email = normalizeEmail(req.body && req.body.email);
+    const supportEmail = SUPPORT_EMAIL;
+
+    try {
+        if (!isDatabaseConnected()) {
+            return res.render('pages/forgot-password', {
+                supportEmail,
+                error: databaseErrorMessage(),
+                success: null,
+                email: req.body && req.body.email ? String(req.body.email) : ''
+            });
+        }
+
+        if (!email) {
+            return res.render('pages/forgot-password', {
+                supportEmail,
+                error: 'Please enter the email address on your account.',
+                success: null,
+                email: ''
+            });
+        }
+
+        const user = await User.findOne({ email }).exec();
+        if (user) {
+            const token = user.createPasswordResetToken();
+            await user.save();
+
+            const resetUrl = `${getAppBaseUrl(req)}/reset-password/${encodeURIComponent(token)}`;
+            await sendEmail({
+                from: DEFAULT_FROM,
+                to: user.email,
+                subject: 'Reset your FTC Starter Hub password',
+                html: `
+                    <div style="font-family: Arial, sans-serif; padding: 20px; color: #1f2937;">
+                        <h2 style="margin-top:0;">Password reset request</h2>
+                        <p>We received a request to reset the password for your FTC Starter Hub account.</p>
+                        <p style="margin: 22px 0;">
+                            <a href="${resetUrl}" style="display:inline-block;padding:12px 18px;background:#0b7a39;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;">Set a new password</a>
+                        </p>
+                        <p>If you did not request this, you can ignore this email.</p>
+                        <p style="font-size: 0.9rem; color: #6b7280;">This link expires in 1 hour.</p>
+                    </div>
+                `,
+                replyTo: supportEmail
+            });
+        }
+
+        return res.render('pages/forgot-password', {
+            supportEmail,
+            error: null,
+            success: 'If an account exists for that email, we sent a password reset link.',
+            email: ''
+        });
+    } catch (err) {
+        console.error('Password reset request error:', err);
+        return res.render('pages/forgot-password', {
+            supportEmail,
+            error: 'We could not process that request right now.',
+            success: null,
+            email: req.body && req.body.email ? String(req.body.email) : ''
+        });
+    }
+});
+
+router.get('/reset-password/:token', async function(req, res){
+    try {
+        if (!isDatabaseConnected()) {
+            return res.render('pages/reset-password', {
+                error: databaseErrorMessage(),
+                token: req.params.token,
+                success: null
+            });
+        }
+
+        const tokenHash = hashResetToken(req.params.token);
+        const user = await User.findOne({
+            passwordResetTokenHash: tokenHash,
+            passwordResetTokenExpiresAt: { $gt: new Date() }
+        }).exec();
+
+        if (!user) {
+            return res.render('pages/reset-password', {
+                error: 'That reset link is invalid or has expired.',
+                token: req.params.token,
+                success: null
+            });
+        }
+
+        return res.render('pages/reset-password', {
+            error: null,
+            token: req.params.token,
+            success: null
+        });
+    } catch (err) {
+        console.error('Password reset page error:', err);
+        return res.render('pages/reset-password', {
+            error: 'Unable to open the reset page right now.',
+            token: req.params.token,
+            success: null
+        });
+    }
+});
+
+router.post('/reset-password/:token', async function(req, res){
+    try {
+        if (!isDatabaseConnected()) {
+            return res.render('pages/reset-password', {
+                error: databaseErrorMessage(),
+                token: req.params.token,
+                success: null
+            });
+        }
+
+        const { password, confirmPassword } = req.body || {};
+        if (!password || !confirmPassword) {
+            return res.render('pages/reset-password', {
+                error: 'Please enter and confirm your new password.',
+                token: req.params.token,
+                success: null
+            });
+        }
+
+        if (String(password) !== String(confirmPassword)) {
+            return res.render('pages/reset-password', {
+                error: 'Passwords do not match.',
+                token: req.params.token,
+                success: null
+            });
+        }
+
+        if (String(password).length < 8) {
+            return res.render('pages/reset-password', {
+                error: 'Password must be at least 8 characters long.',
+                token: req.params.token,
+                success: null
+            });
+        }
+
+        const tokenHash = hashResetToken(req.params.token);
+        const user = await User.findOne({
+            passwordResetTokenHash: tokenHash,
+            passwordResetTokenExpiresAt: { $gt: new Date() }
+        }).exec();
+
+        if (!user) {
+            return res.render('pages/reset-password', {
+                error: 'That reset link is invalid or has expired.',
+                token: req.params.token,
+                success: null
+            });
+        }
+
+        await user.setPassword(password);
+        user.passwordResetTokenHash = undefined;
+        user.passwordResetTokenExpiresAt = undefined;
+        await user.save();
+
+        return res.render('pages/reset-password', {
+            error: null,
+            token: null,
+            success: 'Your password has been updated. You can log in now.'
+        });
+    } catch (err) {
+        console.error('Password reset submit error:', err);
+        return res.render('pages/reset-password', {
+            error: 'Unable to update your password right now.',
+            token: req.params.token,
+            success: null
+        });
+    }
 });
 
 router.get('/auth-gate', function(req, res){

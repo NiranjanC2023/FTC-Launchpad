@@ -1,0 +1,77 @@
+Resend sandbox rejected the recipient; falling back to Gmail transport.
+ReferenceError: C:\Users\parik\OneDrive\FTC-Launchpad\views\pages\manage-team.ejs:655
+    653|                             <h3><i class="fa-solid fa-user-plus"></i> Recruitment Feed</h3>
+    654|                             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+ >> 655|                                 <% if (isPrimary || isCaptain) { %>
+    656|                                     <form action="/manage-team/recruitment/clear" method="POST" onsubmit="return confirm('Clear every recruit currently shown in the recruitment feed? This testing action cannot be undone.');" style="margin:0;">
+    657|                                         <button type="submit" class="btn btn-tertiary btn-sm" style="color:#7c3aed !important; border-color:#c4b5fd !important;">
+    658|                                             <i class="fa-solid fa-broom"></i> Clear Feed
+
+isCaptain is not defined
+    at eval ("C:\\Users\\parik\\OneDrive\\FTC-Launchpad\\views\\pages\\manage-team.ejs":274:25)
+    at manage-team (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:703:17)
+    at tryHandleCache (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:274:36)
+    at exports.renderFile [as engine] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:491:10)
+    at View.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\view.js:135:8)
+    at tryRender (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:657:10)
+    at Function.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:609:3)
+    at ServerResponse.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\response.js:1049:7)
+    at C:\Users\parik\OneDrive\FTC-Launchpad\routes\web.js:1341:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+ReferenceError: C:\Users\parik\OneDrive\FTC-Launchpad\views\pages\manage-team.ejs:655
+    653|                             <h3><i class="fa-solid fa-user-plus"></i> Recruitment Feed</h3>
+    654|                             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+ >> 655|                                 <% if (isPrimary || isCaptain) { %>
+    656|                                     <form action="/manage-team/recruitment/clear" method="POST" onsubmit="return confirm('Clear every recruit currently shown in the recruitment feed? This testing action cannot be undone.');" style="margin:0;">
+    657|                                         <button type="submit" class="btn btn-tertiary btn-sm" style="color:#7c3aed !important; border-color:#c4b5fd !important;">
+    658|                                             <i class="fa-solid fa-broom"></i> Clear Feed
+
+isCaptain is not defined
+    at eval ("C:\\Users\\parik\\OneDrive\\FTC-Launchpad\\views\\pages\\manage-team.ejs":274:25)
+    at manage-team (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:703:17)
+    at tryHandleCache (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:274:36)
+    at exports.renderFile [as engine] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:491:10)
+    at View.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\view.js:135:8)
+    at tryRender (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:657:10)
+    at Function.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:609:3)
+    at ServerResponse.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\response.js:1049:7)
+    at C:\Users\parik\OneDrive\FTC-Launchpad\routes\web.js:1341:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+ReferenceError: C:\Users\parik\OneDrive\FTC-Launchpad\views\pages\manage-team.ejs:655
+    653|                             <h3><i class="fa-solid fa-user-plus"></i> Recruitment Feed</h3>
+    654|                             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+ >> 655|                                 <% if (isPrimary || isCaptain) { %>
+    656|                                     <form action="/manage-team/recruitment/clear" method="POST" onsubmit="return confirm('Clear every recruit currently shown in the recruitment feed? This testing action cannot be undone.');" style="margin:0;">
+    657|                                         <button type="submit" class="btn btn-tertiary btn-sm" style="color:#7c3aed !important; border-color:#c4b5fd !important;">
+    658|                                             <i class="fa-solid fa-broom"></i> Clear Feed
+
+isCaptain is not defined
+    at eval ("C:\\Users\\parik\\OneDrive\\FTC-Launchpad\\views\\pages\\manage-team.ejs":274:25)
+    at manage-team (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:703:17)
+    at tryHandleCache (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:274:36)
+    at exports.renderFile [as engine] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:491:10)
+    at View.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\view.js:135:8)
+    at tryRender (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:657:10)
+    at Function.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:609:3)
+    at ServerResponse.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\response.js:1049:7)
+    at C:\Users\parik\OneDrive\FTC-Launchpad\routes\web.js:1341:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+ReferenceError: C:\Users\parik\OneDrive\FTC-Launchpad\views\pages\manage-team.ejs:655
+    653|                             <h3><i class="fa-solid fa-user-plus"></i> Recruitment Feed</h3>
+    654|                             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+ >> 655|                                 <% if (isPrimary || isCaptain) { %>
+    656|                                     <form action="/manage-team/recruitment/clear" method="POST" onsubmit="return confirm('Clear every recruit currently shown in the recruitment feed? This testing action cannot be undone.');" style="margin:0;">
+    657|                                         <button type="submit" class="btn btn-tertiary btn-sm" style="color:#7c3aed !important; border-color:#c4b5fd !important;">
+    658|                                             <i class="fa-solid fa-broom"></i> Clear Feed
+
+isCaptain is not defined
+    at eval ("C:\\Users\\parik\\OneDrive\\FTC-Launchpad\\views\\pages\\manage-team.ejs":274:25)
+    at manage-team (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:703:17)
+    at tryHandleCache (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:274:36)
+    at exports.renderFile [as engine] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:491:10)
+    at View.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\view.js:135:8)
+    at tryRender (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:657:10)
+    at Function.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:609:3)
+    at ServerResponse.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\response.js:1049:7)
+    at C:\Users\parik\OneDrive\FTC-Launchpad\routes\web.js:1341:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)

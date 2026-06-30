@@ -72,13 +72,13 @@
 
   <% const studentSteps = [
 
-    { number: "01", title: "Create your profile", description: "Tell us about your interests, grade level, skills, and location to help us find the right teams." },
+    { number: "01", title: "Create your profile", description: "Share your interests, grade level, skills, and location so teams can find the right fit." },
 
-    { number: "02", title: "Browse & discover teams", description: "Filter by location, competition league, team culture, and open roles to find your fit." },
+    { number: "02", title: "Browse and discover teams", description: "Filter by location, competition league, team culture, and open roles to narrow your search." },
 
-    { number: "03", title: "Apply or reach out", description: "Send a message directly to team coaches and captains to express your interest." },
+    { number: "03", title: "Apply or reach out", description: "Send a message directly to team coaches and captains to introduce yourself and ask questions." },
 
-    { number: "04", title: "Join and compete", description: "Get onboarded, start building, and compete in your first season." }
+    { number: "04", title: "Join and compete", description: "Get onboarded, start contributing, and compete in your first season." }
 
   ]; %>
 
@@ -86,13 +86,13 @@
 
   <% const teamSteps = [
 
-    { number: "01", title: "Register your team", description: "List your team's details &mdash; league, location, open roles, and what you're looking for in students." },
+    { number: "01", title: "Register your team", description: "Add your league, location, open roles, and the kind of students your team needs." },
 
-    { number: "02", title: "Review applicants", description: "Browse student profiles who match your needs and have expressed interest in your team." },
+    { number: "02", title: "Review applicants", description: "Browse student profiles that match your needs and have already shown interest." },
 
     { number: "03", title: "Invite students", description: "Reach out to promising candidates and invite them to a tryout or info session." },
 
-    { number: "04", title: "Build your roster", description: "Fill your open spots with motivated, vetted students ready to contribute." }
+    { number: "04", title: "Build your roster", description: "Fill open spots with motivated students who are ready to contribute." }
 
   ]; %>
 
@@ -100,39 +100,13 @@
 
   <% const featuredTeams = [
 
-    { number: "1114", name: "Simbotics", location: "St. Catharines, ON", league: "FRC", members: 35, championships: 3, openRoles: ["Mechanical", "Programming"], color: "#e74c3c", description: "One of FRC's most celebrated teams, known for consistent excellence in design and strategy." },
+    { number: "1114", name: "Simbotics", logo: "SB", location: "St. Catharines, ON", league: "FRC", members: 35, championships: 3, openRoles: ["Mechanical", "Programming"], color: "#e74c3c", description: "One of FRC's most celebrated teams, known for consistent excellence in design and strategy." },
 
-    { number: "254", name: "Cheesy Poofs", location: "San Jose, CA", league: "FRC", members: 28, championships: 4, openRoles: ["Software", "CAD", "Business"], color: "#f39c12", description: "A powerhouse team with deep ties to Silicon Valley's tech community and strong mentorship culture." },
+    { number: "254", name: "Cheesy Poofs", logo: "CP", location: "San Jose, CA", league: "FRC", members: 28, championships: 4, openRoles: ["Software", "CAD", "Business"], color: "#f39c12", description: "A powerhouse team with deep ties to Silicon Valley's tech community and strong mentorship culture." },
 
-    { number: "3647", name: "Millennium Falcons", location: "Austin, TX", league: "FTC", members: 12, championships: 1, openRoles: ["Mechanical", "Drive Team", "Media"], color: "#3498db", description: "A growing FTC team built around inclusivity and hands-on learning for students of all backgrounds." }
-
-  ]; %>
-
-
-
-  <% const testimonials = [
-
-    { quote: "FIRST Start connected me to a team within a week. I had zero experience in robotics but they saw my potential and gave me a chance. Two seasons later, I'm the lead programmer.", name: "Maya T.", role: "Student &mdash; FRC Team 2056", grade: "11th Grade, Chicago, IL" },
-
-    { quote: "We used to struggle to fill our mechanical sub-team every year. Since listing on FIRST Start, we've had more qualified applicants than spots &mdash; it's completely changed how we recruit.", name: "Coach Rivera", role: "Head Coach &mdash; FTC Team 3647", grade: "Austin, TX" },
-
-    { quote: "I found three teams in my area I didn't even know existed. The filters made it so easy to find a team whose culture matched what I was looking for.", name: "Jordan K.", role: "Student &mdash; FTC Team 9082", grade: "10th Grade, Seattle, WA" }
+    { number: "3647", name: "Millennium Falcons", logo: "MF", location: "Austin, TX", league: "FTC", members: 12, championships: 1, openRoles: ["Mechanical", "Drive Team", "Media"], color: "#3498db", description: "A growing FTC team built around inclusivity and hands-on learning for students of all backgrounds." }
 
   ]; %>
-
-
-
-  <% const footerLinks = {
-
-    Students: ["Browse Teams", "How It Works", "Resources", "Blog", "FAQs"],
-
-    Teams: ["Register Your Team", "Manage Roster", "Recruit Students", "Pricing", "Team Verification"],
-
-    Company: ["About Us", "Careers", "Press Kit", "Contact", "Privacy Policy"],
-
-    Leagues: ["FIRST Robotics (FRC)", "FIRST Tech Challenge (FTC)", "VEX Robotics", "BEST Robotics", "SkillsUSA"]
-
-  }; %>
 
 
 
@@ -181,26 +155,6 @@
           </div>
 
 
-
-          <div class="hero-proof">
-
-            <div class="hero-avatars" aria-hidden="true">
-
-              <span style="--avatar-color:#6aa8ff;">A</span>
-
-              <span style="--avatar-color:#c06cff;">B</span>
-
-              <span style="--avatar-color:#ffbf45;">C</span>
-
-              <span style="--avatar-color:#ff6f91;">D</span>
-
-              <span style="--avatar-color:#19d3c5;">E</span>
-
-            </div>
-
-            <p><strong>2,400+ students</strong> matched this season</p>
-
-          </div>
 
           <div class="home-hero-mini" aria-label="How FIRST Start works">
             <div class="home-mini-card">
@@ -397,9 +351,13 @@
 
           <div class="home-path-card home-path-card-students">
 
-            <div class="pill">For Students</div>
+            <div class="path-badge-row path-badge-row-students">
+              <span class="pill">For Students</span>
+            </div>
 
             <h3>Find your team in 4 steps</h3>
+
+            <p class="path-intro">Start with a profile, then narrow your search, reach out, and join a team that matches your goals.</p>
 
             <div class="steps-list">
 
@@ -435,9 +393,13 @@
 
           <div class="home-path-card home-path-card-teams" id="for-teams">
 
-            <div class="pill pill-alt">For Teams</div>
+            <div class="path-badge-row path-badge-row-teams">
+              <span class="pill pill-alt">For Teams</span>
+            </div>
 
             <h3>Recruit top talent in 4 steps</h3>
+
+            <p class="path-intro path-intro-alt">Register your team, review applicants, invite students, and build a roster that fits your needs.</p>
 
             <div class="steps-list">
 
@@ -489,6 +451,7 @@
 
             <h2>Teams actively recruiting</h2>
 
+
           </div>
 
           <a href="/teams-nearby" class="section-link">View all teams <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></a>
@@ -497,11 +460,11 @@
 
 
 
-        <div class="home-teams-grid">
+        <div class="home-teams-grid" id="homeFeaturedTeams">
 
-          <% featuredTeams.forEach(function(team){ %>
+          <% featuredTeams.forEach(function(team, index){ %>
 
-            <article class="team-card">
+            <article class="team-card" style="--team-accent: <%= team.color %>; --team-card-index: <%= index %>">
 
               <div class="team-card-bar" style="background-color: <%= team.color %>"></div>
 
@@ -509,7 +472,10 @@
 
                 <div class="team-card-top">
 
-                  <div class="team-number" style="border-color: <%= team.color %>33; background-color: <%= team.color %>15; color: <%= team.color %>">#<%= team.number %></div>
+                  <div class="team-card-brand">
+                    <div class="team-logo-badge" style="border-color: <%= team.color %>33; background-color: <%= team.color %>12; color: <%= team.color %>"><%= team.logo || team.name.split(/\s+/).slice(0,2).map(function(word){ return word.charAt(0); }).join('') %></div>
+                    <div class="team-number" style="border-color: <%= team.color %>33; background-color: <%= team.color %>15; color: <%= team.color %>">#<%= team.number %></div>
+                  </div>
 
                   <span class="league-pill"><%= team.league %></span>
 
@@ -523,9 +489,9 @@
 
                 <div class="team-meta">
 
-                  <span><i class="fa-solid fa-users" aria-hidden="true"></i> <%= team.members %> members</span>
+                  <span><span class="team-meta-icon" aria-hidden="true"><i class="fa-solid fa-users" aria-hidden="true"></i></span> <%= team.members %> members</span>
 
-                  <span><i class="fa-solid fa-trophy" aria-hidden="true"></i> <%= team.championships %> championship<%= team.championships !== 1 ? 's' : '' %></span>
+                  <span><span class="team-meta-icon" aria-hidden="true"><i class="fa-solid fa-trophy" aria-hidden="true"></i></span> <%= team.championships %> championship<%= team.championships !== 1 ? 's' : '' %></span>
 
                 </div>
 
@@ -552,65 +518,6 @@
       </div>
 
     </section>
-
-
-
-    <section class="home-testimonials">
-
-      <div class="container">
-
-        <div class="section-heading">
-
-          <p class="section-kicker">Stories</p>
-
-          <h2>From students and coaches</h2>
-
-        </div>
-
-
-
-        <div class="home-testimonials-grid">
-
-          <% testimonials.forEach(function(testimonial, index){ %>
-
-            <article class="testimonial-card">
-
-              <div class="stars" aria-hidden="true">
-
-                <span>&#9733;</span><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span>
-
-              </div>
-
-              <p class="testimonial-quote">"<%= testimonial.quote %>"</p>
-
-              <div class="testimonial-meta">
-
-                <div class="testimonial-avatar"><%= testimonial.name.charAt(0) %></div>
-
-                <div>
-
-                  <strong><%= testimonial.name %></strong>
-
-                  <span><%= testimonial.role %></span>
-
-                  <span><%= testimonial.grade %></span>
-
-                </div>
-
-              </div>
-
-            </article>
-
-          <% }); %>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-
     <section class="home-cta">
 
       <div class="container">
@@ -645,63 +552,6 @@
 
     </div>
 
-
-
-    <footer class="site-footer home-footer">
-
-      <div class="container home-footer-grid">
-
-        <div class="home-footer-brand">
-
-          <div class="home-footer-logo">
-
-            <span>FIRST Start</span>
-
-          </div>
-
-          <p>Connecting passionate students with competitive robotics teams across the country.</p>
-
-        </div>
-
-
-
-        <% Object.entries(footerLinks).forEach(function(entry){ 
-
-          const group = entry[0];
-
-          const links = entry[1];
-
-        %>
-
-          <div class="home-footer-column">
-
-            <strong><%= group %></strong>
-
-            <ul>
-
-              <% links.forEach(function(link){ %>
-
-                <li><a href="#"><%= link %></a></li>
-
-              <% }); %>
-
-            </ul>
-
-          </div>
-
-        <% }); %>
-
-      </div>
-
-
-
-      <div class="home-footer-bottom">
-        <div class="container">
-          <p><strong>Built by Evergreen Tech-a-Trons</strong> &mdash; a student engineering team focused on accessibility and outreach for FIRST programs.</p>
-          <p>&copy; Evergreen Tech-a-Trons &mdash; All rights reserved.</p>
-        </div>
-      </div>
-    </footer>
 
   </main>
 

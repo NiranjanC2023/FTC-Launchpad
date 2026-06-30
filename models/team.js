@@ -2,10 +2,15 @@ const mongoose = require('mongoose');
 
 const TeamSchema = new mongoose.Schema({
   program: { type: String, required: true, trim: true, default: 'FTC' },
-  teamNumber: { type: Number, required: true, unique: true },
+  teamNumber: { type: Number, unique: true, sparse: true },
+  isNewTeam: { type: Boolean, default: false },
   name: { type: String, required: true },
   contact: { type: String, required: true, trim: true },
   managers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  managerRoles: [{
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    role: { type: String, trim: true }
+  }],
   address: { type: String, required: true, trim: true },
   city: { type: String, trim: true },
   state: { type: String, trim: true },

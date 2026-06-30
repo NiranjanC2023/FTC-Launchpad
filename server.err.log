@@ -1,0 +1,95 @@
+ReferenceError: C:\Users\parik\OneDrive\FTC-Launchpad\views\index.ejs:237
+    235|         </div>
+    236| 
+ >> 237|         <% if (featuredTeams && featuredTeams.length) { %>
+    238|           <div class="home-teams-grid">
+    239|             <% featuredTeams.forEach(function(team){ %>
+    240|               <article class="team-card">
+
+featuredTeams is not defined
+    at eval ("C:\\Users\\parik\\OneDrive\\FTC-Launchpad\\views\\index.ejs":34:8)
+    at index (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:703:17)
+    at tryHandleCache (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:274:36)
+    at exports.renderFile [as engine] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:491:10)
+    at View.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\view.js:135:8)
+    at tryRender (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:657:10)
+    at Function.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:609:3)
+    at ServerResponse.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\response.js:1049:7)
+    at C:\Users\parik\OneDrive\FTC-Launchpad\routes\web.js:590:9
+    at Layer.handle [as handle_request] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\router\layer.js:95:5)
+ReferenceError: C:\Users\parik\OneDrive\FTC-Launchpad\views\index.ejs:237
+    235|         </div>
+    236| 
+ >> 237|         <% if (featuredTeams && featuredTeams.length) { %>
+    238|           <div class="home-teams-grid">
+    239|             <% featuredTeams.forEach(function(team){ %>
+    240|               <article class="team-card">
+
+featuredTeams is not defined
+    at eval ("C:\\Users\\parik\\OneDrive\\FTC-Launchpad\\views\\index.ejs":34:8)
+    at index (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:703:17)
+    at tryHandleCache (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:274:36)
+    at exports.renderFile [as engine] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:491:10)
+    at View.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\view.js:135:8)
+    at tryRender (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:657:10)
+    at Function.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:609:3)
+    at ServerResponse.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\response.js:1049:7)
+    at C:\Users\parik\OneDrive\FTC-Launchpad\routes\web.js:590:9
+    at Layer.handle [as handle_request] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\router\layer.js:95:5)
+ReferenceError: C:\Users\parik\OneDrive\FTC-Launchpad\views\index.ejs:237
+    235|         </div>
+    236| 
+ >> 237|         <% if (featuredTeams && featuredTeams.length) { %>
+    238|           <div class="home-teams-grid">
+    239|             <% featuredTeams.forEach(function(team){ %>
+    240|               <article class="team-card">
+
+featuredTeams is not defined
+    at eval ("C:\\Users\\parik\\OneDrive\\FTC-Launchpad\\views\\index.ejs":34:8)
+    at index (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:703:17)
+    at tryHandleCache (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:274:36)
+    at exports.renderFile [as engine] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:491:10)
+    at View.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\view.js:135:8)
+    at tryRender (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:657:10)
+    at Function.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:609:3)
+    at ServerResponse.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\response.js:1049:7)
+    at C:\Users\parik\OneDrive\FTC-Launchpad\routes\web.js:590:9
+    at Layer.handle [as handle_request] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\router\layer.js:95:5)
+ReferenceError: C:\Users\parik\OneDrive\FTC-Launchpad\views\index.ejs:237
+    235|         </div>
+    236| 
+ >> 237|         <% const featuredTeamList = Array.isArray(featuredTeams) ? featuredTeams : []; %>
+    238|         <% if (featuredTeamList.length) { %>
+    239|           <div class="home-teams-grid">
+    240|             <% featuredTeamList.forEach(function(team){ %>
+
+featuredTeams is not defined
+    at eval ("C:\\Users\\parik\\OneDrive\\FTC-Launchpad\\views\\index.ejs":34:47)
+    at index (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:703:17)
+    at tryHandleCache (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:274:36)
+    at exports.renderFile [as engine] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:491:10)
+    at View.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\view.js:135:8)
+    at tryRender (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:657:10)
+    at Function.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:609:3)
+    at ServerResponse.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\response.js:1049:7)
+    at C:\Users\parik\OneDrive\FTC-Launchpad\routes\web.js:590:9
+    at Layer.handle [as handle_request] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\router\layer.js:95:5)
+ReferenceError: C:\Users\parik\OneDrive\FTC-Launchpad\views\index.ejs:237
+    235|         </div>
+    236| 
+ >> 237|         <% const featuredTeamList = Array.isArray(featuredTeams) ? featuredTeams : []; %>
+    238|         <% if (featuredTeamList.length) { %>
+    239|           <div class="home-teams-grid">
+    240|             <% featuredTeamList.forEach(function(team){ %>
+
+featuredTeams is not defined
+    at eval ("C:\\Users\\parik\\OneDrive\\FTC-Launchpad\\views\\index.ejs":34:47)
+    at index (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:703:17)
+    at tryHandleCache (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:274:36)
+    at exports.renderFile [as engine] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\ejs\lib\ejs.js:491:10)
+    at View.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\view.js:135:8)
+    at tryRender (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:657:10)
+    at Function.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\application.js:609:3)
+    at ServerResponse.render (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\response.js:1049:7)
+    at C:\Users\parik\OneDrive\FTC-Launchpad\routes\web.js:590:9
+    at Layer.handle [as handle_request] (C:\Users\parik\OneDrive\FTC-Launchpad\node_modules\express\lib\router\layer.js:95:5)

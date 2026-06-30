@@ -5,70 +5,102 @@
   <title>Resources - FTC Starter Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Google Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 
-  <!-- Styles -->
-  <link rel="stylesheet" href="/assets/css/main.css?v=13">
+  <link rel="stylesheet" href="/assets/css/main.css?v=20">
 </head>
 <body>
   <header></header>
 
   <main>
     <div class="container">
-      <a href="/" class="btn btn-secondary back-button">← Back Home</a>
-      
+      <a href="/" class="btn btn-secondary back-button">&larr; Back Home</a>
+
       <h1>Resources</h1>
 
       <p class="subtitle">
-        Explore resources organized by category to help your FTC team succeed.
+        Find practical guides for coding, building, fundraising, and organizing your team. Each link below includes
+        a short explanation so you can jump to the right resource faster.
       </p>
 
       <div class="resources-grid">
-        <!-- Software -->
         <div class="resource-card">
           <div class="card-icon">💻</div>
           <h2>Software</h2>
-          <p>Programming, control systems, and software development resources for your FTC team.</p>
+          <p>Learn how to write robot code, configure the controller app, and understand the FTC SDK workflow.</p>
           <ul class="resource-links">
-            <li><a href="/sdk">FTC SDK Documentation</a></li>
-            <li><a href="/programming">Basic FTC Robot Programming</a></li>
-            <li><a href="/advanced-programming">Advanced FTC Robot Programming</a></li>
-            <li><a href="/controller-setup">Robot Controller Setup</a></li>
+            <li>
+              <a href="/sdk">FTC SDK Documentation</a>
+              <span class="resource-link-note">Official Java robot libraries, setup steps, and the core classes used in FTC coding.</span>
+            </li>
+            <li>
+              <a href="/programming">Basic FTC Robot Programming</a>
+              <span class="resource-link-note">Start here if you are new to OpModes, drivetrain control, and tele-op basics.</span>
+            </li>
+            <li>
+              <a href="/advanced-programming">Advanced FTC Robot Programming</a>
+              <span class="resource-link-note">Covers better architecture, autonomous routines, and more advanced coding patterns.</span>
+            </li>
+            <li>
+              <a href="/controller-setup">Robot Controller Setup</a>
+              <span class="resource-link-note">Shows how to connect phones, pair devices, and get the control system ready to test.</span>
+            </li>
           </ul>
         </div>
 
-        <!-- Mechanical -->
         <div class="resource-card">
           <div class="card-icon">⚙️</div>
           <h2>Mechanical</h2>
-          <p>Build guides, mechanical design, and hardware resources for your robot.</p>
+          <p>Plan a robot that is sturdy, easy to repair, and realistic for your team to build and maintain.</p>
           <ul class="resource-links">
-            <li><a href="/drivetrain">Drivetrain Design</a></li>
-            <li><a href="/mechanical-parts">Mechanical Parts Guide</a></li>
-            <li><a href="/assembly">Assembly Tutorials</a></li>
-            <li><a href="/motor-selection">Motor Selection</a></li>
+            <li>
+              <a href="/drivetrain">Drivetrain Design</a>
+              <span class="resource-link-note">Compare drive styles, wheel choices, gearing, and layout ideas for a dependable base.</span>
+            </li>
+            <li>
+              <a href="/mechanical-parts">Mechanical Parts Guide</a>
+              <span class="resource-link-note">A practical overview of fasteners, structure pieces, motion parts, and common hardware.</span>
+            </li>
+            <li>
+              <a href="/assembly">Assembly Tutorials</a>
+              <span class="resource-link-note">Step-by-step build help for putting together parts cleanly and keeping the robot serviceable.</span>
+            </li>
+            <li>
+              <a href="/motor-selection">Motor Selection</a>
+              <span class="resource-link-note">Helps you choose the right motors and understand power, speed, and torque tradeoffs.</span>
+            </li>
           </ul>
         </div>
 
-        <!-- Non-Technical -->
         <div class="resource-card">
           <div class="card-icon">📋</div>
           <h2>Non-Technical</h2>
-          <p>Business, outreach, and team management resources for FTC success.</p>
+          <p>Use these guides to organize your team, explain your goals, and build support from families and sponsors.</p>
           <ul class="resource-links">
-            <li><a href="/funding">Team Funding Guide</a></li>
-            <li><a href="/sponsorship">Sponsorship Templates</a></li>
-            <li><a href="/outreach">Outreach Ideas</a></li>
-            <li><a href="/team-org">Team Organization</a></li>
+            <li>
+              <a href="/funding">Team Funding Guide</a>
+              <span class="resource-link-note">Budget planning, sponsor outreach, and ways to explain where the money will go.</span>
+            </li>
+            <li>
+              <a href="/sponsorship">Sponsorship Templates</a>
+              <span class="resource-link-note">Email and letter templates that help you ask businesses and organizations for support.</span>
+            </li>
+            <li>
+              <a href="/outreach">Outreach Ideas</a>
+              <span class="resource-link-note">Ways to recruit students, show off the team, and share FIRST with your community.</span>
+            </li>
+            <li>
+              <a href="/team-org">Team Organization</a>
+              <span class="resource-link-note">Learn how to set roles, track tasks, and keep meetings productive throughout the season.</span>
+            </li>
           </ul>
         </div>
       </div>
     </div>
   </main>
 
-  <script src="/assets/js/main.js?v=8"></script>
+  <script src="/assets/js/main.js?v=9"></script>
 </body>
 </html>

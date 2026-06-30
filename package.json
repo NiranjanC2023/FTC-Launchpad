@@ -18,7 +18,7 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --check app.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -32,8 +32,9 @@
     "express-session": "^1.18.1",
     "mongoose": "^8.10.1",
     "node.js": "^0.0.1-security",
-    "nodemailer": "^9.0.1",
-    "passport": "^0.7.0"
+    "passport": "^0.7.0",
+    "playwright-core": "^1.61.1",
+    "resend": "^6.16.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
