@@ -1437,6 +1437,57 @@ function loadSiteShells() {
         }
       });
 
+      function bindNavbarDrawer() {
+        const toggle = document.querySelector('[data-navbar-toggle]');
+        const drawer = document.querySelector('[data-navbar-collapse]');
+        if (!toggle || !drawer) return;
+
+        const mobileQuery = window.matchMedia ? window.matchMedia('(max-width: 860px)') : null;
+
+        function syncDrawerState() {
+          const isMobile = mobileQuery ? mobileQuery.matches : window.innerWidth <= 860;
+          const isOpen = drawer.classList.contains('is-open');
+
+          if (!isMobile) {
+            drawer.hidden = false;
+            drawer.classList.remove('is-open');
+            toggle.setAttribute('aria-expanded', 'false');
+            return;
+          }
+
+          drawer.hidden = !isOpen;
+          toggle.setAttribute('aria-expanded', String(isOpen));
+        }
+
+        if (!toggle.dataset.bound) {
+          toggle.dataset.bound = 'true';
+          toggle.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const isOpen = drawer.classList.contains('is-open');
+            drawer.classList.toggle('is-open', !isOpen);
+            drawer.hidden = isOpen;
+            toggle.setAttribute('aria-expanded', String(!isOpen));
+          });
+        }
+
+        if (!window.__navbarDrawerListenerBound) {
+          window.__navbarDrawerListenerBound = true;
+          document.addEventListener('click', (event) => {
+            if (!drawer.classList.contains('is-open')) return;
+            if (drawer.contains(event.target) || toggle.contains(event.target)) return;
+            drawer.classList.remove('is-open');
+            drawer.hidden = true;
+            toggle.setAttribute('aria-expanded', 'false');
+          });
+        }
+
+        window.addEventListener('resize', syncDrawerState, { passive: true });
+        syncDrawerState();
+      }
+
+      bindNavbarDrawer();
+
       // Update links and toggle visibility based on auth status
       fetch('/api/users/me')
         .then(r => r.json())

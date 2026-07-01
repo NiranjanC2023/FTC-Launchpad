@@ -1495,6 +1495,38 @@
 }
 
 @media (max-width: 640px) {
+  .home-surface {
+    margin-top: 0;
+    background-size: 34px 34px, 34px 34px;
+  }
+
+  .home-wave {
+    display: none;
+  }
+
+  .home-hero-copy h1 {
+    font-size: clamp(2.15rem, 10.2vw, 3.1rem);
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+  }
+
+  .home-hero-copy h1 span {
+    display: inline-block;
+    letter-spacing: -0.01em;
+  }
+
+  .hero-pill {
+    font-size: 0.82rem;
+    padding: 7px 12px;
+    margin-bottom: 18px;
+  }
+
+  .hero-description {
+    font-size: 0.96rem;
+    line-height: 1.65;
+    margin-top: 18px;
+  }
+
   .home-search,
   .hero-actions {
     flex-direction: column;

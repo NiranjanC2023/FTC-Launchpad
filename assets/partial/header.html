@@ -4,51 +4,57 @@
       <a class="navbar-brand" href="/" data-href="/">
         <span>Find FIRST</span>
       </a>
+      <button type="button" class="navbar-toggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="siteNavDrawer" data-navbar-toggle>
+        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+        <span class="visually-hidden">Menu</span>
+      </button>
     </div>
-    <a class="creator-badge" href="https://evergreentechatron.wixsite.com/home" target="_blank" rel="noopener noreferrer">Created By FTC 25690</a>
-    <ul class="nav navbar-nav">
-      <li><a href="/" data-href="/">Home</a></li>
-      <li><a href="/start-team" data-href="/start-team">Start Team</a></li>
-      <li><a href="/teams-nearby" data-href="/teams-nearby">Join Team</a></li>
-      <li style="display: none;"><a href="/my-applications" data-href="/my-applications">Applications</a></li>
-      <li><a href="/team-register" data-href="/team-register">Register Team</a></li>
-      <li><a href="/resources" data-href="/resources">Resources</a></li>
-      <li style="display: none;"><a href="/my-team" data-href="/my-team">My Team</a></li>
-    </ul>
-    <ul class="nav navbar-nav navbar-right">
-      <li style="display: none;"><a href="/login" data-href="/login">Log In</a></li>
-      <li style="display: none;"><a href="/signup" data-href="/signup">Sign Up</a></li>
-    </ul>
-    <div class="navbar-tools">
-      <div class="nav-user-controls">
-        <div class="inbox-menu">
-          <button type="button" class="inbox-toggle" aria-haspopup="true" aria-expanded="false" data-inbox-toggle>
-            <span class="inbox-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="presentation" focusable="false">
-                <path d="M4 5h16v9h-4l-2 3h-4l-2-3H4V5zm2 2v5h3.07l2 3h1.86l2-3H18V7H6z"></path>
-              </svg>
-            </span>
-            <span class="inbox-label">Inbox</span>
-            <span class="inbox-badge" data-inbox-count>0</span>
-          </button>
-          <div class="inbox-dropdown" data-inbox-dropdown hidden>
-            <div class="inbox-dropdown-header">
-              <span data-inbox-title>New notifications</span>
-              <span class="inbox-dropdown-count" data-inbox-count>0 new</span>
+    <div class="navbar-collapse" id="siteNavDrawer" data-navbar-collapse hidden>
+      <a class="creator-badge" href="https://evergreentechatron.wixsite.com/home" target="_blank" rel="noopener noreferrer">Created By FTC 25690</a>
+      <ul class="nav navbar-nav">
+        <li><a href="/" data-href="/">Home</a></li>
+        <li><a href="/start-team" data-href="/start-team">Start Team</a></li>
+        <li><a href="/teams-nearby" data-href="/teams-nearby">Join Team</a></li>
+        <li style="display: none;"><a href="/my-applications" data-href="/my-applications">Applications</a></li>
+        <li><a href="/team-register" data-href="/team-register">Register Team</a></li>
+        <li><a href="/resources" data-href="/resources">Resources</a></li>
+        <li style="display: none;"><a href="/my-team" data-href="/my-team">My Team</a></li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li style="display: none;"><a href="/login" data-href="/login">Log In</a></li>
+        <li style="display: none;"><a href="/signup" data-href="/signup">Sign Up</a></li>
+      </ul>
+      <div class="navbar-tools">
+        <div class="nav-user-controls">
+          <div class="inbox-menu">
+            <button type="button" class="inbox-toggle" aria-haspopup="true" aria-expanded="false" data-inbox-toggle>
+              <span class="inbox-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                  <path d="M4 5h16v9h-4l-2 3h-4l-2-3H4V5zm2 2v5h3.07l2 3h1.86l2-3H18V7H6z"></path>
+                </svg>
+              </span>
+              <span class="inbox-label">Inbox</span>
+              <span class="inbox-badge" data-inbox-count>0</span>
+            </button>
+            <div class="inbox-dropdown" data-inbox-dropdown hidden>
+              <div class="inbox-dropdown-header">
+                <span data-inbox-title>New notifications</span>
+                <span class="inbox-dropdown-count" data-inbox-count>0 new</span>
+              </div>
+              <div class="inbox-dropdown-list" data-inbox-list></div>
+              <p class="inbox-empty" data-inbox-empty>No notifications yet.</p>
             </div>
-            <div class="inbox-dropdown-list" data-inbox-list></div>
-            <p class="inbox-empty" data-inbox-empty>No notifications yet.</p>
           </div>
-        </div>
-        <div class="account-menu">
-          <button type="button" class="account-toggle" aria-haspopup="true" aria-expanded="false" data-account-toggle>
-            <span class="account-avatar" data-account-initials>U</span>
-            <span class="account-label">Account</span>
-            <span class="account-caret" aria-hidden="true">&#9662;</span>
-          </button>
-          <div class="account-dropdown" data-account-dropdown hidden>
-            <a href="/account" data-href="/account">Settings</a>
-            <a href="/logout" data-href="/logout">Sign Out</a>
+          <div class="account-menu">
+            <button type="button" class="account-toggle" aria-haspopup="true" aria-expanded="false" data-account-toggle>
+              <span class="account-avatar" data-account-initials>U</span>
+              <span class="account-label">Account</span>
+              <span class="account-caret" aria-hidden="true">&#9662;</span>
+            </button>
+            <div class="account-dropdown" data-account-dropdown hidden>
+              <a href="/account" data-href="/account">Settings</a>
+              <a href="/logout" data-href="/logout">Sign Out</a>
+            </div>
           </div>
         </div>
       </div>
