@@ -1,4 +1,4 @@
-/* Styles specific to the FIRST Start page */
+/* Styles specific to the Find FIRST page */
 .home-page {
   overflow-x: hidden;
 }
@@ -93,11 +93,12 @@
   font-size: clamp(3rem, 5.8vw, 5.6rem);
   line-height: 0.95;
   font-weight: 900;
-  letter-spacing: -0.06em;
+  letter-spacing: -0.015em;
 }
 
 .home-hero-copy h1 span {
   color: #4de182;
+  letter-spacing: 0.005em;
 }
 
 .hero-description {
