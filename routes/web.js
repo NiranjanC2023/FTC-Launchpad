@@ -2291,8 +2291,8 @@ router.post('/signup', async function(req, res){
         const nextPath = sanitizeNextPath(req.body.next, '');
         const normalizedEmail = normalizeEmail(email);
         const requiredFields = mode === 'manager'
-            ? { name, normalizedEmail, password, team: req.body.team, role, phone, profilePicture }
-            : { name, normalizedEmail, password, age, phone, profilePicture, interests, experience };
+            ? { name, normalizedEmail, password, team: req.body.team, role, phone }
+            : { name, normalizedEmail, password, age, phone, interests, experience };
         const hasMissingRequiredField = Object.values(requiredFields).some(value => !String(value ?? '').trim());
         if (hasMissingRequiredField) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body, inviteToken: inviteToken || null, nextPath });
 
@@ -2307,7 +2307,7 @@ router.post('/signup', async function(req, res){
             email: normalizedEmail,
             age: mode === 'seeker' ? numericAge : undefined,
             phone: String(phone).trim(),
-            profilePicture: String(profilePicture).trim(),
+            profilePicture: String(profilePicture || '').trim(),
             interests: mode === 'seeker' ? String(interests).trim() : undefined,
             experience: mode === 'seeker' ? String(experience).trim() : undefined,
             role: String(role).trim()
@@ -2724,4 +2724,3 @@ router.get('/logout', function(req, res){
 });
 
 module.exports = router;
-
