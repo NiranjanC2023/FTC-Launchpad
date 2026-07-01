@@ -42,6 +42,68 @@ function copyCode(button) {
   });
 }
 
+function initPageAnimations() {
+  try {
+    if (!document.body) return;
+    const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion) {
+      document.body.classList.remove('page-motion-ready');
+      return;
+    }
+
+    document.body.classList.add('page-motion-ready');
+
+    const selectors = [
+      'main > .container',
+      'main > section',
+      'main > article',
+      'main > .row',
+      '.dashboard-panel',
+      '.page-header',
+      '.card',
+      '.hero',
+      '.feature-card',
+      '.path-card',
+      '.step-card',
+      '.team-card',
+      '.recruit-card',
+      '.resource-card',
+      '.info-card',
+      '.panel',
+      '.stats-grid > *',
+      '.team-history-item',
+      '.team-compare-card',
+      '.teams-list > *',
+      '.account-section',
+      '.form-grid',
+      '.auth-card'
+    ];
+
+    const targets = Array.from(document.querySelectorAll(selectors.join(',')));
+    if (!targets.length) return;
+
+    const seen = new WeakSet();
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -4% 0px' });
+
+    targets.forEach((target, index) => {
+      if (seen.has(target)) return;
+      seen.add(target);
+      target.classList.add('reveal-on-scroll');
+      target.style.transitionDelay = `${Math.min(index, 14) * 35}ms`;
+      observer.observe(target);
+    });
+  } catch (err) {
+    // Animation is decorative only; never block page behavior if it fails.
+  }
+}
+
 // ---------- Join form + Teams pages logic ----------
 
 const STUDENT_KEY = 'studentInfo_v1';
@@ -114,6 +176,14 @@ function formatDistance(distanceKm, unitPreference) {
   };
 }
 
+function formatAwardHistoryDisplayEntry(entry) {
+  const value = String(entry || '').trim();
+  if (!value) return '';
+  return value.replace(/^\s*(Winner|Finalist)\b/i, (_, word) => (
+    word.toLowerCase() === 'winner' ? 'Winning Alliance' : 'Finalist Alliance'
+  ));
+}
+
 function distanceThresholdToKm(value, unitPreference) {
   if (!Number.isFinite(value)) return null;
   return unitPreference === 'imperial' ? value / 0.621371 : value;
@@ -128,20 +198,17 @@ function createUserLocationMarker(map, userCoords, bounds) {
     title: 'Your location',
     icon: L.divIcon({
       className: 'user-location-marker-icon',
-      html: '<span class="user-location-marker-pin" aria-hidden="true"><i class="fa-solid fa-location-dot"></i></span>',
-      iconSize: [36, 36],
-      iconAnchor: [18, 32],
-      popupAnchor: [0, -48]
+      html: `
+        <div class="user-location-marker-wrap" aria-hidden="true">
+          <span class="user-location-marker-tag">Your location</span>
+          <span class="team-zoom-notifier team-zoom-notifier--user"></span>
+        </div>
+      `,
+      iconSize: [88, 46],
+      iconAnchor: [44, 40],
+      popupAnchor: [0, -28]
     })
   }).addTo(map);
-
-  marker.bindTooltip(`<div class="user-location-tooltip-content"><span>Your location</span></div>`, {
-    permanent: true,
-    direction: 'top',
-    offset: [0, -28],
-    opacity: 1,
-    className: 'marker-label marker-label--active user-location-tooltip'
-  });
 
   if (bounds) {
     bounds.extend([userCoords.lat, userCoords.lon]);
@@ -217,6 +284,7 @@ function renderTeams(teams, userCoords) {
             <label for="teamsYearsFilter">Years in program</label>
             <select id="teamsYearsFilter" class="teams-program-filter" aria-label="Filter teams by years in program">
               <option value="all">All years</option>
+              <option value="new-team">New teams</option>
               <option value="rookie">Rookie (1-2 years)</option>
               <option value="mid">3-5 years</option>
               <option value="veteran">6+ years</option>
@@ -225,6 +293,7 @@ function renderTeams(teams, userCoords) {
             <label for="teamsAdvancementFilter">Advancement</label>
             <select id="teamsAdvancementFilter" class="teams-program-filter" aria-label="Filter teams by advancement level">
               <option value="all">All advancement</option>
+              <option value="Qualifier">Qualifiers</option>
               <option value="Regional">Regionals</option>
               <option value="Worlds">Worlds</option>
               <option value="unknown">Unknown</option>
@@ -285,10 +354,62 @@ function renderTeams(teams, userCoords) {
   function normalizeAdvancementLevel(level) {
     const value = String(level ?? '').trim().toLowerCase();
     if (!value) return '';
-    if (value.startsWith('qual')) return 'Qualifier';
-    if (value.startsWith('reg')) return 'Regional';
-    if (value.startsWith('world')) return 'Worlds';
+    if (value.includes('scrimmag')) return '';
+    if (value.startsWith('qual') || value.includes('super qualifier') || value.includes('league tournament') || value.includes('league meet')) return 'Qualifier';
+    if (value.startsWith('reg') || value.includes('premier')) return 'Regional';
+    if (value.startsWith('world') || value.includes('first championship') || value.includes('firstchampionship') || value.includes('world championship')) return 'Worlds';
+    if (value.includes('championship')) return 'Regional';
     return level;
+  }
+
+  function advancementLevelRank(level) {
+    const normalized = normalizeAdvancementLevel(level);
+    if (normalized === 'Worlds') return 3;
+    if (normalized === 'Regional') return 2;
+    if (normalized === 'Qualifier') return 1;
+    return 0;
+  }
+
+  function sortAdvancementLevels(levels) {
+    return Array.isArray(levels)
+      ? Array.from(new Set(levels.map(normalizeAdvancementLevel).filter(Boolean)))
+        .sort((left, right) => {
+          const diff = advancementLevelRank(right) - advancementLevelRank(left);
+          if (diff) return diff;
+          return String(left).localeCompare(String(right));
+        })
+      : [];
+  }
+
+  function formatAdvancementEntry(entry, levels, index) {
+    const value = String(entry ?? '').trim();
+    if (!value) return '';
+    if (/^(Qualifier|Regional|Worlds|Super Qualifier|League Tournament|League Meet|Premier|Championship)\b/i.test(value) && /\d{4}/.test(value)) {
+      return value.replace(/\s*-\s*/g, ' - ');
+    }
+    if (/^(Qualifier|Regional|Worlds|Super Qualifier|League Tournament|League Meet|Premier|Championship)\b/i.test(value)) return value;
+    if (/^(?:19|20)\d{2}$/.test(value)) {
+      const orderedLevels = sortAdvancementLevels(levels);
+      const level = orderedLevels.length ? orderedLevels[index % orderedLevels.length] : '';
+      return level ? `${level} - ${value}` : value;
+    }
+    return value;
+  }
+
+  function getAdvancementIconClass(entry) {
+    const value = normalizeAdvancementLevel(entry);
+    if (value === 'Qualifier') return 'fa-solid fa-flag';
+    if (value === 'Regional') return 'fa-solid fa-map-location-dot';
+    if (value === 'Worlds') return 'fa-solid fa-globe';
+    return 'fa-solid fa-flag-checkered';
+  }
+
+  function getAdvancementToneClass(entry) {
+    const value = normalizeAdvancementLevel(entry);
+    if (value === 'Qualifier') return 'qualifier';
+    if (value === 'Regional') return 'regional';
+    if (value === 'Worlds') return 'worlds';
+    return 'other';
   }
 
   function activateMarkerLabel(teamName) {
@@ -322,6 +443,7 @@ function renderTeams(teams, userCoords) {
         || (selectedAwards === 'has-awards' && hasAwards)
         || (selectedAwards === 'no-awards' && !hasAwards);
       const matchesYears = selectedYears === 'all'
+        || (selectedYears === 'new-team' && card.dataset.isNewTeam === 'true')
         || (selectedYears === 'unknown' && !Number.isFinite(yearsInProgram))
         || (selectedYears === 'rookie' && Number.isFinite(yearsInProgram) && yearsInProgram >= 1 && yearsInProgram <= 2)
         || (selectedYears === 'mid' && Number.isFinite(yearsInProgram) && yearsInProgram >= 3 && yearsInProgram <= 5)
@@ -513,17 +635,32 @@ function renderTeams(teams, userCoords) {
     const visibleEntries = entries.slice(0, 2);
     const hiddenEntries = entries.slice(2);
     const hasHiddenEntries = hiddenEntries.length > 0;
+    const renderEntry = (entry, hidden = false) => {
+      const displayEntry = sectionKey === 'awards' ? formatAwardHistoryDisplayEntry(entry) : entry;
+      const icon = sectionKey === 'advancement' ? getAdvancementIconClass(entry) : iconClass;
+      const toneClass = sectionKey === 'advancement' ? ` team-history-item--${getAdvancementToneClass(entry)}` : ' team-history-item--award';
+      const meta = sectionKey === 'advancement' ? normalizeAdvancementLevel(entry) : 'Award';
+      return `
+        <li class="team-history-item${toneClass}"${hidden ? ' hidden data-history-hidden="true"' : ''}>
+          <span class="team-history-entry">
+            <span class="team-history-icon" aria-hidden="true"><i class="${escapeHTML(icon)}"></i></span>
+            <span class="team-history-text">${escapeHTML(displayEntry)}</span>
+            <span class="team-history-meta">${escapeHTML(meta)}</span>
+          </span>
+        </li>
+      `;
+    };
 
     return `
       <div class="team-card-award-history team-history-section" data-history-section="${escapeHTML(sectionKey)}">
         <strong><i class="${escapeHTML(iconClass)}" aria-hidden="true"></i> ${escapeHTML(title)}</strong>
         <ul class="team-history-list">
-          ${visibleEntries.map((entry) => `<li>${escapeHTML(entry)}</li>`).join('')}
-          ${hiddenEntries.map((entry) => `<li hidden>${escapeHTML(entry)}</li>`).join('')}
+          ${visibleEntries.map((entry) => renderEntry(entry)).join('')}
+          ${hiddenEntries.map((entry) => renderEntry(entry, true)).join('')}
         </ul>
         ${hasHiddenEntries ? `
-          <button type="button" class="team-history-toggle" aria-expanded="false" aria-label="Show all ${escapeHTML(title).toLowerCase()}">
-            <span aria-hidden="true">...</span>
+          <button type="button" class="team-history-toggle" aria-expanded="false" aria-label="Show all ${escapeHTML(title).toLowerCase()}" data-history-toggle="false">
+            <span class="team-history-toggle-icon" aria-hidden="true">...</span>
           </button>
         ` : ''}
       </div>
@@ -534,7 +671,10 @@ function renderTeams(teams, userCoords) {
     const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
     const teamName = String(team.name || 'Unnamed team');
     const programLabel = String(team.program || 'FTC');
-    const teamNumber = team.teamNumber ? `${programLabel} ${team.teamNumber}` : `${programLabel} team`;
+    const isNewTeam = Boolean(team.isNewTeam);
+    const teamNumber = isNewTeam
+      ? 'New Team'
+      : (team.teamNumber ? `${programLabel} ${team.teamNumber}` : `${programLabel} team`);
     const contact = String(team.contact || 'Contact unavailable');
     const location = String(team.location || '').trim();
     const regionLabel = String(team.competitionRegionLabel || team.regionLabel || '').trim();
@@ -542,8 +682,12 @@ function renderTeams(teams, userCoords) {
     const awards = String(team.awards || '').trim();
     const awardHistory = Array.isArray(team.awardHistory) ? team.awardHistory.filter(Boolean) : [];
     const yearsInProgram = Number(team.yearsInProgram);
-    const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.filter(Boolean) : [];
+    const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.map(normalizeAdvancementLevel).filter(Boolean) : [];
     const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(Boolean) : [];
+    const advancementEntries = advancementHistory.length
+      ? advancementHistory.map((entry, index) => formatAdvancementEntry(entry, advancementLevels, index))
+      : advancementLevels;
+    const teamRequirementsText = notes || 'Add your team requirements, such as meeting schedule, grades accepted, skills needed, or application steps.';
     const distanceData = Number.isFinite(dist) ? formatDistance(dist, distanceUnitPreference) : null;
 
     const card = document.createElement('div');
@@ -551,6 +695,7 @@ function renderTeams(teams, userCoords) {
     // attach team name to the DOM card for easy lookup from marker events
     card.dataset.team = teamName;
     card.dataset.program = programLabel;
+    card.dataset.isNewTeam = isNewTeam ? 'true' : 'false';
     card.dataset.hasAwards = awards ? 'true' : 'false';
     card.dataset.yearsInProgram = Number.isFinite(yearsInProgram) ? String(yearsInProgram) : '';
     card.dataset.advancementLevels = advancementLevels.join('|');
@@ -561,7 +706,7 @@ function renderTeams(teams, userCoords) {
       <div class="team-card-head">
         <div class="team-card-heading">
           <h3 class="team-card-title">${escapeHTML(teamName)}</h3>
-          <span class="team-card-label">${escapeHTML(teamNumber)}${regionLabel ? ` · ${escapeHTML(regionLabel)}` : ''}${team.verified ? ' · verified' : ''}</span>
+          <span class="team-card-label${isNewTeam ? ' team-card-label--new-team' : ''}">${escapeHTML(teamNumber)}${regionLabel ? ` · ${escapeHTML(regionLabel)}` : ''}${isNewTeam ? ' · new team' : (team.verified ? ' · verified' : '')}</span>
         </div>
         <div class="team-card-toolbar">
           <button class="btn btn-link goto-marker team-card-icon-button" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-map-pin"></i></button>
@@ -571,16 +716,24 @@ function renderTeams(teams, userCoords) {
       <div class="team-details-content" style="margin-top: 12px; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 260ms ease, opacity 200ms ease;">
         <p class="team-card-contact">${escapeHTML(contact)}</p>
         ${(location || regionLabel) ? `<p class="team-card-meta">${escapeHTML([location, regionLabel].filter(Boolean).join(' · '))}</p>` : ''}
+        ${distanceData ? `<p class="team-distance"><span>Distance</span><strong>${distanceData.label} away</strong></p>` : ''}
         ${Number.isFinite(yearsInProgram) ? `
           <div class="team-card-stats">
-            ${Number.isFinite(yearsInProgram) ? `
-              <div class="team-card-stat">
-                <span class="team-card-stat-icon" aria-hidden="true"><i class="fa-regular fa-calendar"></i></span>
-                <span class="team-card-stat-text">${escapeHTML(String(yearsInProgram))} year${yearsInProgram === 1 ? '' : 's'} in program</span>
-              </div>
-            ` : ''}
+            <div class="team-card-stat">
+              <span class="team-card-stat-icon" aria-hidden="true">
+                <i class="${yearsInProgram === 0 ? 'fa-solid fa-seedling' : 'fa-regular fa-calendar'}"></i>
+              </span>
+              <span class="team-card-stat-text">${yearsInProgram === 0 ? 'New Team Forming' : `${escapeHTML(String(yearsInProgram))} year${yearsInProgram === 1 ? '' : 's'} in program`}</span>
+            </div>
           </div>
         ` : ''}
+        <div class="team-card-requirements">
+          <div class="team-card-requirements-head">
+            <span class="team-card-requirements-icon" aria-hidden="true"><i class="fa-solid fa-list-check"></i></span>
+            <span class="team-card-requirements-title">Team Requirements</span>
+          </div>
+          <p class="team-card-requirements-text">${escapeHTML(teamRequirementsText)}</p>
+        </div>
         ${awardHistory.length ? `
           ${renderExpandableHistorySection({
             title: 'Awards achieved',
@@ -589,16 +742,14 @@ function renderTeams(teams, userCoords) {
             sectionKey: 'awards'
           })}
         ` : ''}
-        ${advancementHistory.length ? `
+        ${advancementEntries.length ? `
           ${renderExpandableHistorySection({
-            title: 'Advancement',
+            title: 'Competition History',
             iconClass: 'fa-solid fa-flag-checkered',
-            entries: advancementHistory,
+            entries: advancementEntries,
             sectionKey: 'advancement'
           })}
         ` : ''}
-        ${notes ? `<p class="team-card-notes">${escapeHTML(notes)}</p>` : ''}
-        ${distanceData ? `<p class="team-distance"><span>Distance</span><strong>${distanceData.label} away</strong></p>` : ''}
         <div class="team-actions">
           <button class="btn btn-primary send-btn">Send My Info</button>
         </div>
@@ -634,12 +785,20 @@ function renderTeams(teams, userCoords) {
         event.stopPropagation();
         const section = button.closest('.team-history-section');
         if (!section) return;
+        const isExpanded = button.getAttribute('aria-expanded') === 'true';
+        const hiddenItems = section.querySelectorAll('li[data-history-hidden="true"]');
 
-        section.querySelectorAll('li[hidden]').forEach((item) => {
-          item.hidden = false;
+        hiddenItems.forEach((item) => {
+          item.hidden = isExpanded;
         });
-        button.hidden = true;
-        button.setAttribute('aria-expanded', 'true');
+
+        const nextExpanded = !isExpanded;
+        button.setAttribute('aria-expanded', String(nextExpanded));
+        button.setAttribute('data-history-toggle', String(nextExpanded));
+        const icon = button.querySelector('.team-history-toggle-icon');
+        if (icon) {
+          icon.textContent = nextExpanded ? '↑' : '...';
+        }
 
         if (card.classList.contains('expanded') && detailsContent) {
           requestAnimationFrame(() => {
@@ -793,6 +952,7 @@ function renderTeams(teams, userCoords) {
       
       const teamName = String(team.name || 'Unnamed team');
       const programLabel = String(team.program || 'FTC');
+      const isNewTeam = Boolean(team.isNewTeam);
       const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
       const distanceData = Number.isFinite(dist) ? formatDistance(dist, distanceUnitPreference) : null;
       const location = String(team.location || '').trim();
@@ -801,7 +961,7 @@ function renderTeams(teams, userCoords) {
       const popupContent = `
         <div style="padding: 2px 15px 15px 15px; color: #111; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; min-width: 220px; line-height: 1.4;">
       <h4 style="margin: 0 0 10px 0; font-size: 1.8em; font-weight: 900; color: #0056b3; line-height: 1.15; padding-top: 0;">${escapeHTML(teamName)}</h4>
-          ${team.teamNumber ? `<p style="margin: 0 0 6px 0; font-size: 1.1em; font-weight: 700; color: #333;">${escapeHTML(programLabel)} ${escapeHTML(team.teamNumber)}</p>` : ''}
+          ${isNewTeam ? `<p style="margin: 0 0 6px 0; font-size: 1.1em; font-weight: 700; color: #333;">New Team</p>` : (team.teamNumber ? `<p style="margin: 0 0 6px 0; font-size: 1.1em; font-weight: 700; color: #333;">${escapeHTML(programLabel)} ${escapeHTML(team.teamNumber)}</p>` : '')}
           ${location ? `<p style="margin: 0 0 10px 0; font-size: 0.95em; font-weight: 600; color: #444;">${escapeHTML(location)}</p>` : ''}
           <p style="margin: 0 0 12px 0; font-size: 0.95em; font-weight: 700; color: #0056b3;">Approximate ${escapeHTML(radiusMeters)}-meter area</p>
           <div style="margin-bottom: 12px;">
@@ -1031,6 +1191,145 @@ function initTeamsPage() {
   }
 }
 
+function hashStringToHue(input) {
+  const text = String(input || '');
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash << 5) - hash) + text.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) % 360;
+}
+
+function getTeamAccent(team) {
+  if (team && team.color) return String(team.color);
+  const hue = hashStringToHue([team && team.name, team && team.teamNumber, team && team.program].filter(Boolean).join('|'));
+  return `hsl(${hue}, 72%, 52%)`;
+}
+
+function getHomeTeamTitle(team) {
+  if (team && (team.isNewTeam || !team.teamNumber)) return 'New Team';
+  return team && team.teamNumber ? `#${team.teamNumber}` : 'Team';
+}
+
+function getHomeTeamYearsLabel(team) {
+  const years = Number(team && team.yearsInProgram);
+  if (team && (team.isNewTeam || !Number.isFinite(years) || years <= 0)) {
+    return 'New Team Forming';
+  }
+  if (Number.isFinite(years)) {
+    return `${years} year${years === 1 ? '' : 's'} in program`;
+  }
+  return 'Years not listed';
+}
+
+function getHomeTeamDescription(team) {
+  const note = String(team && team.notes ? team.notes : '').trim();
+  if (note) return note;
+  if (team && team.isNewTeam) return 'A new team forming and looking for students nearby.';
+  return 'View this recruiting team and see what they are looking for in students.';
+}
+
+function getHomeTeamBadgeLabel(team) {
+  const rawName = String(team && team.name ? team.name : '').trim();
+  if (rawName) {
+    const words = rawName.split(/\s+/).filter(Boolean);
+    const initials = words.slice(0, 2).map(word => word.charAt(0)).join('');
+    if (initials) return initials;
+  }
+  if (team && team.program) {
+    return String(team.program).trim().slice(0, 2);
+  }
+  if (team && team.teamNumber) {
+    return String(team.teamNumber).slice(0, 2);
+  }
+  return 'FT';
+}
+
+function renderHomeFeaturedTeams(teams) {
+  const grid = document.getElementById('homeFeaturedTeams');
+  if (!grid || !Array.isArray(teams) || !teams.length) return;
+
+  const distanceUnitPreference = getDistanceUnitPreference();
+  grid.innerHTML = teams.map((team) => {
+    const accent = getTeamAccent(team);
+    const location = [team.city, team.state, team.country].filter(Boolean).join(', ') || 'Location not listed';
+    const distance = Number.isFinite(team.distance) ? formatDistance(team.distance, distanceUnitPreference).label : null;
+    const numberLabel = getHomeTeamTitle(team);
+    const yearsLabel = getHomeTeamYearsLabel(team);
+    const statusLabel = team.recruiting ? 'Recruiting' : 'Not recruiting';
+    const verifiedLabel = team.verified ? 'Verified' : 'Listed';
+    const programLabel = team.program || 'FTC';
+    const description = getHomeTeamDescription(team);
+    const badgeLabel = getHomeTeamBadgeLabel(team);
+    const barStyle = `background-color: ${accent};`;
+    const numberStyle = `border-color: ${accent}33; background-color: ${accent}15; color: ${accent};`;
+    const logoStyle = `border-color: ${accent}33; background-color: ${accent}12; color: ${accent};`;
+
+    return `
+      <article class="team-card" style="--team-accent: ${accent};">
+        <div class="team-card-bar" style="${barStyle}"></div>
+        <div class="team-card-body">
+          <div class="team-card-top">
+            <div class="team-card-brand">
+              <div class="team-logo-badge" style="${logoStyle}">${escapeHTML(badgeLabel)}</div>
+              <div class="team-number" style="${numberStyle}">${escapeHTML(numberLabel)}</div>
+            </div>
+            <span class="league-pill">${escapeHTML(programLabel)}</span>
+          </div>
+          <h3>${escapeHTML(team.name || 'Team')}</h3>
+          <p class="team-location"><i class="fa-solid fa-map-pin" aria-hidden="true"></i> ${escapeHTML(location)}</p>
+          <p class="team-description">${escapeHTML(description)}</p>
+          <div class="team-meta">
+            <span><span class="team-meta-icon" aria-hidden="true"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></span> ${escapeHTML(distance ? `${distance} away` : location)}</span>
+            <span><span class="team-meta-icon" aria-hidden="true"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></span> ${escapeHTML(yearsLabel)}</span>
+          </div>
+          <div class="team-roles">
+            <span>${escapeHTML(statusLabel)}</span>
+            <span>${escapeHTML(verifiedLabel)}</span>
+            <span>${escapeHTML(team.isNewTeam ? 'New Team' : 'Established')}</span>
+          </div>
+          <a href="/teams-nearby" class="team-button">View Team &amp; Apply</a>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+function initHomeFeaturedTeams() {
+  if (!document.body.classList.contains('home-page')) return;
+  const grid = document.getElementById('homeFeaturedTeams');
+  if (!grid || !navigator.geolocation) return;
+
+  const geoOptions = { maximumAge: 60000, timeout: 3000, enableHighAccuracy: false };
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    try {
+      const response = await fetch('/api/teams', { credentials: 'same-origin' });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const allTeams = Array.isArray(payload.teams) ? payload.teams : [];
+      const userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      const recruitingTeams = allTeams.filter(team => team && typeof team.lat === 'number' && typeof team.lon === 'number' && team.recruiting);
+      const pool = recruitingTeams.length >= 3 ? recruitingTeams : allTeams.filter(team => team && typeof team.lat === 'number' && typeof team.lon === 'number');
+      const nearestTeams = pool
+        .map(team => ({
+          ...team,
+          distance: haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon)
+        }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 3);
+
+      if (nearestTeams.length) {
+        renderHomeFeaturedTeams(nearestTeams);
+      }
+    } catch (err) {
+      console.error('Failed to load nearby homepage teams:', err);
+    }
+  }, () => {
+    // Keep the server-rendered fallback if location is unavailable.
+  }, geoOptions);
+}
+
 // Signup page: toggle between seeker (join/make) and manager flows
 function initSignupForm() {
   const form = document.getElementById('signupForm');
@@ -1075,11 +1374,28 @@ function initSignupForm() {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
+  initPageAnimations();
+  loadSharedFooter();
   loadSiteShells();
   initJoinForm();
+  initHomeFeaturedTeams();
   initTeamsPage();
   initSignupForm();
 });
+
+function loadSharedFooter() {
+  if (document.querySelector('.site-footer')) return;
+  fetch('/assets/partial/footer.html')
+    .then(r => r.text())
+    .then(html => {
+      const footerContainer = document.createElement('div');
+      footerContainer.innerHTML = html;
+      document.body.appendChild(footerContainer);
+      const yearEl = document.getElementById('site-year');
+      if (yearEl) yearEl.textContent = new Date().getFullYear();
+    })
+    .catch(() => {});
+}
 
 // Load shared header/footer and Bootstrap stylesheet
 function loadSiteShells() {
@@ -1324,7 +1640,7 @@ function loadSiteShells() {
               navItem.style.display = (user && !user.hasTeam && intent !== 'manager') ? '' : 'none';
               a.setAttribute('href', user ? target : `/auth-gate?next=${encodeURIComponent(target)}&label=${encodeURIComponent((a.textContent || '').trim())}`);
             } else if (target === '/my-team') {
-              navItem.style.display = (user && user.teamNumber) ? '' : 'none';
+              navItem.style.display = (user && user.hasTeam) ? '' : 'none';
               if (user) a.setAttribute('href', target);
             } else if (gatedTargets.has(target)) {
               a.setAttribute('href', user ? target : `/auth-gate?next=${encodeURIComponent(target)}&label=${encodeURIComponent((a.textContent || '').trim())}`);
@@ -1334,16 +1650,6 @@ function loadSiteShells() {
 
       }).catch(() => {});
 
-  // load footer
-    fetch('/assets/partial/footer.html')
-    .then(r => r.text())
-    .then(html => {
-      const footerContainer = document.createElement('div');
-      footerContainer.innerHTML = html;
-      document.body.appendChild(footerContainer);
-      const yearEl = document.getElementById('site-year');
-      if (yearEl) yearEl.textContent = new Date().getFullYear();
-    }).catch(() => {});
-
     // (removed) prefix calculation — always use absolute paths for partials
 }
+

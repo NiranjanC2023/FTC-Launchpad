@@ -1,0 +1,4 @@
+Using DATABASECONNECTION: mongodb+srv://evergreentechatrons:team25690@data.zadveyu.mongodb.net/?appName=Data
+Server started at http://127.0.0.1:3000
+Nodemailer: Server is ready to send invitation emails
+MongoDB connected to database: data

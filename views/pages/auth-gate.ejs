@@ -58,7 +58,7 @@
   <main class="auth-gate">
     <div class="container">
       <div class="auth-gate-card">
-        <a href="/" class="btn btn-secondary back-button">← Back Home</a>
+        <a href="/" class="btn btn-secondary back-button">Back Home</a>
         <h1>Sign in required</h1>
         <p class="subtitle">
           <%= destinationLabel ? ('Please log in or create an account to continue to ' + destinationLabel + '.') : 'Please log in or create an account to continue.' %>
@@ -69,7 +69,7 @@
           <a class="btn btn-secondary" href="/signup?next=<%= encodeURIComponent(nextPath || '/') %>">Sign up</a>
         </div>
 
-        <p class="auth-gate-note">After you finish, we’ll send you right back to where you were headed.</p>
+        <p class="auth-gate-note">After you finish, we'll send you right back to where you were headed.</p>
       </div>
     </div>
   </main>

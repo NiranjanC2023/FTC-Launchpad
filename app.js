@@ -15,8 +15,16 @@ var setUpPassport = require("./setuppassport");
 
 var app = express();
 
+function formatAwardHistoryDisplayEntry(entry) {
+    const value = String(entry || '').trim();
+    if (!value) return '';
+    return value.replace(/^\s*(Winner|Finalist)\b/i, function(match, word) {
+        return word.toLowerCase() === 'winner' ? 'Winning Alliance' : 'Finalist Alliance';
+    });
+}
+
 app.set("port", process.env.PORT || 3000);
-app.set("host", process.env.HOST || "127.0.0.1");
+app.set("host", process.env.HOST || "0.0.0.0");
 
 // Static files - serve FIRST before setting up routes/views
 app.use("/assets", express.static(path.join(__dirname, "assets")));
@@ -24,6 +32,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
+app.locals.formatAwardHistoryDisplayEntry = formatAwardHistoryDisplayEntry;
 
 // Connect to MongoDB but don't block static pages if it fails
 console.log('Using DATABASECONNECTION:', params.DATABASECONNECTION);

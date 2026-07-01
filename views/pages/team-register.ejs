@@ -25,17 +25,37 @@
       <% } %>
 
       <form method="POST" action="/team-register" class="form-grid">
+        <% const selectedMode = values.registrationMode || 'existing'; %>
+        <% const selectedProgram = values.program || 'FTC'; %>
+        <% const showRegistrationExtras = selectedMode !== 'new' && (selectedProgram === 'FLL Challenge' || selectedProgram === 'FLL Explore'); %>
+
+        <div class="registration-choice form-grid-full">
+          <p class="registration-choice-question">Is this a new team or an existing registered team?</p>
+          <div class="registration-choice-options">
+            <label class="choice-pill">
+              <input type="radio" name="registrationMode" value="existing" <%= selectedMode === 'existing' ? 'checked' : '' %> />
+              <span>Existing team</span>
+            </label>
+            <label class="choice-pill">
+              <input type="radio" name="registrationMode" value="new" <%= selectedMode === 'new' ? 'checked' : '' %> />
+              <span>New team</span>
+            </label>
+          </div>
+          <p class="registration-choice-note">Existing teams will be verified and can use lookup-based details. New teams skip verification and show up as new teams on the map.</p>
+        </div>
+
         <label for="program">FIRST program</label>
         <select id="program" name="program" required>
-          <% const selectedProgram = values.program || 'FTC'; %>
           <option value="FTC" <%= selectedProgram === 'FTC' ? 'selected' : '' %>>FIRST Tech Challenge</option>
           <option value="FRC" <%= selectedProgram === 'FRC' ? 'selected' : '' %>>FIRST Robotics Competition</option>
           <option value="FLL Challenge" <%= selectedProgram === 'FLL Challenge' ? 'selected' : '' %>>FIRST LEGO League Challenge</option>
           <option value="FLL Explore" <%= selectedProgram === 'FLL Explore' ? 'selected' : '' %>>FIRST LEGO League Explore</option>
         </select>
 
-        <label for="teamNumber">Team number</label>
-        <input id="teamNumber" name="teamNumber" type="number" min="1" required value="<%= values.teamNumber || '' %>" />
+        <div class="registration-field-inline form-grid-full <%= selectedMode === 'new' ? 'registration-hidden' : '' %>" data-registration-field="teamNumber">
+          <label for="teamNumber">Team number</label>
+          <input id="teamNumber" name="teamNumber" type="number" min="1" <%= selectedMode === 'new' ? '' : 'required' %> value="<%= values.teamNumber || '' %>" />
+        </div>
 
         <label for="name">Team name</label>
         <input id="name" name="name" required value="<%= values.name || '' %>" />
@@ -43,8 +63,9 @@
         <label for="contact">Contact email</label>
         <input id="contact" name="contact" type="email" required value="<%= values.contact || '' %>" />
 
-        <label for="address">City or street</label>
-        <input id="address" name="address" placeholder="City, street, or meeting area" value="<%= values.address || '' %>" />
+        <label for="address">Address</label>
+        <input id="address" name="address" placeholder="Street address, meeting area, or landmark" value="<%= values.address || '' %>" />
+        <small class="text-muted form-note form-grid-full">For team privacy, the map will blur a 1000 meter area and show the location slightly off from the exact address.</small>
 
         <label for="city">City</label>
         <input id="city" name="city" value="<%= values.city || '' %>" />
@@ -66,12 +87,14 @@
         <label for="notes">Recruiting info</label>
         <textarea id="notes" name="notes" rows="4" placeholder="Meeting days, grades accepted, application link, or what students should include."><%= values.notes || '' %></textarea>
 
-        <label for="awards">Awards</label>
-        <input id="awards" name="awards" placeholder="Optional: Inspire Award, Control Award, regional finalist, etc." value="<%= values.awards || '' %>" />
+        <div class="registration-extra-grid form-grid-full <%= showRegistrationExtras ? '' : 'registration-hidden' %>" data-registration-extras>
+          <label for="awards">Awards</label>
+          <input id="awards" name="awards" placeholder="Optional: Inspire Award, Control Award, regional finalist, etc." value="<%= values.awards || '' %>" />
 
-        <label for="yearsInProgram">Years in program</label>
-        <input id="yearsInProgram" name="yearsInProgram" type="number" min="0" step="1" placeholder="Optional: 1, 3, 6..." value="<%= values.yearsInProgram || '' %>" />
-        <small class="text-muted">FTC teams can auto-fill awards and years in program from FTC Scout, and FRC teams can do the same through Blue Alliance when verified.</small>
+          <label for="yearsInProgram">Years in program</label>
+          <input id="yearsInProgram" name="yearsInProgram" type="number" min="0" step="1" placeholder="Optional: 1, 3, 6..." value="<%= values.yearsInProgram || '' %>" />
+          <small class="text-muted form-note form-grid-full">FTC teams can auto-fill awards and years in program from FTC Scout, and FRC teams can do the same through Blue Alliance when verified.</small>
+        </div>
 
         <span></span>
         <label class="checkbox-row">
@@ -86,5 +109,42 @@
   </main>
 
   <script src="/assets/js/main.js?v=9"></script>
+  <script>
+    (function() {
+      const form = document.querySelector('.form-grid');
+      if (!form) return;
+      const modeInputs = Array.from(form.querySelectorAll('input[name="registrationMode"]'));
+      const teamNumberField = form.querySelector('[data-registration-field="teamNumber"]');
+      const extrasField = form.querySelector('[data-registration-extras]');
+      const teamNumberInput = form.querySelector('#teamNumber');
+      const awardsInput = form.querySelector('#awards');
+      const yearsInput = form.querySelector('#yearsInProgram');
+      const extraInputs = [awardsInput, yearsInput].filter(Boolean);
+
+      function syncMode() {
+        const selected = modeInputs.find(input => input.checked);
+        const isNew = selected && selected.value === 'new';
+        const programValue = String(form.querySelector('#program')?.value || '').trim();
+        const showExtras = !isNew && (programValue === 'FLL Challenge' || programValue === 'FLL Explore');
+
+        if (teamNumberField) teamNumberField.classList.toggle('registration-hidden', isNew);
+        if (teamNumberInput) {
+          teamNumberInput.required = !isNew;
+          teamNumberInput.disabled = isNew;
+          if (isNew) teamNumberInput.value = '';
+        }
+
+        if (extrasField) extrasField.classList.toggle('registration-hidden', !showExtras);
+        extraInputs.forEach((input) => {
+          input.disabled = !showExtras;
+        });
+      }
+
+      modeInputs.forEach(input => input.addEventListener('change', syncMode));
+      const programInput = form.querySelector('#program');
+      if (programInput) programInput.addEventListener('change', syncMode);
+      syncMode();
+    })();
+  </script>
 </body>
 </html>
