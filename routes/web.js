@@ -2290,14 +2290,13 @@ router.post('/signup', async function(req, res){
         const { name, email, password, age, phone, profilePicture, interests, experience, role, inviteToken } = req.body;
         const nextPath = sanitizeNextPath(req.body.next, '');
         const normalizedEmail = normalizeEmail(email);
-        const requiredFields = mode === 'manager'
-            ? { name, normalizedEmail, password, team: req.body.team, role, phone }
-            : { name, normalizedEmail, password, age, phone, interests, experience };
+        const requiredFields = { name, normalizedEmail, password };
         const hasMissingRequiredField = Object.values(requiredFields).some(value => !String(value ?? '').trim());
         if (hasMissingRequiredField) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body, inviteToken: inviteToken || null, nextPath });
 
-        const numericAge = Number(age);
-        if (mode === 'seeker' && (!Number.isFinite(numericAge) || numericAge < 6)) {
+        const trimmedAge = String(age || '').trim();
+        const numericAge = trimmedAge ? Number(trimmedAge) : null;
+        if (mode === 'seeker' && trimmedAge && (!Number.isFinite(numericAge) || numericAge < 6)) {
             return res.render(`pages/signup-${mode}`, { error: 'Please enter a valid age.', values: req.body, inviteToken: inviteToken || null, nextPath });
         }
         const existing = await User.findOne({ email: normalizedEmail }).exec();
@@ -2305,12 +2304,12 @@ router.post('/signup', async function(req, res){
         const user = new User({
             name: name.trim(),
             email: normalizedEmail,
-            age: mode === 'seeker' ? numericAge : undefined,
-            phone: String(phone).trim(),
+            age: mode === 'seeker' && numericAge ? numericAge : undefined,
+            phone: String(phone || '').trim(),
             profilePicture: String(profilePicture || '').trim(),
-            interests: mode === 'seeker' ? String(interests).trim() : undefined,
-            experience: mode === 'seeker' ? String(experience).trim() : undefined,
-            role: String(role).trim()
+            interests: mode === 'seeker' ? String(interests || '').trim() : undefined,
+            experience: mode === 'seeker' ? String(experience || '').trim() : undefined,
+            role: String(role || '').trim()
         });
         await user.setPassword(password);
         await user.save();
