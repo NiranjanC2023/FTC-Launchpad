@@ -33,8 +33,7 @@
     "mongoose": "^8.10.1",
     "node.js": "^0.0.1-security",
     "passport": "^0.7.0",
-    "playwright-core": "^1.61.1",
-    "resend": "^6.16.0"
+    "playwright-core": "^1.61.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

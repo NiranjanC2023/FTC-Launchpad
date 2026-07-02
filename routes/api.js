@@ -5,6 +5,7 @@ const Team = require('../models/team');
 const Student = require('../models/student');
 const User = require('../models/user');
 const { createNotification, listNotifications, countUnreadNotifications, markNotificationsRead, serializeNotification, normalizeEmail } = require('../lib/notifications');
+const { DEFAULT_FROM, buildTransactionalEmailTemplate, sendBrevoEmail } = require('../lib/email');
 
 function publicUser(user) {
 	return {
@@ -81,14 +82,10 @@ router.post('/signups', async function(req, res) {
 		let student = await Student.findOne({ email: normalizedEmail }).exec();
 
 		if (student) {
-			if (student.applicationStatus === 'accepted' || student.applicationStatus === 'waitlisted') {
-				return res.status(403).json({ ok: false, error: 'You cannot submit another request while your application is accepted or waitlisted.' });
-			}
-
-			const minWaitMs = 1000 * 60 * 60 * 8; // 8 hours between submissions
-			if (student.lastRequestAt && now - student.lastRequestAt < minWaitMs) {
-				const remainingMinutes = Math.ceil((minWaitMs - (now - student.lastRequestAt)) / 60000);
-				return res.status(429).json({ ok: false, error: `Please wait ${remainingMinutes} more minute(s) before submitting again.` });
+			const sentTeams = Array.isArray(student.sentTeams) ? student.sentTeams.map(teamId => String(teamId)) : [];
+			const alreadySentToTeam = Boolean(team && sentTeams.includes(String(team._id)));
+			if (alreadySentToTeam) {
+				return res.status(403).json({ ok: false, error: 'You have already sent your information to this team.' });
 			}
 
 			const isRejected = student.applicationStatus === 'rejected';
@@ -111,6 +108,16 @@ router.post('/signups', async function(req, res) {
 				student.statusMessage = undefined;
 				student.statusUpdatedAt = undefined;
 				student.statusBy = undefined;
+				student.sentTeams = Array.from(new Set([...(Array.isArray(student.sentTeams) ? student.sentTeams.map(id => String(id)) : []), String(team._id)]));
+				student.sentApplications = Array.isArray(student.sentApplications) ? student.sentApplications : [];
+				const historyIndex = student.sentApplications.findIndex(entry => String(entry.team) === String(team._id));
+				if (historyIndex === -1) {
+					student.sentApplications.push({ team: team._id, status: 'pending', updatedAt: now });
+				} else {
+					student.sentApplications[historyIndex].status = 'pending';
+					student.sentApplications[historyIndex].message = undefined;
+					student.sentApplications[historyIndex].updatedAt = now;
+				}
 			}
 			student.requestCount = (student.requestCount || 0) + 1;
 			student.lastRequestAt = now;
@@ -125,6 +132,47 @@ router.post('/signups', async function(req, res) {
 				link: '/my-applications',
 				metadata: { source: 'join-form' }
 			});
+			if (team && team.contact) {
+				const teamEmail = String(team.contact || '').trim();
+				if (teamEmail) {
+					const html = buildTransactionalEmailTemplate({
+						preheader: `${name} sent team info through FIRST Start.`,
+						title: 'New student info received',
+						intro: `${name} sent their information to ${team.name}. Here is the ready-to-review profile submitted through FIRST Start.`,
+						details: [
+							{ label: 'Student', value: name },
+							{ label: 'Email', value: normalizedEmail },
+							{ label: 'Phone', value: phone || 'Not provided' },
+							{ label: 'Age', value: age || 'Not provided' },
+							{ label: 'Experience', value: experience || 'Not provided' },
+							{ label: 'Interests', value: interests || 'Not provided' }
+						],
+						outro: 'You can reply directly to this email to continue the conversation.',
+						footer: `This message was sent automatically from FIRST Start for ${team.name}.`
+					});
+
+					await sendBrevoEmail({
+						from: DEFAULT_FROM,
+						to: teamEmail,
+						subject: `New student info for ${team.name}`,
+						html,
+						text: [
+							'New student info received',
+							'',
+							`${name} sent their information to ${team.name}.`,
+							'',
+							`Student: ${name}`,
+							`Email: ${normalizedEmail}`,
+							`Phone: ${phone || 'Not provided'}`,
+							`Age: ${age || 'Not provided'}`,
+							`Experience: ${experience || 'Not provided'}`,
+							`Interests: ${interests || 'Not provided'}`,
+							'',
+							'This message was sent automatically from FIRST Start.'
+						].join('\n')
+					});
+				}
+			}
 			return res.json({ ok: true, student });
 		}
 
@@ -135,6 +183,8 @@ router.post('/signups', async function(req, res) {
 			email: normalizedEmail,
 			phone,
 			interests,
+			sentTeams: team ? [team._id] : [],
+			sentApplications: team ? [{ team: team._id, status: 'pending', updatedAt: now }] : [],
 			requestCount: 1,
 			lastRequestAt: now,
 			applicationTeam: team ? team._id : undefined,
@@ -151,6 +201,47 @@ router.post('/signups', async function(req, res) {
 			link: '/my-applications',
 			metadata: { source: 'join-form' }
 		});
+		if (team && team.contact) {
+			const teamEmail = String(team.contact || '').trim();
+			if (teamEmail) {
+				const html = buildTransactionalEmailTemplate({
+					preheader: `${name} sent team info through FIRST Start.`,
+					title: 'New student info received',
+					intro: `${name} sent their information to ${team.name}. Here is the ready-to-review profile submitted through FIRST Start.`,
+					details: [
+						{ label: 'Student', value: name },
+						{ label: 'Email', value: normalizedEmail },
+						{ label: 'Phone', value: phone || 'Not provided' },
+						{ label: 'Age', value: age || 'Not provided' },
+						{ label: 'Experience', value: experience || 'Not provided' },
+						{ label: 'Interests', value: interests || 'Not provided' }
+					],
+					outro: 'You can reply directly to this email to continue the conversation.',
+					footer: `This message was sent automatically from FIRST Start for ${team.name}.`
+				});
+
+				await sendBrevoEmail({
+					from: DEFAULT_FROM,
+					to: teamEmail,
+					subject: `New student info for ${team.name}`,
+					html,
+					text: [
+						'New student info received',
+						'',
+						`${name} sent their information to ${team.name}.`,
+						'',
+						`Student: ${name}`,
+						`Email: ${normalizedEmail}`,
+						`Phone: ${phone || 'Not provided'}`,
+						`Age: ${age || 'Not provided'}`,
+						`Experience: ${experience || 'Not provided'}`,
+						`Interests: ${interests || 'Not provided'}`,
+						'',
+						'This message was sent automatically from FIRST Start.'
+					].join('\n')
+				});
+			}
+		}
 		res.json({ ok: true, student });
 	} catch (err) {
 		res.status(500).json({ ok: false, error: err.message });

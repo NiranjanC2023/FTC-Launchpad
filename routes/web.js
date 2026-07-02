@@ -4,47 +4,21 @@ const mongoose = require('mongoose');
 const User = require('../models/user');
 const Team = require('../models/team');
 const ManagerInvite = require('../models/managerInvite');
-const { Resend } = require('resend');
 const Student = require('../models/student');
 const { createNotification, normalizeEmail } = require('../lib/notifications');
+const { DEFAULT_FROM, sendBrevoEmail, buildTransactionalEmailTemplate } = require('../lib/email');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+<<<<<<< HEAD
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const DEFAULT_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'no-reply@findfirst.org';
 const DEFAULT_FROM_NAME = process.env.EMAIL_NAME || 'First Start';
 const DEFAULT_FROM = process.env.EMAIL_FROM || `"${DEFAULT_FROM_NAME}" <${DEFAULT_FROM_EMAIL}>`;
+=======
+>>>>>>> 5a17b40 (email plus application)
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
-const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
-
-async function sendEmail(mailOptions) {
-    if (!resend) {
-        throw new Error('Resend is not configured.');
-    }
-
-    const normalizedRecipients = Array.isArray(mailOptions.to)
-        ? mailOptions.to
-        : String(mailOptions.to || '')
-            .split(',')
-            .map(value => value.trim())
-            .filter(Boolean);
-
-    const result = await resend.emails.send({
-        from: mailOptions.from || DEFAULT_FROM,
-        to: normalizedRecipients,
-        subject: mailOptions.subject || '',
-        html: mailOptions.html || '',
-        text: mailOptions.text || undefined,
-        replyTo: mailOptions.replyTo || mailOptions.reply_to || undefined
-    });
-
-    if (result && result.error) {
-        throw new Error(result.error.message || 'Resend send failed.');
-    }
-
-    return result;
-}
 
 function signIn(req, user) {
     req.session.userId = user._id.toString();
@@ -1150,9 +1124,9 @@ router.get("/teams-nearby", async function(req, res){
                 if (student) {
                     studentApp = {
                         applicationStatus: student.applicationStatus || null,
+                        applicationTeamId: student.applicationTeam ? String(student.applicationTeam) : null,
                         requestCount: student.requestCount || 0,
-                        lastRequestAt: student.lastRequestAt ? student.lastRequestAt.toISOString() : null,
-                        blocked: ['accepted', 'waitlisted'].includes(student.applicationStatus)
+                        lastRequestAt: student.lastRequestAt ? student.lastRequestAt.toISOString() : null
                     };
                 }
             }
@@ -1318,7 +1292,7 @@ router.post('/team-register', async function(req, res) {
 // Team Management Dashboard
 router.get('/manage-team', ensureAuthenticated, async function(req, res) {
     try {
-        if (!isDatabaseConnected()) return res.render('pages/manage-team', { error: databaseErrorMessage(), pendingInvitations: [], teamTenureLabel: null, teamOptions: [], teamSelectionOnly: false, currentTeamRole: '', teamManagers: [], recruits: [], waitlisted: [], acceptedCount: 0, waitlistCount: 0, rejectedCount: 0 });
+        if (!isDatabaseConnected()) return res.render('pages/manage-team', { error: databaseErrorMessage(), pendingInvitations: [], teamTenureLabel: null, teamOptions: [], teamSelectionOnly: false, currentTeamRole: '', teamManagers: [], recruits: [], waitlisted: [], acceptedRecruits: [], acceptedCount: 0, waitlistCount: 0, rejectedCount: 0 });
         
         const user = await User.findById(req.session.userId).lean().exec();
         if (!user) return res.redirect('/logout');
@@ -1332,7 +1306,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         } else if (queryError === 'invite_invalid') {
             errorMessage = 'Invalid invitation email or token. Please enter a valid email address.';
         } else if (queryError === 'invite_send_failed') {
-            errorMessage = 'The invitation was saved, but the email could not be sent. Check your Resend sender settings and try again.';
+            errorMessage = 'The invitation was saved, but the email could not be sent. Check your Brevo sender settings and try again.';
         } else if (queryError === 'invite_denied') {
             errorMessage = 'You do not have permission to invite managers for this team.';
         } else if (queryError === 'update_failed') {
@@ -1479,6 +1453,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
                 pendingInvitations: [],
                 recruits: [],
                 waitlisted: [],
+                acceptedRecruits: [],
                 acceptedCount: 0,
                 waitlistCount: 0,
                 rejectedCount: 0,
@@ -1488,15 +1463,49 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             });
         }
 
-        // Fetch potential recruits (students who signed up via join-form)
-        const allRecruits = await Student.find({}).sort({ createdAt: -1 }).limit(50).lean().exec();
-        const recruits = allRecruits.filter(recruit => {
-            return !recruit.applicationTeam || String(recruit.applicationTeam) === String(team._id);
+        const allRecruits = await Student.find({})
+            .sort({ createdAt: -1 })
+            .populate('sentApplications.team', 'name teamNumber contact')
+            .populate('applicationTeam', 'name teamNumber contact')
+            .lean()
+            .exec();
+
+        const teamId = String(team._id);
+        const recruitMap = new Map();
+
+        for (const recruit of allRecruits) {
+            const applications = Array.isArray(recruit.sentApplications) ? recruit.sentApplications : [];
+            for (const entry of applications) {
+                const entryTeam = entry && entry.team ? entry.team : null;
+                const entryTeamId = String(entryTeam && entryTeam._id ? entryTeam._id : entryTeam || '');
+                if (entryTeamId !== teamId) continue;
+
+                const key = `${String(recruit._id)}:${entryTeamId}`;
+                const updatedAt = entry.updatedAt || recruit.statusUpdatedAt || recruit.lastRequestAt || recruit.createdAt;
+                const existing = recruitMap.get(key);
+                if (!existing || new Date(updatedAt || 0) > new Date(existing.updatedAt || 0)) {
+                    recruitMap.set(key, {
+                        ...recruit,
+                        applicationTeam: entryTeam,
+                        applicationStatus: entry.status || recruit.applicationStatus || 'pending',
+                        statusMessage: entry.message || recruit.statusMessage || '',
+                        statusUpdatedAt: entry.updatedAt || recruit.statusUpdatedAt || recruit.createdAt,
+                        updatedAt
+                    });
+                }
+            }
+        }
+
+        const teamApplications = Array.from(recruitMap.values()).sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+        const recruits = teamApplications.filter(recruit => {
+            const status = String(recruit.applicationStatus || '').toLowerCase();
+            return status !== 'accepted' && status !== 'waitlisted' && status !== 'rejected';
         });
-        const waitlisted = recruits.filter(recruit => recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id) && recruit.applicationStatus === 'waitlisted');
-        const acceptedCount = recruits.filter(recruit => recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id) && recruit.applicationStatus === 'accepted').length;
+        const acceptedRecruits = teamApplications.filter(recruit => String(recruit.applicationStatus || '').toLowerCase() === 'accepted');
+        const waitlisted = teamApplications.filter(recruit => String(recruit.applicationStatus || '').toLowerCase() === 'waitlisted');
+        const rejectedCount = teamApplications.filter(recruit => String(recruit.applicationStatus || '').toLowerCase() === 'rejected').length;
+        const acceptedCount = acceptedRecruits.length;
         const waitlistCount = waitlisted.length;
-        const rejectedCount = recruits.filter(recruit => recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id) && recruit.applicationStatus === 'rejected').length;
 
         res.render('pages/manage-team', { 
             user, 
@@ -1508,6 +1517,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             pendingInvitations,
             recruits,
             waitlisted,
+            acceptedRecruits,
             acceptedCount,
             waitlistCount,
             rejectedCount,
@@ -1519,7 +1529,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         console.error('Management page error:', err);
         res.render('pages/manage-team', { 
             error: 'Failed to load dashboard',
-            user: null, team: null, teamOptions: [], teamSelectionOnly: false, currentTeamRole: '', recruits: [], pendingInvitations: [], teamTenureLabel: null
+            user: null, team: null, teamOptions: [], teamSelectionOnly: false, currentTeamRole: '', recruits: [], pendingInvitations: [], waitlisted: [], acceptedRecruits: [], acceptedCount: 0, waitlistCount: 0, rejectedCount: 0, teamTenureLabel: null
         });
     }
 });
@@ -1533,22 +1543,53 @@ router.get('/my-applications', ensureAuthenticated, async function(req, res) {
         if (!user) return res.redirect('/logout');
 
         // Find the student profile associated with this user's email
-        const studentProfile = await Student.findOne({ email: normalizeEmail(user.email) })
+        const studentProfiles = await Student.find({ email: normalizeEmail(user.email) })
+            .sort({ updatedAt: -1, lastRequestAt: -1, createdAt: -1 })
             .populate('applicationTeam', 'name teamNumber contact')
+            .populate('sentApplications.team', 'name teamNumber contact')
             .lean()
             .exec();
 
+        const studentProfile = Array.isArray(studentProfiles) && studentProfiles.length > 0 ? studentProfiles[0] : null;
+
         const applications = [];
-        if (studentProfile && studentProfile.applicationTeam) {
-            applications.push({
-                teamName: studentProfile.applicationTeam.name,
-                teamNumber: studentProfile.applicationTeam.teamNumber,
-                teamContact: studentProfile.applicationTeam.contact,
-                status: studentProfile.applicationStatus || 'pending',
-                message: studentProfile.statusMessage || '',
-                updatedAt: studentProfile.statusUpdatedAt || studentProfile.createdAt
-            });
+        const seenTeams = new Set();
+        for (const profile of studentProfiles || []) {
+            if (profile && Array.isArray(profile.sentApplications)) {
+                profile.sentApplications.forEach((entry) => {
+                    const teamDoc = entry && entry.team ? entry.team : null;
+                    if (!teamDoc || !teamDoc._id) return;
+                    const teamId = String(teamDoc._id);
+                    if (seenTeams.has(teamId)) return;
+                    seenTeams.add(teamId);
+                    applications.push({
+                        teamName: teamDoc.name,
+                        teamNumber: teamDoc.teamNumber,
+                        teamContact: teamDoc.contact,
+                        status: entry.status || 'pending',
+                        message: entry.message || '',
+                        updatedAt: entry.updatedAt || profile.createdAt
+                    });
+                });
+            }
+
+            if (profile && profile.applicationTeam) {
+                const teamDoc = profile.applicationTeam;
+                const teamId = String(teamDoc._id || teamDoc);
+                if (!seenTeams.has(teamId)) {
+                    seenTeams.add(teamId);
+                    applications.push({
+                        teamName: teamDoc.name,
+                        teamNumber: teamDoc.teamNumber,
+                        teamContact: teamDoc.contact,
+                        status: profile.applicationStatus || 'pending',
+                        message: profile.statusMessage || '',
+                        updatedAt: profile.statusUpdatedAt || profile.createdAt
+                    });
+                }
+            }
         }
+        applications.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
 
         res.render('pages/my-applications', { 
             user, 
@@ -1594,7 +1635,7 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
         if (!team) {
             return res.render('pages/manage-team', { 
                 error: 'Team not found or you do not have permission to edit it.',
-                user, team: null, recruits: [], pendingInvitations: [], currentTeamRole: '', teamOptions: [], teamSelectionOnly: false, teamManagers: [], waitlisted: [], acceptedCount: 0, waitlistCount: 0, rejectedCount: 0
+                user, team: null, recruits: [], pendingInvitations: [], currentTeamRole: '', teamOptions: [], teamSelectionOnly: false, teamManagers: [], waitlisted: [], acceptedRecruits: [], acceptedCount: 0, waitlistCount: 0, rejectedCount: 0
             });
         }
 
@@ -1917,9 +1958,20 @@ router.post('/manage-team/managers/leave-team', ensureAuthenticated, async funct
             return res.redirect('/manage-team?error=manager_remove_denied');
         }
 
+        const remainingManagerIds = (Array.isArray(team.managers) ? team.managers : [])
+            .filter(id => String(id) !== String(user._id));
+
+        if (remainingManagerIds.length === 0) {
+            await ManagerInvite.deleteMany({ team: team._id }).exec();
+            await Team.findByIdAndDelete(team._id).exec();
+            await User.findByIdAndUpdate(user._id, { $unset: { teamNumber: "" } }).exec();
+            req.session.activeTeamId = null;
+            return res.redirect('/account?success=team_deleted');
+        }
+
         if (isPrimary) {
             const remainingManagers = await User.find({
-                _id: { $in: (Array.isArray(team.managers) ? team.managers : []).filter(id => String(id) !== String(user._id)) }
+                _id: { $in: remainingManagerIds }
             }).sort({ createdAt: 1 }).lean().exec();
 
             const nextOwner = remainingManagers[0];
@@ -1928,7 +1980,7 @@ router.post('/manage-team/managers/leave-team', ensureAuthenticated, async funct
             }
 
             team.contact = normalizeEmail(nextOwner.email);
-            team.managers = (Array.isArray(team.managers) ? team.managers : []).filter(id => String(id) !== String(user._id));
+            team.managers = remainingManagerIds;
             team.managerRoles = (Array.isArray(team.managerRoles) ? team.managerRoles : []).filter(entry => String(entry.userId) !== String(user._id));
             if (!team.managers.some(id => String(id) === String(nextOwner._id))) {
                 team.managers.push(nextOwner._id);
@@ -2147,7 +2199,7 @@ router.post('/manage-team/invite', ensureAuthenticated, async function(req, res)
         });
 
         try {
-            await sendEmail(mailOptions);
+            await sendBrevoEmail(mailOptions);
             res.redirect('/manage-team?success=invite_sent');
         } catch (mailErr) {
             console.error('Invite email delivery failed:', mailErr);
@@ -2177,7 +2229,7 @@ router.post('/manage-team/delete', ensureAuthenticated, async function(req, res)
         } else {
             res.render('pages/manage-team', { 
                 error: 'No team found associated with your account to delete.',
-                user, team: null, recruits: [], pendingInvitations: [], currentTeamRole: '', teamOptions: [], teamSelectionOnly: false, teamManagers: [], waitlisted: [], acceptedCount: 0, waitlistCount: 0, rejectedCount: 0
+                user, team: null, recruits: [], pendingInvitations: [], currentTeamRole: '', teamOptions: [], teamSelectionOnly: false, teamManagers: [], waitlisted: [], acceptedRecruits: [], acceptedCount: 0, waitlistCount: 0, rejectedCount: 0
             });
         }
     } catch (err) {
@@ -2271,7 +2323,7 @@ router.post('/manage-team/recruit/:recruitId/status', ensureAuthenticated, async
             `
         };
 
-        await sendEmail(mailOptions);
+        await sendBrevoEmail(mailOptions);
         await createNotification({
             recipientEmail: recruit.email,
             type: 'application-status',
@@ -2286,6 +2338,21 @@ router.post('/manage-team/recruit/:recruitId/status', ensureAuthenticated, async
         recruit.statusMessage = customMessage || null;
         recruit.statusUpdatedAt = new Date();
         recruit.statusBy = user._id;
+        recruit.sentTeams = Array.from(new Set([...(Array.isArray(recruit.sentTeams) ? recruit.sentTeams.map(id => String(id)) : []), String(team._id)]));
+        recruit.sentApplications = Array.isArray(recruit.sentApplications) ? recruit.sentApplications : [];
+        const historyIndex = recruit.sentApplications.findIndex(entry => String(entry.team) === String(team._id));
+        if (historyIndex === -1) {
+            recruit.sentApplications.push({
+                team: team._id,
+                status,
+                message: customMessage || bodyIntro,
+                updatedAt: new Date()
+            });
+        } else {
+            recruit.sentApplications[historyIndex].status = status;
+            recruit.sentApplications[historyIndex].message = customMessage || bodyIntro;
+            recruit.sentApplications[historyIndex].updatedAt = new Date();
+        }
         await recruit.save();
 
         res.redirect('/manage-team?success=status_updated');
@@ -2339,7 +2406,7 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
             `
         };
 
-        await sendEmail(mailOptions);
+        await sendBrevoEmail(mailOptions);
         await createNotification({
             recipientEmail: recruit.email,
             type: 'team-contact',
@@ -2351,11 +2418,11 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
         console.log(`Invitation successfully sent to ${recruit.email} from ${team.name}`);
         return res.redirect('/manage-team?success=mail_sent');
     } catch (err) {
-        console.error('--- RESEND ERROR ---');
+        console.error('--- BREVO ERROR ---');
         console.error('Code:', err.code);
         console.error('Response:', err.response);
-        console.error('EMAIL ERROR: Unable to send through Resend. Verify RESEND_API_KEY and the verified findfirst.org sender in .env.');
-        console.error('Resend Send Error Detail:', err);
+        console.error('EMAIL ERROR: Unable to send through Brevo. Verify BREVO_API_KEY and the verified findfirst.org sender in .env.');
+        console.error('Brevo Send Error Detail:', err);
         res.redirect('/manage-team?error=mail_failed');
     }
 });
@@ -2729,21 +2796,32 @@ router.post('/forgot-password', async function(req, res){
             await user.save();
 
             const resetUrl = `${getAppBaseUrl(req)}/reset-password/${encodeURIComponent(token)}`;
-            await sendEmail({
+            const resetHtml = buildTransactionalEmailTemplate({
+                preheader: 'Reset your FIRST Start password using the secure link below.',
+                title: 'Reset your password',
+                intro: 'We received a request to reset the password for your FIRST Start account. Use the button below to choose a new password. This link expires in 1 hour for your security.',
+                ctaLabel: 'Set a new password',
+                ctaUrl: resetUrl,
+                outro: 'If you did not request this reset, you can safely ignore this email.',
+                footer: `Need help? Contact ${supportEmail} if you have questions about your account.`
+            });
+            await sendBrevoEmail({
                 from: DEFAULT_FROM,
                 to: user.email,
-                subject: 'Reset your FTC Starter Hub password',
-                html: `
-                    <div style="font-family: Arial, sans-serif; padding: 20px; color: #1f2937;">
-                        <h2 style="margin-top:0;">Password reset request</h2>
-                        <p>We received a request to reset the password for your FTC Starter Hub account.</p>
-                        <p style="margin: 22px 0;">
-                            <a href="${resetUrl}" style="display:inline-block;padding:12px 18px;background:#0b7a39;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;">Set a new password</a>
-                        </p>
-                        <p>If you did not request this, you can ignore this email.</p>
-                        <p style="font-size: 0.9rem; color: #6b7280;">This link expires in 1 hour.</p>
-                    </div>
-                `,
+                subject: 'FIRST Start password reset',
+                html: resetHtml,
+                text: [
+                    'FIRST Start password reset',
+                    '',
+                    'We received a request to reset the password for your FIRST Start account.',
+                    `Reset link: ${resetUrl}`,
+                    '',
+                    'This link expires in 1 hour.',
+                    '',
+                    `If you did not request this reset, you can safely ignore this email.`,
+                    '',
+                    `Need help? Contact ${supportEmail} if you have questions about your account.`
+                ].join('\n'),
                 replyTo: supportEmail
             });
         }
@@ -2758,7 +2836,7 @@ router.post('/forgot-password', async function(req, res){
         console.error('Password reset request error:', err);
         return res.render('pages/forgot-password', {
             supportEmail,
-            error: 'We could not process that request right now.',
+            error: err && err.message ? `We could not send the reset email. ${err.message}` : 'We could not process that request right now.',
             success: null,
             email: req.body && req.body.email ? String(req.body.email) : ''
         });

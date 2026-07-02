@@ -427,6 +427,7 @@
         <% var pendingInvitations = Array.isArray(pendingInvitations) ? pendingInvitations : []; %>
         <% var recruits = Array.isArray(recruits) ? recruits : []; %>
         <% var waitlisted = Array.isArray(waitlisted) ? waitlisted : []; %>
+        <% var acceptedRecruitList = Array.isArray(typeof acceptedRecruits !== 'undefined' ? acceptedRecruits : []) ? (typeof acceptedRecruits !== 'undefined' ? acceptedRecruits : []) : []; %>
         <% var teamOptions = Array.isArray(teamOptions) ? teamOptions : []; %>
         <% var teamSelectionOnly = typeof teamSelectionOnly !== 'undefined' ? teamSelectionOnly : false; %>
         <% var currentTeamRole = typeof currentTeamRole !== 'undefined' ? currentTeamRole : ''; %>
@@ -739,12 +740,13 @@
                             <div class="list-group" style="margin: 0;">
                                 <% if (recruits && recruits.length > 0) { %>
                                     <% recruits.forEach(function(recruit) { %>
+                                        <% const recruitTeamId = recruit.applicationTeam && recruit.applicationTeam._id ? String(recruit.applicationTeam._id) : String(recruit.applicationTeam || ''); %>
                                         <div class="recruit-card">
                                             <div class="row" style="display: flex; align-items: center;">
                                                 <div class="col-sm-8">
                                                     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
                                                         <h4 style="margin: 0;"><%= recruit.name %></h4>
-                                                        <% if (recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id)) { %>
+                                                        <% if (recruitTeamId === String(team._id)) { %>
                                                             <% const recruitStatus = recruit.applicationStatus || 'pending'; %>
                                                             <span class="status-pill" style="background: <%= recruitStatus === 'accepted' ? '#dcfce7' : recruitStatus === 'waitlisted' ? '#eef2ff' : recruitStatus === 'pending' ? '#fef3c7' : '#fee2e2' %>; color: <%= recruitStatus === 'accepted' ? '#166534' : recruitStatus === 'waitlisted' ? '#4338ca' : recruitStatus === 'pending' ? '#92400e' : '#991b1b' %>;">
                                                                 <%= recruitStatus.charAt(0).toUpperCase() + recruitStatus.slice(1) %>
@@ -785,7 +787,7 @@
                                                     </details>
                                                 </div>
                                                 <div class="col-sm-4 text-right recruit-actions">
-                                                    <% const status = (recruit.applicationTeam && String(recruit.applicationTeam) === String(team._id)) ? (recruit.applicationStatus || 'pending') : null; %>
+                                                    <% const status = recruitTeamId === String(team._id) ? (recruit.applicationStatus || 'pending') : null; %>
                                                     <% const isFinal = status === 'accepted' || status === 'rejected'; %>
                                                     <div class="recruit-action-row">
                                                         <button type="button" class="btn btn-danger btn-sm btn-rounded recruit-action-btn" data-action="reject" data-recruit-id="<%= recruit._id %>" data-recruit-name="<%= recruit.name %>" <%= isFinal ? 'disabled' : '' %>>
@@ -864,6 +866,61 @@
                             <% } else { %>
                                 <div class="text-center" style="padding: 40px 0;">
                                     <p class="text-muted" style="margin:0;">No one is currently on the waitlist.</p>
+                                </div>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-panel" style="margin-top: 30px;">
+                        <div class="panel-head">
+                            <h3><i class="fa-solid fa-circle-check"></i> Accepted</h3>
+                            <span class="badge" style="background: #dcfce7; color: #166534;"><%= acceptedRecruitList.length %> Accepted</span>
+                        </div>
+                        <div class="panel-body">
+                            <% if (acceptedRecruitList && acceptedRecruitList.length > 0) { %>
+                                <div class="list-group">
+                                    <% acceptedRecruitList.forEach(function(acceptedRecruit) { %>
+                                        <div class="recruit-card" style="margin-bottom: 12px; border-color: #86efac; background: linear-gradient(180deg, #f0fdf4, #ffffff);">
+                                            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+                                                <div>
+                                                    <h4 style="margin:0;"><%= acceptedRecruit.name %></h4>
+                                                    <p class="small text-muted" style="margin:4px 0 0;">Email: <%= acceptedRecruit.email %></p>
+                                                </div>
+                                                <span class="status-pill" style="background: #dcfce7; color:#166534;">Accepted</span>
+                                            </div>
+                                            <details class="recruit-details-dropdown">
+                                                <summary>Applicant details</summary>
+                                                <div class="recruit-details-panel">
+                                                    <div class="recruit-details-grid">
+                                                        <div class="recruit-detail-chip">
+                                                            <span class="recruit-detail-label">Age</span>
+                                                            <p class="recruit-detail-value"><%= acceptedRecruit.age || 'Not provided' %></p>
+                                                        </div>
+                                                        <div class="recruit-detail-chip">
+                                                            <span class="recruit-detail-label">Email</span>
+                                                            <p class="recruit-detail-value"><%= acceptedRecruit.email || 'Not provided' %></p>
+                                                        </div>
+                                                        <div class="recruit-detail-chip">
+                                                            <span class="recruit-detail-label">Phone</span>
+                                                            <p class="recruit-detail-value"><%= acceptedRecruit.phone || 'Not provided' %></p>
+                                                        </div>
+                                                        <div class="recruit-detail-chip">
+                                                            <span class="recruit-detail-label">Interests</span>
+                                                            <p class="recruit-detail-value"><%= acceptedRecruit.interests || 'Not provided' %></p>
+                                                        </div>
+                                                        <div class="recruit-detail-chip recruit-detail-full">
+                                                            <span class="recruit-detail-label">Background</span>
+                                                            <p class="recruit-detail-value"><%= acceptedRecruit.experience || 'Not provided' %></p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </details>
+                                        </div>
+                                    <% }); %>
+                                </div>
+                            <% } else { %>
+                                <div class="text-center" style="padding: 40px 0;">
+                                    <p class="text-muted" style="margin:0;">No accepted recruits yet.</p>
                                 </div>
                             <% } %>
                         </div>

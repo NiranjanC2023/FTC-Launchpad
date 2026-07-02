@@ -7,6 +7,13 @@ const StudentSchema = new mongoose.Schema({
   email: { type: String },
   phone: { type: String },
   interests: { type: String },
+  sentTeams: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }],
+  sentApplications: [{
+    team: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
+    status: { type: String, enum: ['pending', 'accepted', 'waitlisted', 'rejected'], default: 'pending' },
+    message: { type: String },
+    updatedAt: { type: Date, default: Date.now }
+  }],
   applicationTeam: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
   applicationStatus: { type: String, enum: ['pending', 'accepted', 'waitlisted', 'rejected'], default: null },
   statusMessage: { type: String },

@@ -1145,22 +1145,6 @@ async function sendToTeam(team) {
     return;
   }
 
-  if (window.__STUDENT_APP__ && window.__STUDENT_APP__.blocked) {
-    alert(`Your application is currently ${window.__STUDENT_APP__.applicationStatus}. You cannot send more requests through this account.`);
-    return;
-  }
-
-  if (window.__STUDENT_APP__ && window.__STUDENT_APP__.lastRequestAt) {
-    const last = new Date(window.__STUDENT_APP__.lastRequestAt);
-    const minWaitMs = 1000 * 60 * 60 * 8;
-    const remaining = minWaitMs - (Date.now() - last.getTime());
-    if (remaining > 0) {
-      const minutes = Math.ceil(remaining / 60000);
-      alert(`Please wait ${minutes} more minute(s) before sending another request.`);
-      return;
-    }
-  }
-
   const info = JSON.parse(raw);
   try {
     const response = await fetch('/api/signups', {
@@ -1184,46 +1168,13 @@ async function sendToTeam(team) {
     }
 
     sessionStorage.setItem(STUDENT_KEY, JSON.stringify(info));
+    alert(`Your info was sent to ${team.name || 'the team'}.`);
   } catch (err) {
     alert('Unable to save your application right now.');
+    if (err && err.message) {
+      console.error('Unable to save your application right now:', err);
+    }
     return;
-  }
-
-  const subject = encodeURIComponent(`Student Interested: ${info.name}`);
-  const bodyLines = [
-    `Name: ${info.name}`,
-    `Age: ${info.age}`,
-    `Experience: ${info.experience}`,
-    `Interests: ${info.interests}`,
-    `Email: ${info.email}`,
-    `Phone: ${info.phone}`,
-    `Sent from: FTC Starter Hub`,
-  ];
-  const body = encodeURIComponent(bodyLines.join('\n'));
-  const recipient = team.contact || '';
-  const domain = (recipient.split('@')[1] || '').toLowerCase();
-
-  const providerUrls = {
-    'gmail.com': `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipient)}&su=${subject}&body=${body}`,
-    'googlemail.com': `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipient)}&su=${subject}&body=${body}`,
-    'yahoo.com': `https://compose.mail.yahoo.com/?to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
-    'ymail.com': `https://compose.mail.yahoo.com/?to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
-    'outlook.com': `https://outlook.live.com/owa/?path=/mail/action/compose&to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
-    'hotmail.com': `https://outlook.live.com/owa/?path=/mail/action/compose&to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
-    'live.com': `https://outlook.live.com/owa/?path=/mail/action/compose&to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
-    'msn.com': `https://outlook.live.com/owa/?path=/mail/action/compose&to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
-    'protonmail.com': `https://mail.proton.me/compose?to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`,
-    'icloud.com': `https://www.icloud.com/mail`,
-    'zoho.com': `https://mail.zoho.com/compose?to=${encodeURIComponent(recipient)}&subject=${subject}&body=${body}`
-  };
-
-  const providerUrl = providerUrls[domain];
-  if (providerUrl) {
-    window.open(providerUrl, '_blank');
-    alert('Opened webmail for ' + domain + '. Please complete the message in your browser.');
-  } else {
-    window.location.href = `mailto:${recipient}?subject=${subject}&body=${body}`;
-    alert('Opened your default mail client so you can send your information to ' + (team.name || 'the team') + '.');
   }
 }
 
