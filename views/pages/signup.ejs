@@ -10,14 +10,24 @@
   <header></header>
 
   <main>
+    <%
+      const queryParts = [];
+      if (inviteToken) {
+        queryParts.push('inviteToken=' + encodeURIComponent(inviteToken));
+      }
+      if (nextPath) {
+        queryParts.push('next=' + encodeURIComponent(nextPath));
+      }
+      const queryString = queryParts.length ? ('?' + queryParts.join('&')) : '';
+    %>
     <div class="container">
       <a href="<%= nextPath ? '/auth-gate?next=' + encodeURIComponent(nextPath) : '/' %>" class="btn btn-secondary back-button">← Back</a>
       <h1>Sign Up</h1>
       <p style="margin-top:12px; margin-bottom:20px; color:var(--text-secondary)">Choose which option best describes you to continue.</p>
 
       <div class="signup-selection" style="display:flex; gap:18px; flex-wrap:wrap; justify-content:center; margin-top:12px;">
-        <a href="/signup/seeker<%= [inviteToken ? 'inviteToken=' + encodeURIComponent(inviteToken) : '', nextPath ? 'next=' + encodeURIComponent(nextPath) : ''].filter(Boolean).join(inviteToken && nextPath ? '&' : '?') %>" class="btn btn-primary" style="min-width:260px; padding:18px 22px; font-size:1.02rem;">Looking to join or make a first team</a>
-        <a href="/signup/manager<%= [inviteToken ? 'inviteToken=' + encodeURIComponent(inviteToken) : '', nextPath ? 'next=' + encodeURIComponent(nextPath) : ''].filter(Boolean).join(inviteToken && nextPath ? '&' : '?') %>" class="btn btn-secondary" style="min-width:260px; padding:18px 22px; font-size:1.02rem;">Managing a team</a>
+        <a href="/signup/seeker<%= queryString %>" class="btn btn-primary" style="min-width:260px; padding:18px 22px; font-size:1.02rem;">Looking to join or make a first team</a>
+        <a href="/signup/manager<%= queryString %>" class="btn btn-secondary" style="min-width:260px; padding:18px 22px; font-size:1.02rem;">Managing a team</a>
       </div>
 
     </div>

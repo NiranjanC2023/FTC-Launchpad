@@ -273,6 +273,8 @@ header {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   position: relative;
+  z-index: 200000;
+  overflow: visible;
 }
 
 header::after {
@@ -329,7 +331,8 @@ header .navbar-default {
 header .navbar {
   box-shadow: var(--navbar-shadow);
   position: relative;
-  z-index: 10000;
+  z-index: 200000;
+  overflow: visible;
 }
 
 .navbar .container {
@@ -513,12 +516,16 @@ header .navbar {
   position: relative;
   display: flex;
   align-items: center;
+  z-index: 200002;
+  overflow: visible;
 }
 
 .inbox-menu {
   position: relative;
   display: flex;
   align-items: center;
+  z-index: 200002;
+  overflow: visible;
 }
 
 .inbox-toggle {
@@ -594,7 +601,8 @@ header .navbar {
   background: #ffffff;
   border: 2px solid rgba(34, 197, 94, 0.9);
   box-shadow: 0 16px 34px rgba(15, 23, 42, 0.14);
-  z-index: 10001;
+  z-index: 200003;
+  isolation: isolate;
 }
 
 .inbox-dropdown-header {
@@ -726,14 +734,15 @@ header .navbar {
   background: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.12);
   box-shadow: 0 16px 34px rgba(15, 23, 42, 0.14);
-  z-index: 10001;
+  z-index: 200003;
+  isolation: isolate;
 }
 
 .account-dropdown a {
   display: block;
   padding: 10px 12px;
   border-radius: 10px;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 1.35rem;
   font-weight: 600;
   text-decoration: none;

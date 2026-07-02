@@ -48,6 +48,19 @@ async function sendEmail(mailOptions) {
 
 function signIn(req, user) {
     req.session.userId = user._id.toString();
+    if (typeof req.session.save !== 'function') {
+        return Promise.resolve();
+    }
+
+    return new Promise((resolve, reject) => {
+        req.session.save((err) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve();
+            }
+        });
+    });
 }
 
 async function getPostLoginRedirect(user) {
@@ -198,8 +211,11 @@ function databaseErrorMessage() {
 function sanitizeNextPath(nextPath, fallback = '/') {
     const value = String(nextPath || '').trim();
     if (!value) return fallback;
-    if (!value.startsWith('/') || value.startsWith('//')) return fallback;
-    if (value === '/auth-gate') return fallback;
+
+    const normalizedPath = value.split('?')[0];
+    if (!normalizedPath.startsWith('/') || normalizedPath.startsWith('//')) return fallback;
+    if (normalizedPath === '/auth-gate' || normalizedPath.startsWith('/auth-gate/')) return fallback;
+
     return value;
 }
 
@@ -2470,7 +2486,7 @@ router.post('/signup', async function(req, res){
         await user.setPassword(password);
         await user.save();
         console.log(`User signup saved: ${user.email} -> ${mongoose.connection.name}.${User.collection.name}`);
-        signIn(req, user);
+        await signIn(req, user);
 
         if (inviteToken) {
             const acceptedTeam = await acceptInviteToken(inviteToken, user);
@@ -2859,8 +2875,8 @@ router.post('/login', async function(req, res){
         if (!user) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
         const ok = await user.validatePassword(password);
         if (!ok) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
-        signIn(req, user);
         applyRememberMe(req, remember);
+        await signIn(req, user);
 
         if (inviteToken) {
             const acceptedTeam = await acceptInviteToken(inviteToken, user);
