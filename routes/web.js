@@ -183,6 +183,20 @@ function ensureAuthenticated(req, res, next) {
 
 function anonymousAllowedPath(pathname) {
     const path = String(pathname || '/').split('?')[0];
+    const publicResourcePaths = new Set([
+        '/sdk',
+        '/programming',
+        '/advanced-programming',
+        '/controller-setup',
+        '/drivetrain',
+        '/mechanical-parts',
+        '/assembly',
+        '/motor-selection',
+        '/funding',
+        '/sponsorship',
+        '/outreach',
+        '/team-org'
+    ]);
     return path === '/'
         || path === '/login'
         || path === '/forgot-password'
@@ -190,6 +204,14 @@ function anonymousAllowedPath(pathname) {
         || path === '/signup'
         || path === '/signup/seeker'
         || path === '/signup/manager'
+        || path === '/join-form'
+        || path === '/join-team'
+        || path === '/teams-nearby'
+        || path === '/team-register'
+        || path === '/resources'
+        || path === '/start-team'
+        || /^\/start-team-step[1-9]$/.test(path)
+        || publicResourcePaths.has(path)
         || path === '/auth-gate';
 }
 

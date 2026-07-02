@@ -42,6 +42,26 @@ function copyCode(button) {
   });
 }
 
+function getCurrentUser() {
+  return window.__USER__ || window.__CURRENT_USER__ || null;
+}
+
+function redirectToAuthGate(nextPath, label) {
+  const safeNext = nextPath || window.location.pathname || '/';
+  const safeLabel = label ? `&label=${encodeURIComponent(label)}` : '';
+  window.location.href = `/auth-gate?next=${encodeURIComponent(safeNext)}${safeLabel}`;
+}
+
+function requireAuthForAction(nextPath, label, event) {
+  if (getCurrentUser()) return true;
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  redirectToAuthGate(nextPath, label);
+  return false;
+}
+
 function initPageAnimations() {
   try {
     if (!document.body) return;
@@ -135,6 +155,28 @@ function initJoinForm() {
       window.location.href = '/teams-nearby';
     })
     .catch(err => console.error('Failed to save to database:', err));
+  });
+}
+
+function initAuthGatedActions() {
+  const startTeamCards = document.querySelectorAll('.roadmap-card');
+  startTeamCards.forEach((card) => {
+    if (card.dataset.authBound) return;
+    card.dataset.authBound = 'true';
+    card.addEventListener('click', (event) => {
+      const target = card.getAttribute('href') || '/start-team';
+      const label = (card.querySelector('strong') || card.querySelector('h3') || card).textContent.trim();
+      requireAuthForAction(target, label, event);
+    });
+  });
+
+  const resourceLinks = document.querySelectorAll('.resource-links a');
+  resourceLinks.forEach((link) => {
+    if (link.dataset.authBound) return;
+    link.dataset.authBound = 'true';
+    link.addEventListener('click', (event) => {
+      requireAuthForAction(link.getAttribute('href') || '/resources', (link.textContent || '').trim(), event);
+    });
   });
 }
 
@@ -1078,6 +1120,11 @@ function renderTeams(teams, userCoords) {
 }
 
 async function sendToTeam(team) {
+  if (!getCurrentUser()) {
+    redirectToAuthGate(window.location.pathname || '/teams-nearby', 'Send My Info');
+    return;
+  }
+
   let raw = sessionStorage.getItem(STUDENT_KEY);
   if (!raw && window.__USER__) {
     const user = window.__USER__;
@@ -1411,6 +1458,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSharedFooter();
   loadSiteShells();
   initJoinForm();
+  initAuthGatedActions();
   initHomeFeaturedTeams();
   initTeamsPage();
   initSignupForm();
@@ -1458,7 +1506,7 @@ function loadSiteShells() {
 
       // Immediately rewrite all links so they work even while auth is loading
       const initialAnchors = document.querySelectorAll('[data-href]');
-      const gatedTargets = new Set(['/start-team', '/teams-nearby', '/my-applications', '/team-register', '/resources']);
+      const gatedTargets = new Set(['/my-applications', '/team-register']);
       initialAnchors.forEach(a => {
         const target = a.getAttribute('data-href');
         if (!target) return;
@@ -1526,6 +1574,7 @@ function loadSiteShells() {
         .then(r => r.json())
         .then(data => { 
           const user = data.user;
+          window.__USER__ = user || null;
           const anchors = document.querySelectorAll('[data-href]');
           const navUserControls = document.querySelector('.nav-user-controls');
           const inboxMenu = document.querySelector('.inbox-menu');
@@ -1709,12 +1758,13 @@ function loadSiteShells() {
               navItem.style.display = user ? 'none' : '';
               if (user) a.setAttribute('href', target);
             } else if (target === '/team-register') {
-              // Only show the "Register Team" link when the user is an authenticated team contact
-              // or on the home/start page for anonymous visitors.
-              const isStartPage = window.location.pathname === '/';
-              const allowedForUser = user ? !!user.hasTeam : false;
-              navItem.style.display = (allowedForUser || intent === 'manager' || (!user && isStartPage)) ? '' : 'none';
-              a.setAttribute('href', user ? target : `/auth-gate?next=${encodeURIComponent(target)}&label=${encodeURIComponent((a.textContent || '').trim())}`);
+              navItem.style.display = '';
+              if (user) {
+                a.setAttribute('href', target);
+              } else {
+                const label = encodeURIComponent((a.textContent || '').trim());
+                a.setAttribute('href', `/auth-gate?next=${encodeURIComponent(target)}${label ? `&label=${label}` : ''}`);
+              }
             } else if (target === '/manage-team') {
               navItem.style.display = (user && user.hasTeam) ? '' : 'none';
               if (user) a.setAttribute('href', target);
@@ -1722,12 +1772,10 @@ function loadSiteShells() {
               // Show applications/join form only for students.
               // If the user is focused on registering a team, keep the header focused on that path instead.
               navItem.style.display = (user && !user.hasTeam && intent !== 'manager') ? '' : 'none';
-              a.setAttribute('href', user ? target : `/auth-gate?next=${encodeURIComponent(target)}&label=${encodeURIComponent((a.textContent || '').trim())}`);
+              a.setAttribute('href', target);
             } else if (target === '/my-team') {
               navItem.style.display = (user && user.hasTeam) ? '' : 'none';
               if (user) a.setAttribute('href', target);
-            } else if (gatedTargets.has(target)) {
-              a.setAttribute('href', user ? target : `/auth-gate?next=${encodeURIComponent(target)}&label=${encodeURIComponent((a.textContent || '').trim())}`);
             }
           });
         }).catch(() => {});

@@ -2152,7 +2152,7 @@ textarea.form-control {
 
 .team-card h3 {
   margin: 0 0 4px;
-  font-size: 1.08rem;
+  font-size: 18px;
   text-align: left;
 }
 
@@ -2160,7 +2160,7 @@ textarea.form-control {
   display: block;
   margin-top: 6px;
   color: #4f655a;
-  font-size: 0.86rem;
+  font-size: 14px;
   font-weight: 850;
   letter-spacing: 0.06em;
   line-height: 1.2;
@@ -2169,14 +2169,14 @@ textarea.form-control {
 
 .team-card-label--new-team {
   color: #155c3a;
-  font-size: 0.92rem;
+  font-size: 14px;
   letter-spacing: 0.04em;
 }
 
 .team-card-contact {
   margin: 0;
   color: #21342a;
-  font-size: clamp(1rem, 1.35vw, 1.08rem);
+  font-size: clamp(16px, 1.5vw, 18px);
   font-weight: 650;
   line-height: 1.45;
 }
@@ -2184,7 +2184,7 @@ textarea.form-control {
 .team-card-meta {
   margin: 6px 0 0;
   color: #6b7b72;
-  font-size: 0.92rem;
+  font-size: 15px;
   font-weight: 500;
   line-height: 1.45;
 }
@@ -2239,7 +2239,7 @@ textarea.form-control {
 
 .team-card-requirements-title {
   color: #16362a;
-  font-size: 0.82rem;
+  font-size: 14px;
   font-weight: 850;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2248,7 +2248,7 @@ textarea.form-control {
 .team-card-requirements-text {
   margin: 0;
   color: #2e4137;
-  font-size: 0.95rem;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.45;
 }
@@ -2267,7 +2267,7 @@ textarea.form-control {
 
 .team-card-stat-text {
   color: #2d4036;
-  font-size: 0.94rem;
+  font-size: 16px;
   font-weight: 650;
   line-height: 1.25;
 }
@@ -2283,7 +2283,7 @@ textarea.form-control {
 .team-card-history-label {
   margin: 0 0 4px;
   color: #1d5f3b;
-  font-size: 0.75rem;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2292,7 +2292,7 @@ textarea.form-control {
 .team-card-history-text {
   margin: 0 0 8px;
   color: #335244;
-  font-size: 0.9rem;
+  font-size: 15px;
   line-height: 1.35;
 }
 
@@ -2301,7 +2301,7 @@ textarea.form-control {
   align-items: center;
   gap: 7px;
   color: #1f6f45;
-  font-size: 0.84rem;
+  font-size: 14px;
   font-weight: 800;
   text-decoration: none;
 }
@@ -2321,7 +2321,7 @@ textarea.form-control {
   align-items: center;
   gap: 7px;
   color: #1f6f45;
-  font-size: 0.84rem;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.01em;
   text-decoration: none;
@@ -2351,7 +2351,7 @@ textarea.form-control {
   gap: 7px;
   margin-bottom: 7px;
   color: #7c5b1f;
-  font-size: 0.84rem;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.01em;
 }
