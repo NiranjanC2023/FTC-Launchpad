@@ -2263,6 +2263,71 @@ textarea.form-control {
   line-height: 1.25;
 }
 
+.team-card-history {
+  margin: 12px 0 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(31, 111, 69, 0.16);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(244, 251, 247, 0.96), rgba(235, 246, 239, 0.96));
+}
+
+.team-card-history-label {
+  margin: 0 0 4px;
+  color: #1d5f3b;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.team-card-history-text {
+  margin: 0 0 8px;
+  color: #335244;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.team-card-history-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #1f6f45;
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.team-card-history-link:hover,
+.team-card-history-link:focus {
+  color: #155433;
+  text-decoration: underline;
+}
+
+.team-card-source {
+  margin: 10px 0 0;
+}
+
+.team-card-source a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #1f6f45;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+}
+
+.team-card-source a:hover,
+.team-card-source a:focus {
+  color: #155433;
+  text-decoration: underline;
+}
+
+.team-card-source i {
+  font-size: 0.82rem;
+}
+
 .team-card-award-history {
   margin-top: 10px;
   padding: 10px 12px;
@@ -2288,6 +2353,28 @@ textarea.form-control {
 
 .team-card-award-history .team-history-item {
   color: #3f3b30;
+}
+
+.team-history-source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  color: #1f6f45;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+}
+
+.team-history-source-link:hover,
+.team-history-source-link:focus {
+  color: #155433;
+  text-decoration: underline;
+}
+
+.team-history-source-link i {
+  font-size: 0.82rem;
 }
 
 .team-history-entry {

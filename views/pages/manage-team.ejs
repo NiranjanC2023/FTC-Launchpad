@@ -578,6 +578,13 @@
                                         <% } else { %>
                                             No competition history listed yet.
                                         <% } %>
+                                        <% const scoutingPageUrl = team && team.teamNumber ? (String(team.program || '').toUpperCase() === 'FRC' ? 'https://www.thebluealliance.com/team/' + team.teamNumber : 'https://ftcscout.org/teams/' + team.teamNumber) : null; %>
+                                        <% if (scoutingPageUrl) { %>
+                                            <a class="team-history-source-link" href="<%= scoutingPageUrl %>" target="_blank" rel="noopener noreferrer" style="margin-top: 10px;">
+                                                <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                                                <%= String(team.program || '').toUpperCase() === 'FRC' ? 'View on The Blue Alliance' : 'View on FTC Scout' %>
+                                            </a>
+                                        <% } %>
                                     </div>
                                 </div>
                                 <div class="mb-3">

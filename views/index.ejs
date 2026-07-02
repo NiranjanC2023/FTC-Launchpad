@@ -84,7 +84,7 @@
 
 
 
-  <% const featuredTeams = [
+  <% const defaultFeaturedTeams = [
 
     { number: "1114", name: "Simbotics", logo: "SB", location: "St. Catharines, ON", league: "FRC", members: 35, championships: 3, openRoles: ["Mechanical", "Programming"], color: "#e74c3c", description: "One of FRC's most celebrated teams, known for consistent excellence in design and strategy." },
 
@@ -410,6 +410,8 @@
 
         <div class="home-teams-grid" id="homeFeaturedTeams">
 
+          <% const featuredTeams = typeof homeFeaturedTeams !== 'undefined' && Array.isArray(homeFeaturedTeams) && homeFeaturedTeams.length ? homeFeaturedTeams : defaultFeaturedTeams; %>
+
           <% featuredTeams.forEach(function(team, index){ %>
 
             <article class="team-card" style="--team-accent: <%= team.color %>; --team-card-index: <%= index %>">
@@ -435,6 +437,30 @@
 
                 <p class="team-description"><%= team.description %></p>
 
+                <% const teamProgram = String(team.program || team.league || '').toUpperCase(); %>
+                <% const teamNumber = team.teamNumber || team.number || ''; %>
+                <% const awardHistory = Array.isArray(team.awardHistory) ? team.awardHistory : []; %>
+                <% const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory : []; %>
+                <% const scoutingPageUrl = teamNumber ? (teamProgram === 'FRC' ? 'https://www.thebluealliance.com/team/' + teamNumber : teamProgram === 'FTC' ? 'https://ftcscout.org/teams/' + teamNumber : null) : null; %>
+                <% if (awardHistory.length || advancementHistory.length || scoutingPageUrl) { %>
+                  <div class="team-card-history">
+                    <% if (awardHistory.length) { %>
+                      <p class="team-card-history-label">Awards</p>
+                      <p class="team-card-history-text"><%= awardHistory.slice(0, 2).join(', ') %><%= awardHistory.length > 2 ? ' +' + (awardHistory.length - 2) + ' more' : '' %></p>
+                    <% } %>
+                    <% if (advancementHistory.length) { %>
+                      <p class="team-card-history-label">Advancement</p>
+                      <p class="team-card-history-text"><%= advancementHistory.slice(0, 2).join(', ') %><%= advancementHistory.length > 2 ? ' +' + (advancementHistory.length - 2) + ' more' : '' %></p>
+                    <% } %>
+                    <% if (scoutingPageUrl) { %>
+                      <a class="team-card-history-link" href="<%= scoutingPageUrl %>" target="_blank" rel="noopener noreferrer">
+                        <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                        <%= teamProgram === 'FRC' ? 'See on The Blue Alliance' : 'See on FTC Scout' %>
+                      </a>
+                    <% } %>
+                  </div>
+                <% } %>
+
                 <div class="team-meta">
 
                   <span><span class="team-meta-icon" aria-hidden="true"><i class="fa-solid fa-users" aria-hidden="true"></i></span> <%= team.members %> members</span>
@@ -445,7 +471,8 @@
 
                 <div class="team-roles">
 
-                  <% team.openRoles.forEach(function(role){ %>
+                  <% const openRoles = Array.isArray(team.openRoles) ? team.openRoles : []; %>
+                  <% openRoles.forEach(function(role){ %>
 
                     <span><%= role %></span>
 

@@ -631,7 +631,7 @@ function renderTeams(teams, userCoords) {
     }
   }
 
-  function renderExpandableHistorySection({ title, iconClass, entries, sectionKey }) {
+  function renderExpandableHistorySection({ title, iconClass, entries, sectionKey, sourceLink }) {
     const visibleEntries = entries.slice(0, 2);
     const hiddenEntries = entries.slice(2);
     const hasHiddenEntries = hiddenEntries.length > 0;
@@ -663,6 +663,12 @@ function renderTeams(teams, userCoords) {
             <span class="team-history-toggle-icon" aria-hidden="true">...</span>
           </button>
         ` : ''}
+        ${sourceLink ? `
+          <a class="team-history-source-link" href="${escapeHTML(sourceLink.href)}" target="_blank" rel="noopener noreferrer">
+            <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+            ${escapeHTML(sourceLink.label)}
+          </a>
+        ` : ''}
       </div>
     `;
   }
@@ -684,6 +690,8 @@ function renderTeams(teams, userCoords) {
     const yearsInProgram = Number(team.yearsInProgram);
     const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.map(normalizeAdvancementLevel).filter(Boolean) : [];
     const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(Boolean) : [];
+    const scoutingUrl = getTeamScoutingUrl(team);
+    const scoutingLabel = programLabel === 'FTC' ? 'View on FTC Scout' : 'View on The Blue Alliance';
     const advancementEntries = advancementHistory.length
       ? advancementHistory.map((entry, index) => formatAdvancementEntry(entry, advancementLevels, index))
       : advancementLevels;
@@ -716,6 +724,14 @@ function renderTeams(teams, userCoords) {
       <div class="team-details-content" style="margin-top: 12px; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 260ms ease, opacity 200ms ease;">
         <p class="team-card-contact">${escapeHTML(contact)}</p>
         ${(location || regionLabel) ? `<p class="team-card-meta">${escapeHTML([location, regionLabel].filter(Boolean).join(' · '))}</p>` : ''}
+        ${scoutingUrl ? `
+          <p class="team-card-source">
+            <a href="${escapeHTML(scoutingUrl)}" target="_blank" rel="noopener noreferrer">
+              <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+              ${escapeHTML(scoutingLabel)}
+            </a>
+          </p>
+        ` : ''}
         ${distanceData ? `<p class="team-distance"><span>Distance</span><strong>${distanceData.label} away</strong></p>` : ''}
         ${Number.isFinite(yearsInProgram) ? `
           <div class="team-card-stats">
@@ -747,7 +763,8 @@ function renderTeams(teams, userCoords) {
             title: 'Competition History',
             iconClass: 'fa-solid fa-flag-checkered',
             entries: advancementEntries,
-            sectionKey: 'advancement'
+            sectionKey: 'advancement',
+            sourceLink: scoutingUrl ? { href: scoutingUrl, label: scoutingLabel } : null
           })}
         ` : ''}
         <div class="team-actions">
@@ -1244,6 +1261,22 @@ function getHomeTeamBadgeLabel(team) {
     return String(team.teamNumber).slice(0, 2);
   }
   return 'FT';
+}
+
+function getTeamScoutingUrl(team) {
+  if (!team || team.isNewTeam || !team.teamNumber) return null;
+  const program = String(team.program || 'FTC').trim().toUpperCase();
+  const teamNumber = encodeURIComponent(String(team.teamNumber));
+
+  if (program === 'FTC') {
+    return `https://ftcscout.org/teams/${teamNumber}`;
+  }
+
+  if (program === 'FRC') {
+    return `https://www.thebluealliance.com/team/${teamNumber}`;
+  }
+
+  return null;
 }
 
 function renderHomeFeaturedTeams(teams) {
