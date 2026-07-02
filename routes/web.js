@@ -13,7 +13,7 @@ const crypto = require('crypto');
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const DEFAULT_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'no-reply@findfirst.org';
-const DEFAULT_FROM_NAME = process.env.EMAIL_NAME || 'Find FIRST';
+const DEFAULT_FROM_NAME = process.env.EMAIL_NAME || 'First Start';
 const DEFAULT_FROM = process.env.EMAIL_FROM || `"${DEFAULT_FROM_NAME}" <${DEFAULT_FROM_EMAIL}>`;
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
