@@ -1194,11 +1194,7 @@ function initTeamsPage() {
     const geoOptions = { maximumAge: 60000, timeout: 2000, enableHighAccuracy: false };
     navigator.geolocation.getCurrentPosition((pos) => {
       const userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      status.textContent = 'Found your location';
-      const withDist = teams.map(t => ({ ...t, distance: haversineDistance(userCoords.lat, userCoords.lon, t.lat, t.lon) }));
-      withDist.sort((a,b) => a.distance - b.distance);
-      renderTeams(withDist, userCoords);
-    }, (err) => {
+      status.textContent = 'Showing nearby teams';
       status.textContent = 'Using nearby teams (location unavailable)';
     }, geoOptions);
   } else {
