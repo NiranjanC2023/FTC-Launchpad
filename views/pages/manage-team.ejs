@@ -10,6 +10,8 @@
         .dashboard-wrapper {
             width: min(100% - 28px, 1400px);
             padding: 34px 0 76px;
+            box-sizing: border-box;
+            overflow-x: clip;
         }
         .page-header {
             margin-bottom: 28px;
@@ -22,7 +24,7 @@
         }
         .page-header h1 { font-size: 3.2rem; font-weight: 900; letter-spacing: -1.5px; margin-bottom: 5px; }
         .page-header .subtitle { text-align: center; margin: 0; }
-        .page-header .header-actions { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 16px; }
+        .page-header .header-actions { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
         
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin-bottom: 28px; }
         .stat-card { 
@@ -41,7 +43,7 @@
 
         .dashboard-panel { 
             background: var(--surface); border: 1px solid var(--border-color); border-radius: 10px; 
-            overflow: visible; box-shadow: var(--shadow-md); height: 100%;
+            overflow: visible; box-shadow: var(--shadow-md); height: 100%; min-width: 0;
         }
         .panel-head { 
             padding: 22px 24px; background: var(--surface-soft); border-bottom: 1px solid var(--border-color);
@@ -58,6 +60,7 @@
         }
         .team-switcher .form-control {
             min-width: 260px;
+            max-width: 100%;
         }
         .settings-tabs {
             position: relative;
@@ -188,6 +191,20 @@
             border: 1px solid var(--border-color);
             border-radius: 10px;
         }
+        .manager-card,
+        .manager-card-main,
+        .settings-tab-panel,
+        .panel-body,
+        .stat-content,
+        .pending-invite-card {
+            min-width: 0;
+        }
+        .manager-card-main,
+        .pending-invite-card strong,
+        .page-header .subtitle,
+        .panel-head h3 {
+            overflow-wrap: anywhere;
+        }
         .team-history-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -245,7 +262,7 @@
 
         .recruit-card {
             background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md);
-            padding: 20px; margin-bottom: 15px; transition: all 0.2s ease; position: relative; overflow: hidden;
+            padding: 20px; margin-bottom: 15px; transition: all 0.2s ease; position: relative; overflow: hidden; min-width: 0;
         }
         .recruit-card:hover { border-color: var(--accent-primary); transform: scale(1.01); background: var(--surface); }
         .recruit-card::after { 
@@ -261,6 +278,21 @@
 
         .status-pill { padding: 4px 12px; border-radius: 50px; font-size: 0.7rem; font-weight: 900; background: #e0f2fe; color: #0369a1; }
         .recruit-action-row { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+        .recruit-card .row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 16px;
+            min-width: 0;
+        }
+        .recruit-card .col-sm-8 {
+            flex: 1 1 360px;
+            min-width: 0;
+        }
+        .recruit-card .col-sm-4 {
+            flex: 0 1 260px;
+            min-width: 0;
+        }
         .btn-rounded { border-radius: 9999px; }
         .btn-rounded.btn-sm { padding: 0.5rem 1rem; }
         .btn-rounded:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -412,6 +444,65 @@
             }
             .page-header {
                 padding: 20px 18px;
+            }
+            .page-header h1 {
+                font-size: clamp(2rem, 16vw, 2.6rem);
+                letter-spacing: 0;
+            }
+            .page-header .header-actions,
+            .team-switcher,
+            .team-switcher .form-control,
+            .page-header .header-actions .btn {
+                width: 100%;
+            }
+            .dashboard-columns,
+            .dashboard-sidebar,
+            .sidebar-card-grid,
+            .team-history-grid,
+            .recruit-details-grid {
+                grid-template-columns: 1fr;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .stat-card,
+            .panel-head,
+            .recruit-card .row {
+                align-items: flex-start;
+            }
+            .panel-head {
+                flex-direction: column;
+                gap: 12px;
+            }
+            .panel-head > * {
+                width: 100%;
+            }
+            .panel-body,
+            .dashboard-sidebar .dashboard-panel .panel-body {
+                padding: 16px;
+            }
+            .recruit-card {
+                padding: 16px;
+            }
+            .recruit-card .col-sm-8,
+            .recruit-card .col-sm-4,
+            .recruit-action-row,
+            .recruit-action-row .btn {
+                width: 100%;
+                flex-basis: 100%;
+            }
+            .recruit-actions {
+                text-align: left !important;
+            }
+            .recruit-action-row {
+                justify-content: stretch;
+            }
+            .status-modal {
+                padding: 14px;
+            }
+            .status-modal-panel {
+                padding: 20px;
+                border-radius: 14px;
             }
             .recruit-info-grid { grid-template-columns: 1fr; gap: 4px 0; }
             .recruit-info-grid dd { margin-bottom: 10px; }
@@ -820,7 +911,7 @@
                                 <div class="list-group">
                                     <% waitlisted.forEach(function(waitRecruit) { %>
                                         <div class="recruit-card" style="margin-bottom: 12px;">
-                                            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                                            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
                                                 <div>
                                                     <h4 style="margin:0;"><%= waitRecruit.name %></h4>
                                                     <p class="small text-muted" style="margin:4px 0 0;">Email: <%= waitRecruit.email %></p>
@@ -854,6 +945,14 @@
                                                     </div>
                                                 </div>
                                             </details>
+                                            <div class="recruit-action-row" style="margin-top: 14px;">
+                                                <button type="button" class="btn btn-danger btn-sm btn-rounded recruit-action-btn" data-action="reject" data-recruit-id="<%= waitRecruit._id %>" data-recruit-name="<%= waitRecruit.name %>">
+                                                    <i class="fa-solid fa-xmark"></i> Decline
+                                                </button>
+                                                <button type="button" class="btn btn-primary btn-sm btn-rounded recruit-action-btn" data-action="accept" data-recruit-id="<%= waitRecruit._id %>" data-recruit-name="<%= waitRecruit.name %>">
+                                                    <i class="fa-solid fa-check"></i> Accept
+                                                </button>
+                                            </div>
                                         </div>
                                     <% }); %>
                                 </div>

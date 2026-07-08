@@ -14,6 +14,8 @@
             border: 1px solid rgba(16, 185, 129, 0.22);
             border-radius: 18px;
             box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+            width: 100%;
+            box-sizing: border-box;
         }
         .my-team-hero-top {
             display: flex;
@@ -27,7 +29,8 @@
             font-size: clamp(2rem, 4vw, 3rem);
             line-height: 1;
             font-weight: 900;
-            letter-spacing: -0.04em;
+            letter-spacing: 0;
+            overflow-wrap: anywhere;
         }
         .my-team-hero .hero-subtitle {
             margin: 0;
@@ -51,6 +54,14 @@
             color: var(--text-primary);
             font-size: 0.88rem;
             font-weight: 700;
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+        .my-team-hero .hero-subtitle,
+        .my-team-detail-card,
+        .my-team-detail-card p,
+        .my-team-detail-card li {
+            overflow-wrap: anywhere;
         }
         .my-team-chooser {
             display: flex;
@@ -101,6 +112,11 @@
             .my-team-hero {
                 padding: 20px;
             }
+            .my-team-hero-top,
+            .my-team-hero .hero-meta {
+                flex-direction: column;
+                align-items: stretch;
+            }
             .my-team-chooser {
                 width: 100%;
             }
@@ -108,6 +124,13 @@
             .my-team-chooser .btn {
                 width: 100%;
                 flex: 1 1 100%;
+            }
+            .my-team-detail-header {
+                flex-direction: column;
+                align-items: stretch !important;
+            }
+            .my-team-detail-header .btn {
+                width: 100%;
             }
         }
     </style>
@@ -163,8 +186,8 @@
         </div>
 
         <% if (team) { %>
-            <div class="jumbotron">
-                <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+            <div class="jumbotron my-team-detail-card">
+                <div class="my-team-detail-header" style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
                     <div>
                         <h2 style="margin-bottom: 6px;"><%= team.name %></h2>
                         <p class="lead" style="margin-bottom: 0;">Team Number: <%= team.teamNumber %></p>

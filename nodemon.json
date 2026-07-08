@@ -1,6 +1,7 @@
 {
   "watch": [
     "app.js",
+    "lib",
     "models",
     "params",
     "routes",

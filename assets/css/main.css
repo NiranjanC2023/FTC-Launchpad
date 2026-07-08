@@ -1340,7 +1340,7 @@ h3 {
 .step-grid {
   width: min(100%, 980px);
   margin: 0 auto;
-  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .start-team-shell {
@@ -1357,7 +1357,30 @@ h3 {
   margin: 0 auto;
   align-items: stretch;
   text-align: center;
-  padding: 40px 0 80px;
+  padding: 40px clamp(16px, 4vw, 32px) 80px;
+}
+
+.start-team-cta-row {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto 18px;
+  text-align: center;
+}
+
+.start-team-cta-button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.start-team-section-title {
+  text-align: center;
+  color: var(--accent-primary);
+}
+
+.start-team-lede {
+  max-width: 760px;
+  margin: 0 auto 18px;
+  text-align: center;
 }
 
 .start-team-hero {
@@ -1554,6 +1577,12 @@ h3 {
 .resources-grid {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 22px;
+}
+
+@media (max-width: 700px) {
+  .step-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .step-card,
@@ -3458,6 +3487,16 @@ textarea.form-control {
   .teams-list,
   .teams-list-cards {
     grid-template-columns: 1fr;
+  }
+
+  .start-team-page > .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .start-team-cta-row,
+  .start-team-lede {
+    margin-bottom: 16px;
   }
 
   .teams-search-row {

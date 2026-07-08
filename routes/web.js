@@ -1153,7 +1153,8 @@ router.get("/teams-nearby", async function(req, res){
 });
 
 router.get('/team-register', function(req, res) {
-    res.render('pages/team-register', { error: null, message: null, values: { registrationMode: 'existing' } });
+    const registrationMode = req.query.mode === 'new' || req.query.registrationMode === 'new' ? 'new' : 'existing';
+    res.render('pages/team-register', { error: null, message: null, values: { registrationMode } });
 });
 
 router.post('/team-register', async function(req, res) {
