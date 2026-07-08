@@ -491,8 +491,8 @@ function formatBlueAllianceCompetitionHistory(eventType) {
     const compact = label.replace(/\s+/g, '').toLowerCase();
     if (!compact) return null;
     if (compact === 'worlds') return 'Worlds';
-    if (compact === 'championship' || compact === 'regional' || compact === 'districtchampionship' || compact === 'districtchamp' || compact === 'premier') return 'Regional';
-    if (compact === 'qualifier' || compact === 'district' || compact === 'districtevent' || compact === 'leaguemeet' || compact === 'leaguetournament' || compact === 'superqualifier') return 'Qualifier';
+    if (compact === 'regionals' || compact === 'championship' || compact === 'regional' || compact === 'districtchampionship' || compact === 'districtchamp' || compact === 'premier') return 'Regionals';
+    if (compact === 'qualifier' || compact === 'district' || compact === 'districtevent' || compact === 'leaguemeet' || compact === 'leaguetournament' || compact === 'superqualifier') return null;
     return null;
 }
 
@@ -545,13 +545,8 @@ function formatAdvancementEventLabel(eventType) {
 
     if (compact === 'scrimmage' || compact === 'scrimages') return '';
     if (compact === 'firstchampionship' || compact === 'worldchampionship' || compact === 'worlds') return 'Worlds';
-    if (compact === 'superqualifier' || compact === 'superqual') return 'Super Qualifier';
-    if (compact === 'leaguetournament') return 'League Tournament';
-    if (compact === 'leaguemeet') return 'League Meet';
-    if (compact === 'premier') return 'Premier';
-    if (compact === 'championship') return 'Championship';
-    if (compact === 'regional') return 'Regional';
-    if (compact === 'qualifier') return 'Qualifier';
+    if (compact === 'superqualifier' || compact === 'superqual' || compact === 'leaguetournament' || compact === 'leaguemeet' || compact === 'qualifier') return '';
+    if (compact === 'premier' || compact === 'championship' || compact === 'regional') return 'Regionals';
 
     return normalized;
 }
@@ -561,8 +556,7 @@ function mapAdvancementCategory(eventType) {
     const compact = label.replace(/\s+/g, '').toLowerCase();
     if (!compact) return null;
     if (compact === 'worlds') return 'Worlds';
-    if (compact === 'superqualifier' || compact === 'leaguetournament' || compact === 'leaguemeet' || compact === 'qualifier') return 'Qualifier';
-    if (compact === 'premier' || compact === 'championship' || compact === 'regional') return 'Regional';
+    if (compact === 'regionals') return 'Regionals';
     return null;
 }
 
@@ -591,6 +585,7 @@ function formatAwardHistoryEntry(award) {
     const displayAwardType = String(awardType || '').replace(/^\s*(Winner|Finalist)\b/i, function(match, word) {
         return word.toLowerCase() === 'winner' ? 'Winning Alliance' : 'Finalist Alliance';
     });
+    if (/winning alliance|finalist alliance/i.test(displayAwardType)) return null;
     const placementLabel = formatFtcScoutPlacement(award && award.placement, awardType);
     const seasonLabel = formatScoutSeasonLabel(award && award.season);
     const parts = [displayAwardType];
@@ -634,7 +629,7 @@ async function fetchFtcScoutTeamDetails(teamNumber) {
     const matchParticipations = Array.isArray(team.matches) ? team.matches : [];
     const awards = Array.isArray(team.awards) ? team.awards : [];
     const awardHistory = sortHistoryEntriesMostRecent(awards.map(formatAwardHistoryEntry).filter(Boolean));
-    const uniqueAwardTypes = Array.from(new Set(awards.map(award => formatFtcScoutAwardType(award.type)).filter(Boolean)));
+    const uniqueAwardTypes = Array.from(new Set(awards.map(award => formatFtcScoutAwardType(award.type)).filter(Boolean))).filter(type => !/winning alliance|finalist alliance/i.test(type));
     const awardSeasons = getUniqueNumericValues(awards.map(award => award && award.season));
     const matchSeasons = getUniqueNumericValues(matchParticipations.map(participation => participation && participation.season));
     const competitionSeasons = matchSeasons.length ? matchSeasons : (awardSeasons.length ? awardSeasons : getUniqueNumericValues(team.activeSeasons));
@@ -712,7 +707,7 @@ async function fetchBlueAllianceTeamDetails(teamNumber) {
         awardList
             .map(award => formatBlueAllianceAwardType(award && (award.name || award.award_type || award.awardType || award.award || '')))
             .filter(Boolean)
-    ));
+    )).filter(type => !/winning alliance|finalist alliance/i.test(type));
 
     const advancementRecords = [];
     eventList.forEach((event, index) => {

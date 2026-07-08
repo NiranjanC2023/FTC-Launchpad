@@ -452,12 +452,6 @@
                       <p class="team-card-history-label">Advancement</p>
                       <p class="team-card-history-text"><%= advancementHistory.slice(0, 2).join(', ') %><%= advancementHistory.length > 2 ? ' +' + (advancementHistory.length - 2) + ' more' : '' %></p>
                     <% } %>
-                    <% if (scoutingPageUrl) { %>
-                      <a class="team-card-history-link" href="<%= scoutingPageUrl %>" target="_blank" rel="noopener noreferrer">
-                        <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
-                        <%= teamProgram === 'FRC' ? 'See on The Blue Alliance' : 'See on FTC Scout' %>
-                      </a>
-                    <% } %>
                   </div>
                 <% } %>
 

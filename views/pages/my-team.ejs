@@ -179,8 +179,8 @@
                 <p><strong>Years in Program:</strong> <%= team.yearsInProgram || 'Not listed yet.' %></p>
                 <p><strong>FTC Region:</strong> <%= team.competitionRegionLabel || 'Region not available.' %></p>
                 <p><strong>Awards:</strong> <%= team.awards || 'No awards listed.' %></p>
-                <% const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.filter(function(level) { return level === 'Regional' || level === 'Worlds'; }) : []; %>
-                <% const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(function(entry) { return /^(Regional|Worlds)\b/i.test(String(entry || '').trim()); }) : []; %>
+                <% const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.filter(function(level) { return level === 'Regionals' || level === 'Worlds' || level === 'Regional'; }) : []; %>
+                <% const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(function(entry) { return /^(Regionals?|Worlds)\b/i.test(String(entry || '').trim()); }) : []; %>
                 <p><strong>Advancement:</strong> <%= advancementLevels.length ? advancementLevels.join(', ') : 'No advancement listed.' %></p>
                 <% const scoutingPageUrl = team && team.teamNumber ? (String(team.program || '').toUpperCase() === 'FRC' ? 'https://www.thebluealliance.com/team/' + team.teamNumber : 'https://ftcscout.org/teams/' + team.teamNumber) : null; %>
                 <% if (scoutingPageUrl) { %>

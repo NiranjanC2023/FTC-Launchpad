@@ -2506,11 +2506,15 @@ textarea.form-control {
   color: #3f3b30;
 }
 
+.team-history-source-link-row {
+  margin: 0 0 12px;
+}
+
 .team-history-source-link {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  margin-top: 8px;
+  margin-top: 0;
   color: #1f6f45;
   font-size: 0.84rem;
   font-weight: 800;

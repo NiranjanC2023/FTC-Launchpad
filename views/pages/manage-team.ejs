@@ -527,7 +527,7 @@
                                     <textarea name="notes" class="form-control" rows="8" placeholder="Tell students about your team culture..."><%= team.notes %></textarea>
                                     <small class="text-muted">This bio appears on the public map.</small>
                                 </div>
-                                                                <div class="mb-3">
+                                <div class="mb-3">
                                     <label class="form-label">Awards Achieved</label>
                                     <div class="team-history-panel" style="margin: 0;">
                                         <% if (team.awardHistory && team.awardHistory.length) { %>
@@ -555,36 +555,30 @@
                                                                 <div class="mb-3">
                                     <label class="form-label">Competition History</label>
                                     <div class="team-history-panel" style="margin: 0;">
-                                        <% if (team.advancementHistory && team.advancementHistory.length) { %>
+                                        <% const visibleAdvancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(function(item) { return !/qualif/i.test(String(item || '')); }) : []; %>
+                                        <% if (visibleAdvancementHistory.length) { %>
                                             <ul class="team-history-list" data-history-list="advancement" style="margin: 0;">
-                                                <% team.advancementHistory.forEach(function(entry, index) { %>
+                                                <% visibleAdvancementHistory.forEach(function(entry, index) { %>
                                                     <% const historyText = String(entry || '').trim(); %>
-                                                    <% const historyClass = /world/i.test(historyText) ? 'team-history-item--worlds' : /regional/i.test(historyText) ? 'team-history-item--regional' : /qualif/i.test(historyText) ? 'team-history-item--qualifier' : 'team-history-item--other'; %>
+                                                    <% const historyClass = /world/i.test(historyText) ? 'team-history-item--worlds' : /regional/i.test(historyText) ? 'team-history-item--regional' : 'team-history-item--other'; %>
                                                     <li class="team-history-item <%= historyClass %>" <%- index >= 2 ? 'hidden data-history-hidden="true"' : '' %>>
                                                         <span class="team-history-entry">
                                                             <span class="team-history-icon" aria-hidden="true">
-                                                                <i class="fa-solid <%= /world/i.test(historyText) ? 'fa-globe' : /regional/i.test(historyText) ? 'fa-flag' : /qualif/i.test(historyText) ? 'fa-flag-checkered' : 'fa-circle-dot' %>"></i>
+                                                                <i class="fa-solid <%= /world/i.test(historyText) ? 'fa-globe' : /regional/i.test(historyText) ? 'fa-flag' : 'fa-circle-dot' %>"></i>
                                                             </span>
                                                             <span class="team-history-text"><%= entry %></span>
-                                                            <span class="team-history-meta"><%= /world/i.test(historyText) ? 'Worlds' : /regional/i.test(historyText) ? 'Regional' : /qualif/i.test(historyText) ? 'Qualifier' : 'History' %></span>
+                                                            <span class="team-history-meta"><%= /world/i.test(historyText) ? 'Worlds' : /regional/i.test(historyText) ? 'Regionals' : 'History' %></span>
                                                         </span>
                                                     </li>
                                                 <% }) %>
                                             </ul>
-                                            <% if (team.advancementHistory.length > 2) { %>
+                                            <% if (visibleAdvancementHistory.length > 2) { %>
                                                 <button type="button" class="team-history-toggle" aria-expanded="false" aria-label="Show all competition history" data-history-toggle="false">
                                                     <span class="team-history-toggle-icon" aria-hidden="true">...</span>
                                                 </button>
                                             <% } %>
                                         <% } else { %>
                                             No competition history listed yet.
-                                        <% } %>
-                                        <% const scoutingPageUrl = team && team.teamNumber ? (String(team.program || '').toUpperCase() === 'FRC' ? 'https://www.thebluealliance.com/team/' + team.teamNumber : 'https://ftcscout.org/teams/' + team.teamNumber) : null; %>
-                                        <% if (scoutingPageUrl) { %>
-                                            <a class="team-history-source-link" href="<%= scoutingPageUrl %>" target="_blank" rel="noopener noreferrer" style="margin-top: 10px;">
-                                                <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
-                                                <%= String(team.program || '').toUpperCase() === 'FRC' ? 'View on The Blue Alliance' : 'View on FTC Scout' %>
-                                            </a>
                                         <% } %>
                                     </div>
                                 </div>
