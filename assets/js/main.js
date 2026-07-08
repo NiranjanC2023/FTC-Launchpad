@@ -999,6 +999,7 @@ function renderTeams(teams, userCoords) {
 
     window._teamsMapInstance = map;
     window._infoWindowTimer = null;
+    window._pinnedTeamPopup = null;
     window._teamMapLayers = {};
     window._teamMarkers = {};
     window._userLocationMarker = null;
@@ -1038,7 +1039,8 @@ function renderTeams(teams, userCoords) {
         weight: 2,
         opacity: 0.85,
         fillColor: '#2f80ed',
-        fillOpacity: 0.18
+        fillOpacity: 0.18,
+        bubblingMouseEvents: false
       }).addTo(map);
       const privacyBlurLayer = new PrivacyBlurCircle([team.lat, team.lon], radiusMeters).addTo(map);
       privacyBlurLayers.push(privacyBlurLayer);
@@ -1067,6 +1069,7 @@ function renderTeams(teams, userCoords) {
       };
 
       marker.on('mouseover', () => {
+        if (window._pinnedTeamPopup) return;
         if (window._infoWindowTimer) {
           clearTimeout(window._infoWindowTimer);
           window._infoWindowTimer = null;
@@ -1075,16 +1078,25 @@ function renderTeams(teams, userCoords) {
       });
 
       marker.on('mouseout', () => {
+        if (window._pinnedTeamPopup && window._pinnedTeamPopup.marker === marker) return;
         window._infoWindowTimer = setTimeout(() => {
           marker.closePopup();
           window._infoWindowTimer = null;
         }, 500);
       });
 
-      marker.on('click', () => {
+      marker.on('click', (event) => {
+        if (window.L && L.DomEvent && event && event.originalEvent) {
+          L.DomEvent.stopPropagation(event.originalEvent);
+        }
+        window._pinnedTeamPopup = { teamName, marker };
         focusTeam(teamName, { scroll: true, openPopup: true });
       });
-      notifier.on('click', () => {
+      notifier.on('click', (event) => {
+        if (window.L && L.DomEvent && event && event.originalEvent) {
+          L.DomEvent.stopPropagation(event.originalEvent);
+        }
+        window._pinnedTeamPopup = { teamName, marker };
         focusTeam(teamName, { scroll: true, openPopup: true, zoom: 12 });
       });
 
@@ -1100,9 +1112,20 @@ function renderTeams(teams, userCoords) {
     updateTeamZoomNotifiers();
     map.on('zoomend', updatePrivacyBlur);
     map.on('zoomend', updateTeamZoomNotifiers);
+    map.on('click', () => {
+      window._pinnedTeamPopup = null;
+      if (window._infoWindowTimer) {
+        clearTimeout(window._infoWindowTimer);
+        window._infoWindowTimer = null;
+      }
+      map.closePopup();
+    });
 
     map.on('popupopen', event => {
       const popupEl = event.popup && event.popup.getElement ? event.popup.getElement() : null;
+      if (popupEl && window.L && L.DomEvent) {
+        L.DomEvent.disableClickPropagation(popupEl);
+      }
       const btn = popupEl ? popupEl.querySelector('.popup-send-btn') : null;
       if (btn) {
         btn.onclick = () => {
