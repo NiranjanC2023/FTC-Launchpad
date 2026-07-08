@@ -1214,8 +1214,22 @@ function hashStringToHue(input) {
 
 function getTeamAccent(team) {
   if (team && team.color) return String(team.color);
-  const hue = hashStringToHue([team && team.name, team && team.teamNumber, team && team.program].filter(Boolean).join('|'));
-  return `hsl(${hue}, 72%, 52%)`;
+  const palette = [
+    '#0f766e',
+    '#2563eb',
+    '#7c3aed',
+    '#be123c',
+    '#c2410c',
+    '#047857',
+    '#4338ca',
+    '#b45309',
+    '#0e7490',
+    '#a21caf',
+    '#15803d',
+    '#1d4ed8'
+  ];
+  const seed = [team && team.name, team && team.teamNumber, team && team.program].filter(Boolean).join('|');
+  return palette[hashStringToHue(seed) % palette.length];
 }
 
 function getHomeTeamTitle(team) {

@@ -412,19 +412,31 @@
 
           <% const featuredTeams = typeof homeFeaturedTeams !== 'undefined' && Array.isArray(homeFeaturedTeams) && homeFeaturedTeams.length ? homeFeaturedTeams : defaultFeaturedTeams; %>
 
+          <% const teamAccentPalette = ['#0f766e', '#2563eb', '#7c3aed', '#be123c', '#c2410c', '#047857', '#4338ca', '#b45309', '#0e7490', '#a21caf', '#15803d', '#1d4ed8']; %>
+          <% function getFeaturedTeamAccent(team, index) {
+            if (team && team.color) return team.color;
+            const source = String([team && team.name, team && (team.teamNumber || team.number), team && (team.program || team.league)].filter(Boolean).join('|') || index);
+            let hash = 0;
+            for (let i = 0; i < source.length; i += 1) {
+              hash = ((hash << 5) - hash) + source.charCodeAt(i);
+              hash |= 0;
+            }
+            return teamAccentPalette[Math.abs(hash) % teamAccentPalette.length];
+          } %>
           <% featuredTeams.forEach(function(team, index){ %>
+            <% const teamAccent = getFeaturedTeamAccent(team, index); %>
 
-            <article class="team-card" style="--team-accent: <%= team.color %>; --team-card-index: <%= index %>">
+            <article class="team-card" style="--team-accent: <%= teamAccent %>; --team-card-index: <%= index %>">
 
-              <div class="team-card-bar" style="background-color: <%= team.color %>"></div>
+              <div class="team-card-bar" style="background-color: <%= teamAccent %>"></div>
 
               <div class="team-card-body">
 
                 <div class="team-card-top">
 
                   <div class="team-card-brand">
-                    <div class="team-logo-badge" style="border-color: <%= team.color %>33; background-color: <%= team.color %>12; color: <%= team.color %>"><%= team.logo || team.name.split(/\s+/).slice(0,2).map(function(word){ return word.charAt(0); }).join('') %></div>
-                    <div class="team-number" style="border-color: <%= team.color %>33; background-color: <%= team.color %>15; color: <%= team.color %>">#<%= team.number %></div>
+                    <div class="team-logo-badge" style="border-color: <%= teamAccent %>33; background-color: <%= teamAccent %>12; color: <%= teamAccent %>"><%= team.logo || team.name.split(/\s+/).slice(0,2).map(function(word){ return word.charAt(0); }).join('') %></div>
+                    <div class="team-number" style="border-color: <%= teamAccent %>33; background-color: <%= teamAccent %>15; color: <%= teamAccent %>">#<%= team.number %></div>
                   </div>
 
                   <span class="league-pill"><%= team.league %></span>
