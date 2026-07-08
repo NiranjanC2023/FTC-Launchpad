@@ -3042,6 +3042,21 @@ textarea.form-control {
   gap: 16px;
 }
 
+.find-teams main > #teamsContainer,
+.find-teams #teamsMap,
+.find-teams #teamsList,
+.find-teams .teams-list-container,
+.find-teams .teams-list-cards,
+.find-teams .teams-search {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.find-teams main > #teamsContainer {
+  width: 100%;
+  overflow-x: clip;
+}
+
 .teams-list-cards {
   overflow: visible;
   padding-right: 0;
@@ -3506,6 +3521,16 @@ textarea.form-control {
 
   .teams-search-count {
     text-align: right;
+  }
+
+  .find-teams .button-group {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .find-teams .button-group .btn {
+    width: 100%;
   }
 
   .resource-card,
