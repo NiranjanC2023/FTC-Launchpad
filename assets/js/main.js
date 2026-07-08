@@ -1530,6 +1530,7 @@ function loadSiteShells() {
           const inboxList = document.querySelector('[data-inbox-list]');
           const inboxEmpty = document.querySelector('[data-inbox-empty]');
           const inboxTitle = document.querySelector('[data-inbox-title]');
+          const inboxClear = document.querySelector('[data-inbox-clear]');
           const accountMenu = document.querySelector('.account-menu');
           const accountToggle = document.querySelector('[data-account-toggle]');
           const accountDropdown = document.querySelector('[data-account-dropdown]');
@@ -1555,6 +1556,13 @@ function loadSiteShells() {
             });
           }
 
+          function updateInboxControls() {
+            if (!inboxClear) return;
+            const hasNotifications = notifications.length > 0;
+            inboxClear.disabled = !hasNotifications;
+            inboxClear.classList.toggle('is-disabled', !hasNotifications);
+          }
+
           function renderNotifications() {
             if (!inboxList || !inboxEmpty || !inboxTitle) return;
 
@@ -1562,6 +1570,7 @@ function loadSiteShells() {
               inboxList.innerHTML = '';
               inboxEmpty.hidden = false;
               inboxTitle.textContent = 'Inbox';
+              updateInboxControls();
               return;
             }
 
@@ -1581,6 +1590,7 @@ function loadSiteShells() {
                 </a>
               `;
             }).join('');
+            updateInboxControls();
           }
 
           renderNotifications();
@@ -1623,6 +1633,24 @@ function loadSiteShells() {
               accountLinks[1].setAttribute('data-href', '/logout');
               accountLinks[1].textContent = 'Sign Out';
             }
+          }
+
+          if (inboxClear && !inboxClear.dataset.bound) {
+            inboxClear.dataset.bound = 'true';
+            inboxClear.addEventListener('click', async (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (!user || !notifications.length) return;
+
+              try {
+                await fetch('/api/notifications/clear', { method: 'POST' });
+              } catch (e) {}
+
+              notifications = [];
+              unreadCount = 0;
+              renderNotifications();
+              syncUnreadCount(0);
+            });
           }
 
           if (inboxToggle && !inboxToggle.dataset.bound) {

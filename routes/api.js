@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const Team = require('../models/team');
 const Student = require('../models/student');
 const User = require('../models/user');
-const { createNotification, listNotifications, countUnreadNotifications, markNotificationsRead, serializeNotification, normalizeEmail } = require('../lib/notifications');
+const { createNotification, listNotifications, countUnreadNotifications, markNotificationsRead, clearNotifications, serializeNotification, normalizeEmail } = require('../lib/notifications');
 const { DEFAULT_FROM, buildTransactionalEmailTemplate, sendBrevoEmail } = require('../lib/email');
 
 function publicUser(user) {
@@ -324,6 +324,21 @@ router.post('/notifications/read', async function(req, res) {
 
 		await markNotificationsRead(user.email);
 		res.json({ ok: true });
+	} catch (err) {
+		res.status(500).json({ ok: false, error: err.message });
+	}
+});
+
+router.post('/notifications/clear', async function(req, res) {
+	try {
+		if (!requireDatabase(res)) return;
+		if (!req.session.userId) return res.status(401).json({ ok: false, error: 'not authenticated' });
+
+		const user = await User.findById(req.session.userId).select('email').lean().exec();
+		if (!user) return res.status(401).json({ ok: false, error: 'not authenticated' });
+
+		const deletedCount = await clearNotifications(user.email);
+		res.json({ ok: true, deletedCount });
 	} catch (err) {
 		res.status(500).json({ ok: false, error: err.message });
 	}
