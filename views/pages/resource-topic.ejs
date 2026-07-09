@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title><%= topic.title %> - FIRST Start</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/assets/css/main.css?v=21">
+</head>
+<body>
+  <header></header>
+
+  <main>
+    <div class="container">
+      <a href="/resources" class="btn btn-secondary back-button">&larr; Back to Resources</a>
+
+      <p class="summary-kicker"><%= topic.program %></p>
+      <h1><%= topic.title %></h1>
+      <p class="subtitle"><%= topic.subtitle %></p>
+
+      <% topic.sections.forEach(function(section) { %>
+        <section class="content-section">
+          <h2><%= section.heading %></h2>
+          <% if (section.items) { %>
+            <ul>
+              <% section.items.forEach(function(item) { %>
+                <li><%= item %></li>
+              <% }) %>
+            </ul>
+          <% } %>
+          <% if (section.links) { %>
+            <ul class="resource-links resource-topic-links">
+              <% section.links.forEach(function(link) { %>
+                <li>
+                  <a href="<%= link.url %>" target="_blank" rel="noopener" data-public-resource="true"><%= link.label %></a>
+                </li>
+              <% }) %>
+            </ul>
+          <% } %>
+        </section>
+      <% }) %>
+    </div>
+  </main>
+
+  <script src="/assets/js/main.js?v=10"></script>
+</body>
+</html>

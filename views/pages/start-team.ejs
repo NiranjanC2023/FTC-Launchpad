@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Start an FTC Team - FTC Starter Hub</title>
+  <title>Start a FIRST Team - FIRST Start</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="/assets/css/main.css?v=20">
+  <link rel="stylesheet" href="/assets/css/main.css?v=21">
 </head>
 <body>
   <header></header>
@@ -18,9 +18,9 @@
     <div class="container start-team-shell">
       <a href="/" class="btn btn-secondary back-button">&larr; Back Home</a>
 
-      <h1>Start an FTC Team</h1>
+      <h1>Start a FIRST Team</h1>
       <p class="subtitle">
-        Use this guide to move from idea to active team, one step at a time.
+        Choose the program you want to launch, then use the matching steps and resources to move from idea to active team.
       </p>
 
       <p class="start-team-cta-row">
@@ -31,33 +31,149 @@
         <a href="/team-register" class="btn btn-primary start-team-cta-button">Register Your Team Recruiting Status</a>
       </p>
 
-      <div class="step-grid">
-        <a href="/start-team-step3" class="btn btn-secondary step-card">
-          <strong>Step 1:</strong> Recruit Students
-        </a>
-        <a href="/start-team-step2" class="btn btn-secondary step-card">
-          <strong>Step 2:</strong> Connect with FIRST
-        </a>
-        <a href="/start-team-step1" class="btn btn-secondary step-card">
-          <strong>Step 3:</strong> Choose a Sponsor Organization
-        </a>
-        <a href="/start-team-step4" class="btn btn-secondary step-card">
-          <strong>Step 4:</strong> Find a Coach or Mentor (optional)
-        </a>
-        <a href="/start-team-step5" class="btn btn-secondary step-card">
-          <strong>Step 5:</strong> Set Up Workspace & Get Equipment
-        </a>
-        <a href="/start-team-step6" class="btn btn-secondary step-card">
-          <strong>Step 6:</strong> Learn the Basics and Prepare
-        </a>
-      </div>
+      <section class="program-choice" aria-labelledby="startProgramTitle">
+        <h2 id="startProgramTitle">Choose Your Program</h2>
+        <div class="program-tabs" role="tablist" aria-label="FIRST program">
+          <input type="radio" name="start-program" id="start-program-fll" checked>
+          <label for="start-program-fll">FLL Challenge</label>
+
+          <input type="radio" name="start-program" id="start-program-ftc">
+          <label for="start-program-ftc">FTC</label>
+
+          <input type="radio" name="start-program" id="start-program-frc">
+          <label for="start-program-frc">FRC</label>
+        </div>
+
+        <div class="program-panel program-panel-fll">
+          <div class="program-summary">
+            <span>Grades 4-8</span>
+            <h3>FIRST LEGO League Challenge</h3>
+            <p>Students research a real-world problem, code LEGO robots, and present their work at local events.</p>
+          </div>
+          <div class="program-resource-grid">
+            <a href="https://www.firstinspires.org/programs/fll/get-started" target="_blank" rel="noopener" data-public-resource="true">FLL Get Started</a>
+            <a href="https://www.firstlegoleague.org/" target="_blank" rel="noopener" data-public-resource="true">FLL Program Site</a>
+            <a href="https://www.firstinspires.org/resources/library/fll/season-materials" target="_blank" rel="noopener" data-public-resource="true">FLL Season Materials</a>
+          </div>
+
+          <h3 class="program-steps-title">FLL Challenge Startup Steps</h3>
+          <div class="step-grid program-step-grid">
+            <a href="/resources/fll-team-meetings" class="btn btn-secondary step-card">
+              <strong>Step 1:</strong> Confirm Age Group
+              <span class="step-examples">Build a team of 2-10 students in the local FLL Challenge age/grade range.</span>
+            </a>
+            <a href="/resources/fll-team-meetings" class="btn btn-secondary step-card">
+              <strong>Step 2:</strong> Register with FIRST
+              <span class="step-examples">Create the team in the FIRST Dashboard and connect with your local partner.</span>
+            </a>
+            <a href="/resources/fll-team-meetings" class="btn btn-secondary step-card">
+              <strong>Step 3:</strong> Order Challenge Materials
+              <span class="step-examples">Plan for registration, a Challenge Set, robot parts, and meeting supplies.</span>
+            </a>
+            <a href="/resources/fll-team-meetings" class="btn btn-secondary step-card">
+              <strong>Step 4:</strong> Pick Coaches
+              <span class="step-examples">Choose adults who can guide meetings, safety, teamwork, and event logistics.</span>
+            </a>
+            <a href="/resources/fll-robot-game" class="btn btn-secondary step-card">
+              <strong>Step 5:</strong> Run Meetings
+              <span class="step-examples">Use the Team Meeting Guide, robot game rules, and innovation project materials.</span>
+            </a>
+            <a href="/resources/fll-project-event" class="btn btn-secondary step-card">
+              <strong>Step 6:</strong> Attend an Event
+              <span class="step-examples">Register locally, practice judging presentations, and prepare for the robot game.</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="program-panel program-panel-ftc">
+          <div class="program-summary">
+            <span>Grades 7-12</span>
+            <h3>FIRST Tech Challenge</h3>
+            <p>Medium-size teams design, build, and program an Android-controlled robot for a yearly game.</p>
+          </div>
+          <div class="program-resource-grid">
+            <a href="https://www.firstinspires.org/programs/ftc/" target="_blank" rel="noopener" data-public-resource="true">FTC Program Overview</a>
+            <a href="https://www.firstinspires.org/resources/library/ftc/team-management-resources" target="_blank" rel="noopener" data-public-resource="true">FTC Team Management</a>
+            <a href="https://ftc-resources.firstinspires.org/ftc/game" target="_blank" rel="noopener" data-public-resource="true">FTC Game Materials</a>
+          </div>
+
+          <h3 class="program-steps-title">FTC Startup Steps</h3>
+          <div class="step-grid program-step-grid">
+            <a href="/start-team-step3" class="btn btn-secondary step-card">
+              <strong>Step 1:</strong> Recruit Students
+              <span class="step-examples">Build a small team with builders, coders, drivers, notebook leads, and outreach roles.</span>
+            </a>
+            <a href="/start-team-step2" class="btn btn-secondary step-card">
+              <strong>Step 2:</strong> Connect with FIRST
+              <span class="step-examples">Create your team, find your region, and learn the local event path.</span>
+            </a>
+            <a href="/start-team-step1" class="btn btn-secondary step-card">
+              <strong>Step 3:</strong> Choose a Sponsor Organization
+              <span class="step-examples">Use a school, nonprofit, makerspace, community group, or parent-led organization.</span>
+            </a>
+            <a href="/start-team-step4" class="btn btn-secondary step-card">
+              <strong>Step 4:</strong> Find a Coach or Mentor
+              <span class="step-examples">Recruit adults for supervision, engineering support, programming, and logistics.</span>
+            </a>
+            <a href="/start-team-step5" class="btn btn-secondary step-card">
+              <strong>Step 5:</strong> Get Equipment
+              <span class="step-examples">Plan workspace, robot kit, control system, tools, parts, and field elements.</span>
+            </a>
+            <a href="/start-team-step6" class="btn btn-secondary step-card">
+              <strong>Step 6:</strong> Prepare for Season
+              <span class="step-examples">Learn FTC rules, Java/Blocks basics, inspection, judging, and match flow.</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="program-panel program-panel-frc">
+          <div class="program-summary">
+            <span>Grades 9-12</span>
+            <h3>FIRST Robotics Competition</h3>
+            <p>Larger teams build industrial-scale robots with mentors, fabrication, controls, strategy, and business roles.</p>
+          </div>
+          <div class="program-resource-grid">
+            <a href="https://www.firstinspires.org/programs/frc/" target="_blank" rel="noopener" data-public-resource="true">FRC Program Overview</a>
+            <a href="https://www.firstinspires.org/resources/library/frc/team-management-resources" target="_blank" rel="noopener" data-public-resource="true">FRC Team Management</a>
+            <a href="https://www.firstinspires.org/resources/library/frc/season-materials" target="_blank" rel="noopener" data-public-resource="true">FRC Season Materials</a>
+          </div>
+
+          <h3 class="program-steps-title">FRC Startup Steps</h3>
+          <div class="step-grid program-step-grid">
+            <a href="/resources/frc-team-setup" class="btn btn-secondary step-card">
+              <strong>Step 1:</strong> Recruit a Larger Team
+              <span class="step-examples">Plan student groups for mechanical, electrical, software, drive, awards, media, and business.</span>
+            </a>
+            <a href="/resources/frc-team-setup" class="btn btn-secondary step-card">
+              <strong>Step 2:</strong> Secure Mentors
+              <span class="step-examples">Find technical and non-technical mentors who can support build season and events.</span>
+            </a>
+            <a href="/resources/frc-team-setup" class="btn btn-secondary step-card">
+              <strong>Step 3:</strong> Budget and Register
+              <span class="step-examples">Prepare for registration, robot parts, travel, event costs, and sponsor outreach.</span>
+            </a>
+            <a href="/resources/frc-robot-build" class="btn btn-secondary step-card">
+              <strong>Step 4:</strong> Set Up Build Space
+              <span class="step-examples">Arrange fabrication space, tools, safety rules, storage, and meeting schedules.</span>
+            </a>
+            <a href="/resources/frc-season-events" class="btn btn-secondary step-card">
+              <strong>Step 5:</strong> Prepare for Kickoff
+              <span class="step-examples">Review season materials, kit details, inspection expectations, and robot rules.</span>
+            </a>
+            <a href="/resources/frc-season-events" class="btn btn-secondary step-card">
+              <strong>Step 6:</strong> Choose Events
+              <span class="step-examples">Find regional or district events, plan travel, and prepare drive team and pit crew.</span>
+            </a>
+          </div>
+        </div>
+      </section>
 
       <p class="subtitle" style="margin-top: 2rem;">
-        Open any step to get a focused explanation, practical guidance, and a clear next move.
+        Use each step to plan the next move for the selected program.
       </p>
     </div>
   </main>
 
-  <script src="/assets/js/main.js?v=9"></script>
+  <script src="/assets/js/main.js?v=10"></script>
 </body>
 </html>

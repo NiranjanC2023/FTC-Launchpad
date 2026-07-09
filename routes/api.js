@@ -43,6 +43,46 @@ function requireDatabase(res) {
 	return false;
 }
 
+function parseCoordinate(value) {
+	const number = Number(value);
+	return Number.isFinite(number) ? number : null;
+}
+
+// Approximate a user's location from a US ZIP code.
+router.get('/geocode-zip', async function(req, res) {
+	try {
+		const zip = String(req.query.zip || '').trim();
+		if (!/^\d{5}$/.test(zip)) {
+			return res.status(400).json({ ok: false, error: 'Enter a valid 5-digit ZIP code.' });
+		}
+
+		const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&postalcode=${encodeURIComponent(zip)}`;
+		const response = await fetch(url, {
+			headers: {
+				'User-Agent': 'FTC-Starter-Hub/1.0',
+				Accept: 'application/json'
+			}
+		});
+
+		if (!response.ok) {
+			return res.status(502).json({ ok: false, error: 'Unable to look up that ZIP code right now.' });
+		}
+
+		const results = await response.json();
+		const first = Array.isArray(results) ? results[0] : null;
+		const lat = first ? parseCoordinate(first.lat) : null;
+		const lon = first ? parseCoordinate(first.lon) : null;
+
+		if (lat === null || lon === null) {
+			return res.status(404).json({ ok: false, error: 'Could not find that ZIP code.' });
+		}
+
+		res.json({ ok: true, coords: { lat, lon } });
+	} catch (err) {
+		res.status(500).json({ ok: false, error: 'Unable to look up that ZIP code right now.' });
+	}
+});
+
 // List teams
 router.get('/teams', async function(req, res) {
 	try {

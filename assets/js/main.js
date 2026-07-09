@@ -171,8 +171,24 @@ function initAuthGatedActions() {
   });
 
   const resourceLinks = document.querySelectorAll('.resource-links a');
+  const publicResourcePaths = new Set([
+    '/sdk',
+    '/programming',
+    '/advanced-programming',
+    '/controller-setup',
+    '/drivetrain',
+    '/mechanical-parts',
+    '/assembly',
+    '/motor-selection',
+    '/funding',
+    '/sponsorship',
+    '/outreach',
+    '/team-org'
+  ]);
   resourceLinks.forEach((link) => {
     if (link.dataset.authBound) return;
+    if (link.dataset.publicResource === 'true' || link.origin !== window.location.origin) return;
+    if (link.pathname.startsWith('/resources/') || publicResourcePaths.has(link.pathname)) return;
     link.dataset.authBound = 'true';
     link.addEventListener('click', (event) => {
       requireAuthForAction(link.getAttribute('href') || '/resources', (link.textContent || '').trim(), event);
@@ -1103,7 +1119,9 @@ function renderTeams(teams, userCoords) {
       bounds.extend(marker.getBounds());
     });
 
-    if (bounds.isValid()) {
+    if (userCoords && typeof userCoords.lat === 'number' && typeof userCoords.lon === 'number') {
+      map.setView([userCoords.lat, userCoords.lon], 12);
+    } else if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [24, 24] });
     } else if (window._userLocationMarker && userCoords) {
       map.setView([userCoords.lat, userCoords.lon], 13);
@@ -1208,17 +1226,89 @@ function initTeamsPage() {
   const teams = Array.isArray(window.__TEAMS__) && window.__TEAMS__.length > 0 ? window.__TEAMS__ : SAMPLE_TEAMS;
   const coords = window.__USER_COORDS__ || null;
   const status = document.getElementById('teamsStatus');
+  const zipForm = document.getElementById('zipLocationForm');
+  const zipInput = document.getElementById('zipLocationInput');
+  const zipMessage = document.getElementById('zipLocationMessage');
   status.textContent = 'Loading teams…';
 
   renderTeams(teams, coords);
+
+  function setZipMessage(message, isError = false) {
+    if (!zipMessage) return;
+    zipMessage.textContent = message || '';
+    zipMessage.classList.toggle('is-error', Boolean(isError));
+  }
+
+  function hasTeamWithinMiles(referenceCoords, radiusMiles) {
+    if (!referenceCoords || typeof referenceCoords.lat !== 'number' || typeof referenceCoords.lon !== 'number') return false;
+    const radiusKm = radiusMiles / 0.621371;
+    return teams.some(team => (
+      team
+      && typeof team.lat === 'number'
+      && typeof team.lon === 'number'
+      && haversineDistance(referenceCoords.lat, referenceCoords.lon, team.lat, team.lon) <= radiusKm
+    ));
+  }
+
+  function updateLocationStatus(referenceCoords, nearbyMessage) {
+    status.textContent = hasTeamWithinMiles(referenceCoords, 100)
+      ? nearbyMessage
+      : "Sorry, we don't find any registered team at your location";
+  }
+
+  if (zipForm && zipInput) {
+    zipForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const zip = zipInput.value.trim();
+
+      if (!/^\d{5}$/.test(zip)) {
+        setZipMessage('Enter a valid 5-digit ZIP code.', true);
+        zipInput.focus();
+        return;
+      }
+
+      setZipMessage('Looking up ZIP code...');
+
+      try {
+        const response = await fetch(`/api/geocode-zip?zip=${encodeURIComponent(zip)}`, {
+          credentials: 'same-origin'
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok || !payload.ok || !payload.coords) {
+          setZipMessage(payload.error || 'Could not find that ZIP code.', true);
+          return;
+        }
+
+        const zipCoords = {
+          lat: Number(payload.coords.lat),
+          lon: Number(payload.coords.lon)
+        };
+
+        if (!Number.isFinite(zipCoords.lat) || !Number.isFinite(zipCoords.lon)) {
+          setZipMessage('Could not find that ZIP code.', true);
+          return;
+        }
+
+        renderTeams(teams, zipCoords);
+        updateLocationStatus(zipCoords, `Showing teams near ${zip}`);
+        setZipMessage('');
+      } catch (err) {
+        setZipMessage('Unable to look up that ZIP code right now.', true);
+      }
+    });
+  }
 
   // Try to get a more accurate list based on user's location, but don't block the UI.
   if (navigator.geolocation) {
     const geoOptions = { maximumAge: 60000, timeout: 2000, enableHighAccuracy: false };
     navigator.geolocation.getCurrentPosition((pos) => {
       const userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      status.textContent = 'Showing nearby teams';
+      renderTeams(teams, userCoords);
+      updateLocationStatus(userCoords, 'Showing nearby teams');
+    }, () => {
       status.textContent = 'Using nearby teams (location unavailable)';
+      setZipMessage('Enter a ZIP code to sort teams by distance without sharing your location.');
     }, geoOptions);
   } else {
     status.textContent = 'Geolocation not supported — showing nearby teams';

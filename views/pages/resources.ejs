@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Resources - FTC Starter Hub</title>
+  <title>Resources - FIRST Start</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="/assets/css/main.css?v=20">
+  <link rel="stylesheet" href="/assets/css/main.css?v=21">
 </head>
 <body>
   <header></header>
@@ -21,86 +21,253 @@
       <h1>Resources</h1>
 
       <p class="subtitle">
-        Find practical guides for coding, building, fundraising, and organizing your team. Each link below includes
-        a short explanation so you can jump to the right resource faster.
+        Choose FTC, FRC, or FLL Challenge to see resources that match the program you are building for.
       </p>
 
-      <div class="resources-grid">
-        <div class="resource-card">
-          <div class="card-icon">💻</div>
-          <h2>Software</h2>
-          <p>Learn how to write robot code, configure the controller app, and understand the FTC SDK workflow.</p>
-          <ul class="resource-links">
-            <li>
-              <a href="/sdk">FTC SDK Documentation</a>
-              <span class="resource-link-note">Official Java robot libraries, setup steps, and the core classes used in FTC coding.</span>
-            </li>
-            <li>
-              <a href="/programming">Basic FTC Robot Programming</a>
-              <span class="resource-link-note">Start here if you are new to OpModes, drivetrain control, and tele-op basics.</span>
-            </li>
-            <li>
-              <a href="/advanced-programming">Advanced FTC Robot Programming</a>
-              <span class="resource-link-note">Covers better architecture, autonomous routines, and more advanced coding patterns.</span>
-            </li>
-            <li>
-              <a href="/controller-setup">Robot Controller Setup</a>
-              <span class="resource-link-note">Shows how to connect phones, pair devices, and get the control system ready to test.</span>
-            </li>
-          </ul>
+      <section class="program-choice resources-program-choice" aria-labelledby="resourcesProgramTitle">
+        <h2 id="resourcesProgramTitle">Choose Your Program</h2>
+        <div class="program-tabs" role="tablist" aria-label="FIRST program resources">
+          <input type="radio" name="resources-program" id="resources-program-ftc" checked>
+          <label for="resources-program-ftc">FTC</label>
+
+          <input type="radio" name="resources-program" id="resources-program-frc">
+          <label for="resources-program-frc">FRC</label>
+
+          <input type="radio" name="resources-program" id="resources-program-fll">
+          <label for="resources-program-fll">FLL Challenge</label>
         </div>
 
-        <div class="resource-card">
-          <div class="card-icon">⚙️</div>
-          <h2>Mechanical</h2>
-          <p>Plan a robot that is sturdy, easy to repair, and realistic for your team to build and maintain.</p>
-          <ul class="resource-links">
-            <li>
-              <a href="/drivetrain">Drivetrain Design</a>
-              <span class="resource-link-note">Compare drive styles, wheel choices, gearing, and layout ideas for a dependable base.</span>
-            </li>
-            <li>
-              <a href="/mechanical-parts">Mechanical Parts Guide</a>
-              <span class="resource-link-note">A practical overview of fasteners, structure pieces, motion parts, and common hardware.</span>
-            </li>
-            <li>
-              <a href="/assembly">Assembly Tutorials</a>
-              <span class="resource-link-note">Step-by-step build help for putting together parts cleanly and keeping the robot serviceable.</span>
-            </li>
-            <li>
-              <a href="/motor-selection">Motor Selection</a>
-              <span class="resource-link-note">Helps you choose the right motors and understand power, speed, and torque tradeoffs.</span>
-            </li>
-          </ul>
+        <div class="program-panel program-panel-ftc">
+          <div class="resources-grid">
+            <div class="resource-card">
+              <div class="card-icon">FTC</div>
+              <h2>Software</h2>
+              <p>Learn how to write robot code, configure the controller app, and understand the FTC SDK workflow.</p>
+              <ul class="resource-links">
+                <li>
+                  <a href="/sdk">FTC SDK Documentation</a>
+                  <span class="resource-link-note">Official Java robot libraries, setup steps, and the core classes used in FTC coding.</span>
+                </li>
+                <li>
+                  <a href="/programming">Basic FTC Robot Programming</a>
+                  <span class="resource-link-note">Start here if you are new to OpModes, drivetrain control, and tele-op basics.</span>
+                </li>
+                <li>
+                  <a href="/advanced-programming">Advanced FTC Robot Programming</a>
+                  <span class="resource-link-note">Covers better architecture, autonomous routines, and more advanced coding patterns.</span>
+                </li>
+                <li>
+                  <a href="/controller-setup">Robot Controller Setup</a>
+                  <span class="resource-link-note">Shows how to connect phones, pair devices, and get the control system ready to test.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="resource-card">
+              <div class="card-icon">Build</div>
+              <h2>Mechanical</h2>
+              <p>Plan a robot that is sturdy, easy to repair, and realistic for your team to build and maintain.</p>
+              <ul class="resource-links">
+                <li>
+                  <a href="/drivetrain">Drivetrain Design</a>
+                  <span class="resource-link-note">Compare drive styles, wheel choices, gearing, and layout ideas for a dependable base.</span>
+                </li>
+                <li>
+                  <a href="/mechanical-parts">Mechanical Parts Guide</a>
+                  <span class="resource-link-note">A practical overview of fasteners, structure pieces, motion parts, and common hardware.</span>
+                </li>
+                <li>
+                  <a href="/assembly">Assembly Tutorials</a>
+                  <span class="resource-link-note">Step-by-step build help for putting together parts cleanly and keeping the robot serviceable.</span>
+                </li>
+                <li>
+                  <a href="/motor-selection">Motor Selection</a>
+                  <span class="resource-link-note">Helps you choose the right motors and understand power, speed, and torque tradeoffs.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="resource-card">
+              <div class="card-icon">Team</div>
+              <h2>Non-Technical</h2>
+              <p>Use these guides to organize your team, explain your goals, and build support from families and sponsors.</p>
+              <ul class="resource-links">
+                <li>
+                  <a href="/funding">Team Funding Guide</a>
+                  <span class="resource-link-note">Budget planning, sponsor outreach, and ways to explain where the money will go.</span>
+                </li>
+                <li>
+                  <a href="/sponsorship">Sponsorship Templates</a>
+                  <span class="resource-link-note">Email and letter templates that help you ask businesses and organizations for support.</span>
+                </li>
+                <li>
+                  <a href="/outreach">Outreach Ideas</a>
+                  <span class="resource-link-note">Ways to recruit students, show off the team, and share FIRST with your community.</span>
+                </li>
+                <li>
+                  <a href="/team-org">Team Organization</a>
+                  <span class="resource-link-note">Learn how to set roles, track tasks, and keep meetings productive throughout the season.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
 
-        <div class="resource-card">
-          <div class="card-icon">📋</div>
-          <h2>Non-Technical</h2>
-          <p>Use these guides to organize your team, explain your goals, and build support from families and sponsors.</p>
-          <ul class="resource-links">
-            <li>
-              <a href="/funding">Team Funding Guide</a>
-              <span class="resource-link-note">Budget planning, sponsor outreach, and ways to explain where the money will go.</span>
-            </li>
-            <li>
-              <a href="/sponsorship">Sponsorship Templates</a>
-              <span class="resource-link-note">Email and letter templates that help you ask businesses and organizations for support.</span>
-            </li>
-            <li>
-              <a href="/outreach">Outreach Ideas</a>
-              <span class="resource-link-note">Ways to recruit students, show off the team, and share FIRST with your community.</span>
-            </li>
-            <li>
-              <a href="/team-org">Team Organization</a>
-              <span class="resource-link-note">Learn how to set roles, track tasks, and keep meetings productive throughout the season.</span>
-            </li>
-          </ul>
+        <div class="program-panel program-panel-frc">
+          <div class="resources-grid">
+            <div class="resource-card">
+              <div class="card-icon">FRC</div>
+              <h2>Team Setup</h2>
+              <p>Build the structure, people, and budget a larger robotics team needs before the season gets busy.</p>
+              <ul class="resource-links">
+                <li>
+                  <a href="/resources/frc-team-setup">FRC Program Overview</a>
+                  <span class="resource-link-note">FRC basics, team structure, and official overview links in one local guide.</span>
+                </li>
+                <li>
+                  <a href="/resources/frc-team-setup">Team Management Resources</a>
+                  <span class="resource-link-note">Student roles, mentor roles, meeting expectations, and team operations.</span>
+                </li>
+                <li>
+                  <a href="/resources/frc-team-setup">Cost and Registration</a>
+                  <span class="resource-link-note">First-year budgeting, registration planning, and official cost links.</span>
+                </li>
+                <li>
+                  <a href="/resources/frc-team-setup">Find Teams and Events</a>
+                  <span class="resource-link-note">How to use nearby teams and events to learn before competing.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="resource-card">
+              <div class="card-icon">Build</div>
+              <h2>Robot Build Basics</h2>
+              <p>Plan a large robot that is safe, serviceable, and realistic for your team to finish and practice with.</p>
+              <ul class="resource-links">
+                <li>
+                  <a href="/resources/frc-robot-build">WPILib Documentation</a>
+                  <span class="resource-link-note">Programming setup, controls, simulation, and official WPILib links inside.</span>
+                </li>
+                <li>
+                  <a href="/resources/frc-robot-build">Zero to Robot</a>
+                  <span class="resource-link-note">Setup path for laptops, roboRIO, radio hardware, wiring, and deployment.</span>
+                </li>
+                <li>
+                  <a href="/resources/frc-robot-build">FRC Technical Resources</a>
+                  <span class="resource-link-note">Robot control, inspection, and build support guidance for new teams.</span>
+                </li>
+                <li>
+                  <a href="/resources/frc-robot-build">Kit and Season Materials</a>
+                  <span class="resource-link-note">How to use kit and kickoff details when planning robot build scope.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="resource-card">
+              <div class="card-icon">Game</div>
+              <h2>Season and Events</h2>
+              <p>Use these resources to prepare for kickoff, inspection, judging, pit work, matches, and event logistics.</p>
+              <ul class="resource-links">
+                <li>
+                  <a href="/resources/frc-season-events">FRC Season Materials</a>
+                  <span class="resource-link-note">Manuals, updates, deadlines, and how to turn them into a season plan.</span>
+                </li>
+                <li>
+                  <a href="/resources/frc-season-events">Safety Manual</a>
+                  <span class="resource-link-note">Shop, pit, battery, tool, lifting, and event safety expectations.</span>
+                </li>
+                <li>
+                  <a href="/resources/frc-season-events">Awards and Submissions</a>
+                  <span class="resource-link-note">How to prepare students for impact, technical, and interview-based awards.</span>
+                </li>
+                <li>
+                  <a href="/resources/frc-season-events">Teams and Events Search</a>
+                  <span class="resource-link-note">How event listings help with travel, scouting, practice, and scheduling.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
-      </div>
+
+        <div class="program-panel program-panel-fll">
+          <div class="resources-grid">
+            <div class="resource-card">
+              <div class="card-icon">FLL</div>
+              <h2>Team Meetings</h2>
+              <p>Organize a small team, steady meeting rhythm, and coaching structure that lets students own the work.</p>
+              <ul class="resource-links">
+                <li>
+                  <a href="/resources/fll-team-meetings">How to Get Started</a>
+                  <span class="resource-link-note">Team setup, coach responsibilities, registration, and partner connection guidance.</span>
+                </li>
+                <li>
+                  <a href="/resources/fll-team-meetings">FIRST LEGO League Site</a>
+                  <span class="resource-link-note">Program structure, divisions, season theme, and family explanation help.</span>
+                </li>
+                <li>
+                  <a href="/resources/fll-team-meetings">Cost and Registration</a>
+                  <span class="resource-link-note">Registration, Challenge Set, robot materials, supplies, and event budget notes.</span>
+                </li>
+                <li>
+                  <a href="/resources/fll-team-meetings">Youth Protection</a>
+                  <span class="resource-link-note">Adult supervision, student safety, communication, and meeting expectations.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="resource-card">
+              <div class="card-icon">Robot</div>
+              <h2>Robot Game and Coding</h2>
+              <p>Build a reliable LEGO robot, test one mission at a time, and keep programs simple enough for students to explain.</p>
+              <ul class="resource-links">
+                <li>
+                  <a href="/resources/fll-robot-game">Robot Game Rulebook</a>
+                  <span class="resource-link-note">Mission scoring, match flow, challenge updates, and field setup guidance.</span>
+                </li>
+                <li>
+                  <a href="/resources/fll-robot-game">SPIKE Prime Lessons</a>
+                  <span class="resource-link-note">Beginner-friendly robot building, coding, sensors, and testing lessons.</span>
+                </li>
+                <li>
+                  <a href="/resources/fll-robot-game">SPIKE App</a>
+                  <span class="resource-link-note">Robot coding, motor control, sensors, mission routines, and debugging basics.</span>
+                </li>
+                <li>
+                  <a href="/resources/fll-robot-game">Challenge Resources</a>
+                  <span class="resource-link-note">Mission testing, attachments, robot design judging, and season resources.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="resource-card">
+              <div class="card-icon">Project</div>
+              <h2>Innovation Project and Event Prep</h2>
+              <p>Prepare for the parts of FLL beyond robot matches: project research, Core Values, robot design, and judging.</p>
+              <ul class="resource-links">
+                <li>
+                  <a href="/resources/fll-project-event">Team Meeting Guide</a>
+                  <span class="resource-link-note">Meeting pacing for project work, robot design, Core Values, and events.</span>
+                </li>
+                <li>
+                  <a href="/resources/fll-project-event">Engineering Notebook</a>
+                  <span class="resource-link-note">Track ideas, testing, robot changes, project research, and team decisions.</span>
+                </li>
+                <li>
+                  <a href="/resources/fll-project-event">Judging Resources</a>
+                  <span class="resource-link-note">Prepare students to explain project, robot design, teamwork, and iteration.</span>
+                </li>
+                <li>
+                  <a href="/resources/fll-project-event">Teams and Events Search</a>
+                  <span class="resource-link-note">Find events, nearby teams, and examples of competition day organization.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   </main>
 
-  <script src="/assets/js/main.js?v=9"></script>
+  <script src="/assets/js/main.js?v=10"></script>
 </body>
 </html>

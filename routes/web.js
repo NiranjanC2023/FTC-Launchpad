@@ -175,6 +175,7 @@ function anonymousAllowedPath(pathname) {
         || path === '/teams-nearby'
         || path === '/team-register'
         || path === '/resources'
+        || /^\/resources\/[a-z0-9-]+$/.test(path)
         || path === '/start-team'
         || /^\/start-team-step[1-9]$/.test(path)
         || publicResourcePaths.has(path)
@@ -1040,9 +1041,168 @@ router.get("/join-form", async function(req, res){
     }
 });
 
+const RESOURCE_TOPIC_PAGES = {
+    'frc-team-setup': {
+        title: 'FRC Team Setup',
+        subtitle: 'Build the people, roles, budget, and structure a larger robotics team needs before kickoff.',
+        program: 'FRC',
+        sections: [
+            {
+                heading: 'What to Set Up First',
+                items: [
+                    'Create student leadership for build, programming, electrical, drive team, scouting, awards, media, outreach, and business.',
+                    'Recruit mentors for fabrication, software, wiring, CAD, fundraising, travel, safety, and project management.',
+                    'Choose a meeting rhythm that gets heavier during build season and lighter during training or outreach months.',
+                    'Build a first-year budget for registration, robot parts, tools, travel, meals, lodging, team shirts, and emergency spares.'
+                ]
+            },
+            {
+                heading: 'Useful Official Links',
+                links: [
+                    { label: 'Official FRC Overview', url: 'https://www.firstinspires.org/programs/frc/' },
+                    { label: 'FRC Team Management Resources', url: 'https://www.firstinspires.org/resources/library/frc/team-management-resources' },
+                    { label: 'Cost and Registration', url: 'https://www.firstinspires.org/programs/cost-and-registration' },
+                    { label: 'Teams and Events Search', url: 'https://www.firstinspires.org/team-event-search' }
+                ]
+            }
+        ]
+    },
+    'frc-robot-build': {
+        title: 'FRC Robot Build Basics',
+        subtitle: 'Plan a large robot that is safe, serviceable, and realistic for a rookie team to finish.',
+        program: 'FRC',
+        sections: [
+            {
+                heading: 'Build Priorities',
+                items: [
+                    'Start with a dependable drivetrain before designing scoring mechanisms.',
+                    'Prototype intakes, arms, shooters, and climbers before committing to final CAD or fabrication.',
+                    'Label wiring and leave service space around the roboRIO, radio, breakers, motor controllers, and battery.',
+                    'Design for maintenance: wheels, bumpers, belts, chains, and high-wear parts should be easy to inspect and replace.'
+                ]
+            },
+            {
+                heading: 'Useful Official Links',
+                links: [
+                    { label: 'WPILib Documentation', url: 'https://docs.wpilib.org/' },
+                    { label: 'Zero to Robot', url: 'https://docs.wpilib.org/en/stable/docs/zero-to-robot/introduction.html' },
+                    { label: 'FRC Technical Resources', url: 'https://www.firstinspires.org/resources/library/frc/technical-resources' },
+                    { label: 'FRC Season Materials', url: 'https://www.firstinspires.org/resources/library/frc/season-materials' }
+                ]
+            }
+        ]
+    },
+    'frc-season-events': {
+        title: 'FRC Season and Events',
+        subtitle: 'Prepare for kickoff, inspection, judging, pit work, matches, and event logistics.',
+        program: 'FRC',
+        sections: [
+            {
+                heading: 'Season Planning',
+                items: [
+                    'At kickoff, read the game manual, list ways to score, and decide what the robot will intentionally skip.',
+                    'Freeze major design choices early enough to wire, program, test, and practice driving.',
+                    'Pack tools, chargers, spares, bumpers, safety glasses, awards materials, and team paperwork before event day.',
+                    'Assign pit crew, scouts, drive team, queuing helpers, safety captain, and a mentor who tracks the schedule.'
+                ]
+            },
+            {
+                heading: 'Useful Official Links',
+                links: [
+                    { label: 'FRC Season Materials', url: 'https://www.firstinspires.org/resources/library/frc/season-materials' },
+                    { label: 'FRC Safety Manual', url: 'https://www.firstinspires.org/resources/library/frc/safety-manual' },
+                    { label: 'Awards and Submissions', url: 'https://www.firstinspires.org/resources/library/frc/awards-submissions' },
+                    { label: 'Teams and Events Search', url: 'https://www.firstinspires.org/team-event-search' }
+                ]
+            }
+        ]
+    },
+    'fll-team-meetings': {
+        title: 'FLL Challenge Team Meetings',
+        subtitle: 'Organize a small team, steady meeting rhythm, and coaching structure that lets students own the work.',
+        program: 'FLL Challenge',
+        sections: [
+            {
+                heading: 'Meeting Basics',
+                items: [
+                    'Aim for 2-10 students so everyone gets meaningful time building, coding, researching, and presenting.',
+                    'Coaches organize meetings, ask guiding questions, handle registration, and keep the team on schedule.',
+                    'Split meeting time between robot game practice, innovation project work, Core Values, and sharing progress.',
+                    'Adults can teach skills, but students should make design choices and explain their own work.'
+                ]
+            },
+            {
+                heading: 'Useful Official Links',
+                links: [
+                    { label: 'How to Get Started', url: 'https://www.firstinspires.org/programs/fll/get-started' },
+                    { label: 'FIRST LEGO League Site', url: 'https://www.firstlegoleague.org/' },
+                    { label: 'Cost and Registration', url: 'https://www.firstinspires.org/programs/cost-and-registration' },
+                    { label: 'Youth Protection Policy', url: 'https://www.firstinspires.org/resource-library/youth-protection-policy' }
+                ]
+            }
+        ]
+    },
+    'fll-robot-game': {
+        title: 'FLL Robot Game and Coding',
+        subtitle: 'Build a reliable LEGO robot, test one mission at a time, and keep programs easy to explain.',
+        program: 'FLL Challenge',
+        sections: [
+            {
+                heading: 'Robot Game Basics',
+                items: [
+                    'Build a stable base robot before adding mission-specific attachments.',
+                    'Use sensors carefully; gyro turns, color sensing, and wall alignment can improve consistency.',
+                    'Create small programs for mission groups instead of one huge routine.',
+                    'Track reliability by recording what works, what fails, and what changed after each test run.'
+                ]
+            },
+            {
+                heading: 'Useful Official Links',
+                links: [
+                    { label: 'FLL Season Materials', url: 'https://www.firstinspires.org/resources/library/fll/season-materials' },
+                    { label: 'SPIKE Prime Lessons', url: 'https://education.lego.com/en-us/lessons/?products=SPIKE%E2%84%A2%20Prime%20Set' },
+                    { label: 'SPIKE App', url: 'https://spike.legoeducation.com/' },
+                    { label: 'Challenge Resources', url: 'https://www.firstinspires.org/resources/library/fll/challenge-and-resources' }
+                ]
+            }
+        ]
+    },
+    'fll-project-event': {
+        title: 'FLL Innovation Project and Event Prep',
+        subtitle: 'Prepare students for project research, Core Values, robot design, judging, and event day.',
+        program: 'FLL Challenge',
+        sections: [
+            {
+                heading: 'Project and Judging Basics',
+                items: [
+                    'Identify a real problem, research existing solutions, design an improvement, and share it with others.',
+                    'Students should explain why the robot is built that way, how attachments work, and how code improved.',
+                    'Practice teamwork, inclusion, discovery, impact, innovation, and gracious professionalism during meetings.',
+                    'Bring charged devices, spare LEGO parts, printed notes, team identifiers, snacks, and a simple event schedule.'
+                ]
+            },
+            {
+                heading: 'Useful Official Links',
+                links: [
+                    { label: 'Team Meeting Guide and Notebook', url: 'https://www.firstinspires.org/resources/library/fll/season-materials' },
+                    { label: 'Judging Resources', url: 'https://www.firstinspires.org/resources/library/fll/season-materials' },
+                    { label: 'FLL Season Materials', url: 'https://www.firstinspires.org/resources/library/fll/season-materials' },
+                    { label: 'Teams and Events Search', url: 'https://www.firstinspires.org/team-event-search' }
+                ]
+            }
+        ]
+    }
+};
+
 // Resources routes
 router.get("/resources", function(req, res){
     res.render("pages/resources");
+});
+
+router.get("/resources/:topic", function(req, res){
+    const topic = RESOURCE_TOPIC_PAGES[req.params.topic];
+    if (!topic) return res.redirect('/resources');
+    res.render("pages/resource-topic", { topic });
 });
 
 router.get("/programming", function(req, res){
