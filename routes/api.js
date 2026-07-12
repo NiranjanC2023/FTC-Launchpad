@@ -5,7 +5,7 @@ const Team = require('../models/team');
 const Student = require('../models/student');
 const User = require('../models/user');
 const { createNotification, listNotifications, countUnreadNotifications, markNotificationsRead, clearNotifications, serializeNotification, normalizeEmail } = require('../lib/notifications');
-const { DEFAULT_FROM, buildTransactionalEmailTemplate, sendBrevoEmail } = require('../lib/email');
+const { DEFAULT_FROM, buildTransactionalEmailTemplate, sendTransactionalEmail } = require('../lib/email');
 
 function publicUser(user) {
 	return {
@@ -80,6 +80,45 @@ router.get('/geocode-zip', async function(req, res) {
 		res.json({ ok: true, coords: { lat, lon } });
 	} catch (err) {
 		res.status(500).json({ ok: false, error: 'Unable to look up that ZIP code right now.' });
+	}
+});
+
+// Approximate a user's location from a free-form location query.
+router.get('/geocode-location', async function(req, res) {
+	try {
+		const query = String(req.query.q || '').trim();
+		if (!query) {
+			return res.status(400).json({ ok: false, error: 'Enter a city, county, state, or ZIP code.' });
+		}
+
+		const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${encodeURIComponent(query)}`;
+		const response = await fetch(url, {
+			headers: {
+				'User-Agent': 'FTC-Starter-Hub/1.0',
+				Accept: 'application/json'
+			}
+		});
+
+		if (!response.ok) {
+			return res.status(502).json({ ok: false, error: 'Unable to look up that location right now.' });
+		}
+
+		const results = await response.json();
+		const first = Array.isArray(results) ? results[0] : null;
+		const lat = first ? parseCoordinate(first.lat) : null;
+		const lon = first ? parseCoordinate(first.lon) : null;
+
+		if (lat === null || lon === null) {
+			return res.status(404).json({ ok: false, error: 'Could not find that location.' });
+		}
+
+		res.json({
+			ok: true,
+			coords: { lat, lon },
+			displayName: first.display_name || query
+		});
+	} catch (err) {
+		res.status(500).json({ ok: false, error: 'Unable to look up that location right now.' });
 	}
 });
 
@@ -191,7 +230,7 @@ router.post('/signups', async function(req, res) {
 						footer: `This message was sent automatically from FIRST Start for ${team.name}.`
 					});
 
-					await sendBrevoEmail({
+					await sendTransactionalEmail({
 						from: DEFAULT_FROM,
 						to: teamEmail,
 						subject: `New student info for ${team.name}`,
@@ -260,7 +299,7 @@ router.post('/signups', async function(req, res) {
 					footer: `This message was sent automatically from FIRST Start for ${team.name}.`
 				});
 
-				await sendBrevoEmail({
+				await sendTransactionalEmail({
 					from: DEFAULT_FROM,
 					to: teamEmail,
 					subject: `New student info for ${team.name}`,

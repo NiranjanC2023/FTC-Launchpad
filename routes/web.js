@@ -6,7 +6,7 @@ const Team = require('../models/team');
 const ManagerInvite = require('../models/managerInvite');
 const Student = require('../models/student');
 const { createNotification, normalizeEmail } = require('../lib/notifications');
-const { DEFAULT_FROM, sendBrevoEmail, buildTransactionalEmailTemplate } = require('../lib/email');
+const { DEFAULT_FROM, sendTransactionalEmail, buildTransactionalEmailTemplate } = require('../lib/email');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -107,6 +107,31 @@ function buildContactEmailQuery(email) {
     return { $in: values };
 }
 
+async function attachContactTeamsToUser(user) {
+    if (!user || !user.email) return [];
+
+    const teams = await Team.find({
+        contact: buildContactEmailQuery(user.email)
+    })
+        .sort({ updatedAt: -1, createdAt: -1, teamNumber: 1, name: 1 })
+        .exec();
+
+    const linkedTeams = [];
+    for (const team of teams || []) {
+        if (!team) continue;
+        await Team.findByIdAndUpdate(team._id, { $addToSet: { managers: user._id } }).exec();
+        linkedTeams.push(team);
+    }
+
+    const firstTeamWithNumber = linkedTeams.find(team => team && team.teamNumber);
+    if (firstTeamWithNumber && user.teamNumber !== firstTeamWithNumber.teamNumber) {
+        await User.findByIdAndUpdate(user._id, { $set: { teamNumber: firstTeamWithNumber.teamNumber } }).exec();
+        user.teamNumber = firstTeamWithNumber.teamNumber;
+    }
+
+    return linkedTeams;
+}
+
 function getAppBaseUrl(req) {
     return String(process.env.APP_URL || process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
 }
@@ -145,6 +170,15 @@ function ensureAuthenticated(req, res, next) {
         return next();
     }
     res.redirect('/login');
+}
+
+function requireAccountForTeamRegister(req, res, next) {
+    if (req.session && req.session.userId) {
+        return next();
+    }
+
+    const nextPath = sanitizeNextPath('/team-register', '/team-register');
+    return res.redirect(`/signup/manager?next=${encodeURIComponent(nextPath)}`);
 }
 
 function anonymousAllowedPath(pathname) {
@@ -580,6 +614,28 @@ function formatTeamTenureLabel(team) {
     return `${yearsElapsed} year${yearsElapsed === 1 ? '' : 's'}`;
 }
 
+function normalizeTeamName(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/&/g, ' and ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getTeamNameFromApiProfile(profile) {
+    if (!profile) return '';
+    return String(
+        profile.name
+        || profile.nickname
+        || profile.team_name
+        || profile.teamName
+        || profile.team_nickname
+        || profile.schoolName
+        || ''
+    ).trim();
+}
+
 function formatAwardHistoryEntry(award) {
     const awardType = formatFtcScoutAwardType(award && award.type);
     if (!awardType) return null;
@@ -611,7 +667,7 @@ function getUniqueNumericValues(values) {
 
 async function fetchFtcScoutTeamDetails(teamNumber) {
     const body = {
-        query: 'query($number:Int!){ teamByNumber(number:$number){ rookieYear awards { type placement season } matches { season event { type } } activeSeasons } }',
+        query: 'query($number:Int!){ teamByNumber(number:$number){ number name schoolName rookieYear awards { type placement season } matches { season event { type } } activeSeasons } }',
         variables: { number: Number(teamNumber) }
     };
 
@@ -665,6 +721,12 @@ async function fetchFtcScoutTeamDetails(teamNumber) {
         .map(item => item.entry);
 
     return {
+        profile: {
+            number: Number(team.number || teamNumber),
+            name: String(team.name || '').trim(),
+            schoolName: String(team.schoolName || '').trim(),
+            rookieYear: team.rookieYear
+        },
         yearsInProgram: competitionSeasons.length || null,
         awards: uniqueAwardTypes.slice(0, 6).join(', ') || null,
         awardHistory,
@@ -870,7 +932,7 @@ async function enrichTeamWithApi(team) {
     };
 }
 
-async function verifyTeamWithApi(teamNumber, program) {
+async function verifyTeamWithApi(teamNumber, program, submittedName = '') {
     const normalizedProgram = normalizeProgram(program);
     if (normalizedProgram === 'FRC' && !isConfiguredCredential(BLUE_ALLIANCE_AUTH_KEY)) {
         return {
@@ -889,13 +951,30 @@ async function verifyTeamWithApi(teamNumber, program) {
         };
     }
 
+    const officialName = getTeamNameFromApiProfile(details.profile);
+    if (submittedName && officialName && !compareTeamNameToNumber(submittedName, officialName)) {
+        return {
+            ok: false,
+            configured: true,
+            error: `Team number ${teamNumber} belongs to "${officialName}", not "${String(submittedName || '').trim()}". Please use the matching team name before verifying.`
+        };
+    }
+
     return {
         ok: true,
         configured: true,
         team: details.profile,
         program: normalizedProgram,
+        officialName,
         source: normalizedProgram === 'FRC' ? 'Blue Alliance' : 'FTC Scout'
     };
+}
+
+function compareTeamNameToNumber(submittedName, officialName) {
+    const normalizedSubmitted = normalizeTeamName(submittedName);
+    const normalizedOfficial = normalizeTeamName(officialName);
+    if (!normalizedSubmitted || !normalizedOfficial) return false;
+    return normalizedSubmitted === normalizedOfficial;
 }
 
 // Home page
@@ -1312,12 +1391,12 @@ router.get("/teams-nearby", async function(req, res){
     }
 });
 
-router.get('/team-register', function(req, res) {
+router.get('/team-register', requireAccountForTeamRegister, function(req, res) {
     const registrationMode = req.query.mode === 'new' || req.query.registrationMode === 'new' ? 'new' : 'existing';
     res.render('pages/team-register', { error: null, message: null, values: { registrationMode } });
 });
 
-router.post('/team-register', async function(req, res) {
+router.post('/team-register', requireAccountForTeamRegister, async function(req, res) {
     const values = req.body;
 
     try {
@@ -1344,7 +1423,7 @@ router.post('/team-register', async function(req, res) {
 
         let verification = { ok: true, team: null, source: 'Self-reported' };
         if (!isNewTeam) {
-            verification = await verifyTeamWithApi(teamNumber, program);
+            verification = await verifyTeamWithApi(teamNumber, program, values.name);
             if (!verification.ok) {
                 return res.render('pages/team-register', { error: verification.error, message: null, values });
             }
@@ -1353,7 +1432,7 @@ router.post('/team-register', async function(req, res) {
         const official = verification.team;
         const officialName = isNewTeam
             ? String(values.name || '').trim()
-            : (extractTeamDisplayName(official) || official.team_nickname || official.team_name_calc || official.team_name || values.name);
+            : (verification.officialName || extractTeamDisplayName(official) || official.team_nickname || official.team_name_calc || official.team_name || values.name);
         const recruiting = values.recruiting === 'on';
         const allowFllExtras = program === 'FLL Challenge' || program === 'FLL Explore';
         const canUseTeamApiAwards = program === 'FTC' || program === 'FRC' || allowFllExtras;
@@ -1454,7 +1533,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         } else if (queryError === 'invite_invalid') {
             errorMessage = 'Invalid invitation email or token. Please enter a valid email address.';
         } else if (queryError === 'invite_send_failed') {
-            errorMessage = 'The invitation was saved, but the email could not be sent. Check your Brevo sender settings and try again.';
+            errorMessage = 'The invitation was saved, but the email could not be sent. Check your email settings and try again.';
         } else if (queryError === 'invite_denied') {
             errorMessage = 'You do not have permission to invite managers for this team.';
         } else if (queryError === 'update_failed') {
@@ -2347,7 +2426,7 @@ router.post('/manage-team/invite', ensureAuthenticated, async function(req, res)
         });
 
         try {
-            await sendBrevoEmail(mailOptions);
+            await sendTransactionalEmail(mailOptions);
             res.redirect('/manage-team?success=invite_sent');
         } catch (mailErr) {
             console.error('Invite email delivery failed:', mailErr);
@@ -2471,7 +2550,7 @@ router.post('/manage-team/recruit/:recruitId/status', ensureAuthenticated, async
             `
         };
 
-        await sendBrevoEmail(mailOptions);
+        await sendTransactionalEmail(mailOptions);
         await createNotification({
             recipientEmail: recruit.email,
             type: 'application-status',
@@ -2554,7 +2633,7 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
             `
         };
 
-        await sendBrevoEmail(mailOptions);
+        await sendTransactionalEmail(mailOptions);
         await createNotification({
             recipientEmail: recruit.email,
             type: 'team-contact',
@@ -2566,11 +2645,11 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
         console.log(`Invitation successfully sent to ${recruit.email} from ${team.name}`);
         return res.redirect('/manage-team?success=mail_sent');
     } catch (err) {
-        console.error('--- BREVO ERROR ---');
+        console.error('--- EMAIL ERROR ---');
         console.error('Code:', err.code);
         console.error('Response:', err.response);
-        console.error('EMAIL ERROR: Unable to send through Brevo. Verify BREVO_API_KEY and the verified findfirst.org sender in .env.');
-        console.error('Brevo Send Error Detail:', err);
+        console.error('EMAIL ERROR: Unable to send email. Verify RESEND_API_KEY and the verified sender in .env.');
+        console.error('Email Send Error Detail:', err);
         res.redirect('/manage-team?error=mail_failed');
     }
 });
@@ -2725,12 +2804,18 @@ router.post('/signup', async function(req, res){
         console.log(`User signup saved: ${user.email} -> ${mongoose.connection.name}.${User.collection.name}`);
         await signIn(req, user);
 
+        const contactTeams = await attachContactTeamsToUser(user);
+        if (contactTeams.length) {
+            req.session.activeTeamId = String(contactTeams[0]._id);
+        }
+
         if (inviteToken) {
             const acceptedTeam = await acceptInviteToken(inviteToken, user);
             if (acceptedTeam) return res.redirect(nextPath || '/manage-team');
         }
 
         if (nextPath) return res.redirect(nextPath);
+        if (contactTeams.length) return res.redirect('/my-team');
         res.redirect('/');
     } catch (err) {
         console.error('Signup failed:', err);
@@ -2953,7 +3038,7 @@ router.post('/forgot-password', async function(req, res){
                 outro: 'If you did not request this reset, you can safely ignore this email.',
                 footer: `Need help? Contact ${supportEmail} if you have questions about your account.`
             });
-            await sendBrevoEmail({
+            await sendTransactionalEmail({
                 from: DEFAULT_FROM,
                 to: user.email,
                 subject: 'FIRST Start password reset',
@@ -3125,6 +3210,10 @@ router.post('/login', async function(req, res){
         if (!ok) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
         applyRememberMe(req, remember);
         await signIn(req, user);
+        const contactTeams = await attachContactTeamsToUser(user);
+        if (contactTeams.length) {
+            req.session.activeTeamId = String(contactTeams[0]._id);
+        }
 
         if (inviteToken) {
             const acceptedTeam = await acceptInviteToken(inviteToken, user);
@@ -3132,6 +3221,7 @@ router.post('/login', async function(req, res){
         }
 
         if (nextPath) return res.redirect(nextPath);
+        if (contactTeams.length) return res.redirect('/my-team');
         res.redirect(await getPostLoginRedirect(user));
     } catch (err) {
         res.render('pages/login', { error: err.message, notice: null, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null, nextPath: sanitizeNextPath(req.body && req.body.next, '') });
@@ -3143,3 +3233,9 @@ router.get('/logout', function(req, res){
 });
 
 module.exports = router;
+module.exports.__test = {
+    compareTeamNameToNumber,
+    attachContactTeamsToUser,
+    getTeamNameFromApiProfile,
+    normalizeTeamName
+};

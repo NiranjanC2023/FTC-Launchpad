@@ -36,13 +36,13 @@
         </div>
 
         <div class="mb-3">
-          <label class="form-label">Team name or team number</label>
-          <input name="team" class="form-control" value="<%= values && values.team ? values.team : '' %>" placeholder="Team name or number" />
+          <label class="form-label">Team name or team number <span class="text-muted">(optional)</span></label>
+          <input name="team" class="form-control" value="<%= values && values.team ? values.team : '' %>" placeholder="Optional: team name or number" />
         </div>
 
         <div class="mb-3">
-          <label class="form-label">Role on team</label>
-          <input name="role" class="form-control" value="<%= values && values.role ? values.role : '' %>" placeholder="Coach, Mentor, Sponsor, Captain" />
+          <label class="form-label">Role on team <span class="text-muted">(optional)</span></label>
+          <input name="role" class="form-control" value="<%= values && values.role ? values.role : '' %>" placeholder="Optional: Coach, Mentor, Sponsor, Captain" />
         </div>
 
         <div class="mb-3">

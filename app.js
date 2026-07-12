@@ -9,8 +9,6 @@ var passport = require("passport");
 var session = require("express-session");
 var flash = require("connect-flash");
 var params = require("./params/params");
-var emailConfig = require("./lib/email");
-
 var setUpPassport = require("./setuppassport");
 //var routes = require("./routes");
 
@@ -47,10 +45,6 @@ mongoose.connect(params.DATABASECONNECTION, {
 });
 
 setUpPassport();
-
-if (!emailConfig.getBrevoConfigStatus().configured) {
-    console.warn(emailConfig.getBrevoConfigErrorMessage());
-}
 
 app.use(bodyParser.urlencoded({extended:false, limit:'10mb'}));
 app.use(express.json({ limit: '10mb' }));

@@ -1229,7 +1229,12 @@ function initTeamsPage() {
   const zipForm = document.getElementById('zipLocationForm');
   const zipInput = document.getElementById('zipLocationInput');
   const zipMessage = document.getElementById('zipLocationMessage');
+  const initialQuery = String(new URLSearchParams(window.location.search).get('q') || '').trim();
   status.textContent = 'Loading teams…';
+
+  if (zipInput && initialQuery) {
+    zipInput.value = initialQuery;
+  }
 
   renderTeams(teams, coords);
 
@@ -1256,51 +1261,73 @@ function initTeamsPage() {
       : "Sorry, we don't find any registered team at your location";
   }
 
+  async function lookupLocation(query) {
+    const trimmed = String(query || '').trim();
+    if (!trimmed) {
+      throw new Error('Enter a city, county, state, or ZIP code.');
+    }
+
+    const endpoint = /^\d{5}$/.test(trimmed) ? `/api/geocode-zip?zip=${encodeURIComponent(trimmed)}` : `/api/geocode-location?q=${encodeURIComponent(trimmed)}`;
+    const response = await fetch(endpoint, { credentials: 'same-origin' });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload.ok || !payload.coords) {
+      throw new Error(payload.error || 'Could not find that location.');
+    }
+
+    const locationCoords = {
+      lat: Number(payload.coords.lat),
+      lon: Number(payload.coords.lon)
+    };
+
+    if (!Number.isFinite(locationCoords.lat) || !Number.isFinite(locationCoords.lon)) {
+      throw new Error('Could not find that location.');
+    }
+
+    return {
+      coords: locationCoords,
+      label: payload.displayName || trimmed
+    };
+  }
+
   if (zipForm && zipInput) {
     zipForm.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const zip = zipInput.value.trim();
+      const query = zipInput.value.trim();
 
-      if (!/^\d{5}$/.test(zip)) {
-        setZipMessage('Enter a valid 5-digit ZIP code.', true);
+      if (!query) {
+        setZipMessage('Enter a city, county, state, or ZIP code.', true);
         zipInput.focus();
         return;
       }
 
-      setZipMessage('Looking up ZIP code...');
+      setZipMessage('Looking up location...');
 
       try {
-        const response = await fetch(`/api/geocode-zip?zip=${encodeURIComponent(zip)}`, {
-          credentials: 'same-origin'
-        });
-        const payload = await response.json().catch(() => ({}));
-
-        if (!response.ok || !payload.ok || !payload.coords) {
-          setZipMessage(payload.error || 'Could not find that ZIP code.', true);
-          return;
-        }
-
-        const zipCoords = {
-          lat: Number(payload.coords.lat),
-          lon: Number(payload.coords.lon)
-        };
-
-        if (!Number.isFinite(zipCoords.lat) || !Number.isFinite(zipCoords.lon)) {
-          setZipMessage('Could not find that ZIP code.', true);
-          return;
-        }
-
-        renderTeams(teams, zipCoords);
-        updateLocationStatus(zipCoords, `Showing teams near ${zip}`);
+        const location = await lookupLocation(query);
+        renderTeams(teams, location.coords);
+        updateLocationStatus(location.coords, `Showing teams near ${location.label}`);
         setZipMessage('');
       } catch (err) {
-        setZipMessage('Unable to look up that ZIP code right now.', true);
+        setZipMessage(err && err.message ? err.message : 'Unable to look up that location right now.', true);
       }
     });
   }
 
+  if (initialQuery) {
+    lookupLocation(initialQuery)
+      .then((location) => {
+        renderTeams(teams, location.coords);
+        updateLocationStatus(location.coords, `Showing teams near ${location.label}`);
+        setZipMessage('');
+      })
+      .catch((err) => {
+        setZipMessage(err && err.message ? err.message : 'Unable to look up that location right now.', true);
+      });
+  }
+
   // Try to get a more accurate list based on user's location, but don't block the UI.
-  if (navigator.geolocation) {
+  if (!initialQuery && navigator.geolocation) {
     const geoOptions = { maximumAge: 60000, timeout: 2000, enableHighAccuracy: false };
     navigator.geolocation.getCurrentPosition((pos) => {
       const userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
@@ -1308,10 +1335,12 @@ function initTeamsPage() {
       updateLocationStatus(userCoords, 'Showing nearby teams');
     }, () => {
       status.textContent = 'Using nearby teams (location unavailable)';
-      setZipMessage('Enter a ZIP code to sort teams by distance without sharing your location.');
+      setZipMessage('Enter a city, county, state, or ZIP code to sort teams by distance without sharing your location.');
     }, geoOptions);
   } else {
-    status.textContent = 'Geolocation not supported — showing nearby teams';
+    if (!initialQuery) {
+      status.textContent = 'Geolocation not supported — showing nearby teams';
+    }
   }
 }
 
