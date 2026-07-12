@@ -91,7 +91,7 @@ router.get('/geocode-location', async function(req, res) {
 			return res.status(400).json({ ok: false, error: 'Enter a city, county, state, or ZIP code.' });
 		}
 
-		const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${encodeURIComponent(query)}`;
+		const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
 		const response = await fetch(url, {
 			headers: {
 				'User-Agent': 'FTC-Starter-Hub/1.0',

@@ -1264,7 +1264,7 @@ function initTeamsPage() {
   async function lookupLocation(query) {
     const trimmed = String(query || '').trim();
     if (!trimmed) {
-      throw new Error('Enter a city, county, state, or ZIP code.');
+      throw new Error('Enter a city, county, state, country, or ZIP code.');
     }
 
     const endpoint = /^\d{5}$/.test(trimmed) ? `/api/geocode-zip?zip=${encodeURIComponent(trimmed)}` : `/api/geocode-location?q=${encodeURIComponent(trimmed)}`;
@@ -1296,7 +1296,7 @@ function initTeamsPage() {
       const query = zipInput.value.trim();
 
       if (!query) {
-        setZipMessage('Enter a city, county, state, or ZIP code.', true);
+        setZipMessage('Enter a city, county, state, country, or ZIP code.', true);
         zipInput.focus();
         return;
       }
@@ -1335,7 +1335,7 @@ function initTeamsPage() {
       updateLocationStatus(userCoords, 'Showing nearby teams');
     }, () => {
       status.textContent = 'Using nearby teams (location unavailable)';
-      setZipMessage('Enter a city, county, state, or ZIP code to sort teams by distance without sharing your location.');
+      setZipMessage('Enter a city, county, state, country, or ZIP code to sort teams by distance without sharing your location.');
     }, geoOptions);
   } else {
     if (!initialQuery) {
