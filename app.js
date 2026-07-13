@@ -2,12 +2,14 @@ require("dotenv").config();
 
 var express = require("express");
 var path = require("path");
+var fs = require("fs");
 var mongoose = require("mongoose");
 var bodyParser = require("body-parser");
 var cookieParser = require("cookie-parser");
 var passport = require("passport");
 var session = require("express-session");
 var flash = require("connect-flash");
+var ejs = require("ejs");
 var params = require("./params/params");
 var setUpPassport = require("./setuppassport");
 //var routes = require("./routes");
@@ -32,6 +34,20 @@ app.use(express.static(path.join(__dirname, "public")));
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 app.locals.formatAwardHistoryDisplayEntry = formatAwardHistoryDisplayEntry;
+
+const sharedFooterHtml = fs.readFileSync(path.join(__dirname, "assets", "partial", "footer.html"), "utf8");
+
+app.engine("ejs", function(filePath, data, callback) {
+    ejs.renderFile(filePath, data, function(err, html) {
+        if (err) return callback(err);
+
+        if (typeof html === 'string' && /<\/body>/i.test(html) && !/class="(?:home-footer|site-footer)"/i.test(html)) {
+            html = html.replace(/<\/body>/i, `${sharedFooterHtml}\n</body>`);
+        }
+
+        callback(null, html);
+    });
+});
 
 // Connect to MongoDB but don't block static pages if it fails
 console.log('Using DATABASECONNECTION:', params.DATABASECONNECTION);

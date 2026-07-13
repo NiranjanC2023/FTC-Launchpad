@@ -7,6 +7,7 @@ const ManagerInvite = require('../models/managerInvite');
 const Student = require('../models/student');
 const { createNotification, normalizeEmail } = require('../lib/notifications');
 const { DEFAULT_FROM, sendTransactionalEmail, buildTransactionalEmailTemplate } = require('../lib/email');
+const { isRecruitingTeam } = require('../lib/team-status');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -69,7 +70,11 @@ async function getAccessibleTeamsForUser(user) {
 
     const enrichedTeams = [];
     for (const team of teams) {
-        enrichedTeams.push(await enrichTeamWithApi(team));
+        const resolvedTeam = await enrichTeamWithApi(team).catch(() => team) || team;
+        enrichedTeams.push({
+            ...resolvedTeam,
+            recruiting: isRecruitingTeam(resolvedTeam)
+        });
     }
     return enrichedTeams.filter(Boolean);
 }
@@ -346,7 +351,7 @@ function mapTeam(team) {
         yearsInProgram: team.yearsInProgram,
         advancementLevels: team.advancementLevels,
         advancementHistory: sortHistoryEntriesMostRecent(team.advancementHistory || []),
-        recruiting: team.recruiting,
+        recruiting: isRecruitingTeam(team),
         verified: team.verified,
         radiusMeters: 1000,
         location
@@ -1008,9 +1013,9 @@ router.get("/", function(req, res){
         carouselImages = [];
     }
 
-    Team.find({ recruiting: true, $or: [{ verified: true }, { isNewTeam: true }] })
+    Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
         .sort({ updatedAt: -1, teamNumber: 1 })
-        .limit(3)
+        .limit(300)
         .lean()
         .exec()
         .then(async (teams) => {
@@ -1018,21 +1023,31 @@ router.get("/", function(req, res){
                 return enrichTeamWithApi(team).catch(() => team) || team;
             }));
 
-            featuredTeams = enrichedTeams.map((team) => ({
-                program: team.program || 'FTC',
-                teamNumber: team.teamNumber,
-                name: team.name,
-                location: [team.city, team.state, team.country].filter(Boolean).join(', ') || team.address || 'Location not listed',
-                notes: team.notes || '',
-                awards: team.awards || '',
-                awardHistory: sortHistoryEntriesMostRecent(team.awardHistory || []),
-                yearsInProgram: team.yearsInProgram,
-                advancementLevels: Array.isArray(team.advancementLevels) ? team.advancementLevels : [],
-                advancementHistory: sortHistoryEntriesMostRecent(team.advancementHistory || []),
-                recruiting: team.recruiting,
-                verified: team.verified,
-                isNewTeam: Boolean(team.isNewTeam)
-            }));
+            featuredTeams = enrichedTeams
+                .map((team) => ({
+                    ...team,
+                    recruiting: isRecruitingTeam(team)
+                }))
+                .filter((team) => isRecruitingTeam(team))
+                .map((team) => ({
+                    program: team.program || 'FTC',
+                    teamNumber: team.teamNumber,
+                    name: team.name,
+                    location: [team.city, team.state, team.country].filter(Boolean).join(', ') || team.address || 'Location not listed',
+                    description: team.notes || (team.isNewTeam
+                        ? 'A new team forming and looking for students nearby.'
+                        : 'View this recruiting team and see what they are looking for in students.'),
+                    notes: team.notes || '',
+                    awards: team.awards || '',
+                    awardHistory: sortHistoryEntriesMostRecent(team.awardHistory || []),
+                    yearsInProgram: team.yearsInProgram,
+                    advancementLevels: Array.isArray(team.advancementLevels) ? team.advancementLevels : [],
+                    advancementHistory: sortHistoryEntriesMostRecent(team.advancementHistory || []),
+                    recruiting: isRecruitingTeam(team),
+                    verified: team.verified,
+                    isNewTeam: Boolean(team.isNewTeam)
+                }))
+                .slice(0, 3);
         })
         .catch(() => {
             featuredTeams = [];
@@ -1335,11 +1350,15 @@ router.get("/team-org", function(req, res){
 router.get("/teams-nearby", async function(req, res){
     try {
         if (!isDatabaseConnected()) return res.render("pages/teams-nearby", { teams: [] });
-        const teams = await Team.find({ recruiting: true, $or: [{ verified: true }, { isNewTeam: true }] })
-            .sort({ teamNumber: 1 })
+        const teams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
+            .sort({ recruiting: -1, teamNumber: 1 })
             .limit(300)
             .lean()
             .exec();
+        const normalizedTeams = teams.map((team) => ({
+            ...team,
+            recruiting: isRecruitingTeam(team)
+        }));
 
         let studentApp = null;
         let currentUser = null;
@@ -1359,7 +1378,7 @@ router.get("/teams-nearby", async function(req, res){
         }
 
         const enrichedTeams = await Promise.all(
-            teams.map(async (team) => {
+            normalizedTeams.map(async (team) => {
                 if (!team || team.isNewTeam || !team.teamNumber || !shouldUseTeamApi(team.program, team.teamNumber)) return team;
 
                 const apiDetails = await fetchTeamDetailsViaApi(team.program, team.teamNumber).catch(() => null);

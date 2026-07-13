@@ -1463,15 +1463,19 @@
   position: relative;
   z-index: 1;
   width: min(100%, 900px);
-  padding: 58px 28px;
+  padding: 36px 28px;
   text-align: center;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
 }
 .home-cta-content h2 {
   color: #fff;
   width: 100%;
   max-width: 760px;
-  margin: 0 auto;
+  margin: 0;
   font-size: clamp(2.4rem, 4.6vw, 4.2rem);
   line-height: 1.08;
   letter-spacing: -0.05em;
@@ -1479,7 +1483,7 @@
 }
 .home-cta-content p {
   max-width: 660px;
-  margin: 18px auto 0;
+  margin: 0;
   color: #a7c4b0;
   font-size: 1.2rem;
   line-height: 1.72;
@@ -1490,7 +1494,7 @@
 }
 .cta-note {
   display: block;
-  margin-top: 18px;
+  margin-top: 0;
   color: #6b9a7e;
   font-size: 0.98rem;
   line-height: 1.5;

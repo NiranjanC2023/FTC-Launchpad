@@ -6,6 +6,7 @@ const Student = require('../models/student');
 const User = require('../models/user');
 const { createNotification, listNotifications, countUnreadNotifications, markNotificationsRead, clearNotifications, serializeNotification, normalizeEmail } = require('../lib/notifications');
 const { DEFAULT_FROM, buildTransactionalEmailTemplate, sendTransactionalEmail } = require('../lib/email');
+const { isRecruitingTeam } = require('../lib/team-status');
 
 function publicUser(user) {
 	return {
@@ -125,8 +126,16 @@ router.get('/geocode-location', async function(req, res) {
 // List teams
 router.get('/teams', async function(req, res) {
 	try {
-		const teams = await Team.find({}).sort({ createdAt: -1 }).limit(200).exec();
-		res.json({ ok: true, teams });
+		const teams = await Team.find({}).sort({ createdAt: -1 }).limit(200).lean().exec();
+		res.json({
+			ok: true,
+			teams: Array.isArray(teams)
+				? teams.map((team) => ({
+					...team,
+					recruiting: isRecruitingTeam(team)
+				}))
+				: []
+		});
 	} catch (err) {
 		res.status(500).json({ ok: false, error: err.message });
 	}

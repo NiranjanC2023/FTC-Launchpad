@@ -62,7 +62,7 @@
 
     { number: "02", title: "Browse and discover teams", description: "Filter by location, competition league, team culture, and open roles to narrow your search." },
 
-    { number: "03", title: "Apply or reach out", description: "Send a message directly to team coaches and captains to introduce yourself and ask questions." },
+    { number: "03", title: "Apply or reach out", description: "Send a message directly to team captains to introduce yourself and ask questions." },
 
     { number: "04", title: "Join and compete", description: "Get onboarded, start contributing, and compete in your first season." }
 
@@ -445,7 +445,7 @@
 
                 <p class="team-location"><i class="fa-solid fa-map-pin" aria-hidden="true"></i> <%= team.location %></p>
 
-                <p class="team-description"><%= team.description %></p>
+                <p class="team-description"><%= team.description || team.notes || (team.isNewTeam ? 'A new team forming and looking for students nearby.' : 'View this recruiting team and see what they are looking for in students.') %></p>
 
                 <% const teamProgram = String(team.program || team.league || '').toUpperCase(); %>
                 <% const teamNumber = team.teamNumber || team.number || ''; %>

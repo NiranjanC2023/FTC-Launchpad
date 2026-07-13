@@ -409,16 +409,33 @@ function renderTeams(teams, userCoords) {
     }[char]));
   }
 
-  function normalizeAdvancementLevel(level) {
-    const value = String(level ?? '').trim().toLowerCase();
-    if (!value) return '';
-    if (value.includes('scrimmag')) return '';
+function normalizeAdvancementLevel(level) {
+  const value = String(level ?? '').trim().toLowerCase();
+  if (!value) return '';
+  if (value.includes('scrimmag')) return '';
     if (value.startsWith('qual') || value.includes('super qualifier') || value.includes('league tournament') || value.includes('league meet')) return 'Qualifier';
     if (value.startsWith('reg') || value.includes('premier')) return 'Regional';
     if (value.startsWith('world') || value.includes('first championship') || value.includes('firstchampionship') || value.includes('world championship')) return 'Worlds';
     if (value.includes('championship')) return 'Regional';
-    return level;
+  return level;
+}
+
+function isTeamRecruiting(team) {
+  const value = team && typeof team === 'object' ? team.recruiting : undefined;
+  if (value === false || value === 0) return false;
+
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) return true;
+  if (['false', '0', 'off', 'no', 'n', 'inactive', 'not recruiting'].includes(normalized)) {
+    return false;
   }
+
+  return true;
+}
+
+function getTeamRecruitingLabel(team) {
+  return isTeamRecruiting(team) ? 'Recruiting' : 'Not recruiting';
+}
 
   function advancementLevelRank(level) {
     const normalized = normalizeAdvancementLevel(level);
@@ -736,6 +753,7 @@ function renderTeams(teams, userCoords) {
     const teamName = String(team.name || 'Unnamed team');
     const programLabel = String(team.program || 'FTC');
     const isNewTeam = Boolean(team.isNewTeam);
+    const isRecruiting = isTeamRecruiting(team);
     const teamNumber = isNewTeam
       ? 'New Team'
       : (team.teamNumber ? `${programLabel} ${team.teamNumber}` : `${programLabel} team`);
@@ -758,10 +776,12 @@ function renderTeams(teams, userCoords) {
 
     const card = document.createElement('div');
     card.className = 'team-card';
+    card.classList.add(isRecruiting ? 'team-card--recruiting' : 'team-card--not-recruiting');
     // attach team name to the DOM card for easy lookup from marker events
     card.dataset.team = teamName;
     card.dataset.program = programLabel;
     card.dataset.isNewTeam = isNewTeam ? 'true' : 'false';
+    card.dataset.recruiting = isRecruiting ? 'true' : 'false';
     card.dataset.hasAwards = awards ? 'true' : 'false';
     card.dataset.yearsInProgram = Number.isFinite(yearsInProgram) ? String(yearsInProgram) : '';
     card.dataset.advancementLevels = advancementLevels.join('|');
@@ -772,7 +792,8 @@ function renderTeams(teams, userCoords) {
       <div class="team-card-head">
         <div class="team-card-heading">
           <h3 class="team-card-title">${escapeHTML(teamName)}</h3>
-          <span class="team-card-label${isNewTeam ? ' team-card-label--new-team' : ''}">${escapeHTML(teamNumber)}${regionLabel ? ` · ${escapeHTML(regionLabel)}` : ''}${isNewTeam ? ' · new team' : (team.verified ? ' · verified' : '')}</span>
+          <span class="team-card-label${isNewTeam ? ' team-card-label--new-team' : ''}${isRecruiting ? '' : ' team-card-label--not-recruiting'}">${escapeHTML(teamNumber)}${regionLabel ? ` · ${escapeHTML(regionLabel)}` : ''}${isNewTeam ? ' · new team' : (team.verified ? ' · verified' : '')}${isRecruiting ? '' : ' · not recruiting'}</span>
+          <span class="team-card-status-pill${isRecruiting ? ' team-card-status-pill--recruiting' : ' team-card-status-pill--not-recruiting'}">${escapeHTML(getTeamRecruitingLabel(team))}</span>
         </div>
         <div class="team-card-toolbar">
           <button class="btn btn-link goto-marker team-card-icon-button" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-map-pin"></i></button>
@@ -826,7 +847,7 @@ function renderTeams(teams, userCoords) {
           })}
         ` : ''}
         <div class="team-actions">
-          <button class="btn btn-primary send-btn">Send My Info</button>
+          <button class="btn btn-primary send-btn">${isRecruiting ? 'Send My Info' : 'Not Recruiting'}</button>
         </div>
       </div>
     `;
@@ -1029,6 +1050,7 @@ function renderTeams(teams, userCoords) {
       const teamName = String(team.name || 'Unnamed team');
       const programLabel = String(team.program || 'FTC');
       const isNewTeam = Boolean(team.isNewTeam);
+      const isRecruiting = isTeamRecruiting(team);
       const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
       const distanceData = Number.isFinite(dist) ? formatDistance(dist, distanceUnitPreference) : null;
       const location = String(team.location || '').trim();
@@ -1039,6 +1061,7 @@ function renderTeams(teams, userCoords) {
       <h4 style="margin: 0 0 10px 0; font-size: 1.8em; font-weight: 900; color: #0056b3; line-height: 1.15; padding-top: 0;">${escapeHTML(teamName)}</h4>
           ${isNewTeam ? `<p style="margin: 0 0 6px 0; font-size: 1.1em; font-weight: 700; color: #333;">New Team</p>` : (team.teamNumber ? `<p style="margin: 0 0 6px 0; font-size: 1.1em; font-weight: 700; color: #333;">${escapeHTML(programLabel)} ${escapeHTML(team.teamNumber)}</p>` : '')}
           ${location ? `<p style="margin: 0 0 10px 0; font-size: 0.95em; font-weight: 600; color: #444;">${escapeHTML(location)}</p>` : ''}
+          <p style="margin: 0 0 10px 0; font-size: 0.98em; font-weight: 900; color: ${isRecruiting ? '#1f6f45' : '#4b5563'};">${getTeamRecruitingLabel(team)}</p>
           <p style="margin: 0 0 12px 0; font-size: 0.95em; font-weight: 700; color: #0056b3;">Approximate ${escapeHTML(radiusMeters)}-meter area</p>
           <div style="margin-bottom: 12px;">
             <p style="margin: 0; font-size: 0.9em; font-weight: 800; color: #555; text-transform: uppercase;">Contact</p>
@@ -1051,11 +1074,11 @@ function renderTeams(teams, userCoords) {
 
       const marker = L.circle([team.lat, team.lon], {
         radius: radiusMeters,
-        color: '#0056b3',
+        color: isRecruiting ? '#0056b3' : '#4b5563',
         weight: 2,
-        opacity: 0.85,
-        fillColor: '#2f80ed',
-        fillOpacity: 0.18,
+        opacity: 0.95,
+        fillColor: isRecruiting ? '#2f80ed' : '#9ca3af',
+        fillOpacity: isRecruiting ? 0.18 : 0.34,
         bubblingMouseEvents: false
       }).addTo(map);
       const privacyBlurLayer = new PrivacyBlurCircle([team.lat, team.lon], radiusMeters).addTo(map);
@@ -1066,7 +1089,7 @@ function renderTeams(teams, userCoords) {
         title: `${teamName} is in this area`,
         icon: L.divIcon({
           className: 'team-zoom-notifier-icon',
-          html: '<span class="team-zoom-notifier" aria-hidden="true"></span>',
+          html: `<span class="team-zoom-notifier${isRecruiting ? '' : ' team-zoom-notifier--inactive'}" aria-hidden="true"></span>`,
           iconSize: [28, 36],
           iconAnchor: [14, 34],
           popupAnchor: [0, -34]
@@ -1440,7 +1463,8 @@ function renderHomeFeaturedTeams(teams) {
     const distance = Number.isFinite(team.distance) ? formatDistance(team.distance, distanceUnitPreference).label : null;
     const numberLabel = getHomeTeamTitle(team);
     const yearsLabel = getHomeTeamYearsLabel(team);
-    const statusLabel = team.recruiting ? 'Recruiting' : 'Not recruiting';
+    const isRecruiting = isTeamRecruiting(team);
+    const statusLabel = isRecruiting ? 'Recruiting' : 'Not recruiting';
     const verifiedLabel = team.verified ? 'Verified' : 'Listed';
     const programLabel = team.program || 'FTC';
     const description = getHomeTeamDescription(team);
@@ -1492,9 +1516,8 @@ function initHomeFeaturedTeams() {
       const payload = await response.json();
       const allTeams = Array.isArray(payload.teams) ? payload.teams : [];
       const userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      const recruitingTeams = allTeams.filter(team => team && typeof team.lat === 'number' && typeof team.lon === 'number' && team.recruiting);
-      const pool = recruitingTeams.length >= 3 ? recruitingTeams : allTeams.filter(team => team && typeof team.lat === 'number' && typeof team.lon === 'number');
-      const nearestTeams = pool
+      const recruitingTeams = allTeams.filter(team => team && typeof team.lat === 'number' && typeof team.lon === 'number' && isTeamRecruiting(team));
+      const nearestTeams = recruitingTeams
         .map(team => ({
           ...team,
           distance: haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon)
@@ -1568,7 +1591,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function loadSharedFooter() {
-  if (document.querySelector('.site-footer')) return;
+  if (document.querySelector('.home-footer') || document.querySelector('.site-footer')) return;
   fetch('/assets/partial/footer.html')
     .then(r => r.text())
     .then(html => {

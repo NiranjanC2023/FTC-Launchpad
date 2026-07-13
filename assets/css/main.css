@@ -2489,8 +2489,26 @@ textarea.form-control {
   box-shadow: 0 20px 40px rgba(16, 38, 24, 0.14);
 }
 
+.team-card--not-recruiting {
+  --accent-primary: #6b7280;
+  --accent-secondary: #94a3b8;
+  border-color: #d5dbe2;
+  background: linear-gradient(180deg, #fbfcfd 0%, #f2f4f7 100%);
+}
+
+.team-card--not-recruiting:hover,
+.team-card--not-recruiting.is-active {
+  border-color: #c3c9d2;
+  background: linear-gradient(180deg, #ffffff, #eef1f5);
+  box-shadow: 0 20px 40px rgba(71, 85, 105, 0.14);
+}
+
 .team-card.is-active::before {
   opacity: 1;
+}
+
+.team-card--not-recruiting::before {
+  background: #6b7280;
 }
 
 .team-card-head {
@@ -2533,6 +2551,34 @@ textarea.form-control {
   color: #155c3a;
   font-size: 15px;
   letter-spacing: 0.04em;
+}
+
+.team-card-label--not-recruiting {
+  color: #6b7280;
+}
+
+.team-card-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.team-card-status-pill--recruiting {
+  background: rgba(21, 92, 58, 0.1);
+  color: #1f6f45;
+}
+
+.team-card-status-pill--not-recruiting {
+  background: rgba(107, 114, 128, 0.12);
+  color: #4b5563;
 }
 
 .team-card-contact {
@@ -2578,6 +2624,41 @@ textarea.form-control {
   background: linear-gradient(180deg, rgba(246, 251, 247, 0.98), rgba(236, 247, 240, 0.98));
   border: 1px solid rgba(43, 138, 87, 0.16);
   border-radius: 14px;
+}
+
+.team-card--not-recruiting .team-card-requirements,
+.team-card--not-recruiting .team-card-stat,
+.team-card--not-recruiting .team-card-history,
+.team-card--not-recruiting .team-card-award-history {
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  border-color: #d7dee7;
+}
+
+.team-card--not-recruiting .team-card-stat-icon,
+.team-card--not-recruiting .team-card-requirements-icon,
+.team-card--not-recruiting .team-card-history-icon {
+  background: rgba(107, 114, 128, 0.12);
+  color: #6b7280;
+}
+
+.team-card--not-recruiting .team-card-requirements-title,
+.team-card--not-recruiting .team-card-stat-text,
+.team-card--not-recruiting .team-card-requirements-text,
+.team-card--not-recruiting .team-card-history-label,
+.team-card--not-recruiting .team-card-history-text {
+  color: #4b5563;
+}
+
+.team-card--not-recruiting .team-button {
+  background: #6b7280;
+  box-shadow: 0 10px 22px rgba(107, 114, 128, 0.18);
+}
+
+.team-card--not-recruiting .team-button:hover,
+.team-card--not-recruiting .team-button:focus,
+.team-card--not-recruiting .team-button:active,
+.team-card--not-recruiting .team-button:visited {
+  background: #6b7280;
 }
 
 .team-card-requirements-head {
@@ -3371,6 +3452,10 @@ textarea.form-control {
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
+.team-zoom-notifier--inactive {
+  background: #6b7280;
+}
+
 .team-zoom-notifier::after {
   content: "";
   position: absolute;
@@ -3986,6 +4071,154 @@ footer p,
   margin: 0 0 4px;
   color: #ffffff;
   font-size: inherit;
+}
+
+.home-footer {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 12px 0 8px;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(68, 197, 117, 0.12), transparent 26%),
+    radial-gradient(circle at 82% 16%, rgba(68, 197, 117, 0.08), transparent 20%),
+    linear-gradient(180deg, #0f3922 0%, #0c341f 100%);
+  color: rgba(236, 248, 239, 0.82);
+}
+
+.home-footer-grid {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 12px clamp(48px, 5vw, 112px) 16px clamp(104px, 8vw, 200px);
+  display: grid;
+  grid-template-columns: minmax(260px, 1.25fr) repeat(4, minmax(0, 1fr));
+  gap: clamp(20px, 2.5vw, 44px);
+  align-items: start;
+}
+
+.home-footer-brand,
+.home-footer-column {
+  text-align: left;
+}
+
+.home-footer-brand {
+  margin-left: clamp(24px, 2.5vw, 56px);
+}
+
+.home-footer-brand p {
+  max-width: 320px;
+  color: rgba(236, 248, 239, 0.74);
+  font-size: 0.9rem;
+  line-height: 1.8;
+}
+
+.home-footer-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.15);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  color: #fff;
+  font-weight: 800;
+}
+
+.home-footer-column strong {
+  display: block;
+  margin-bottom: 12px;
+  color: #fff;
+  font-size: 0.82rem;
+}
+
+.home-footer-column ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-footer-column a {
+  color: rgba(236, 248, 239, 0.7);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.home-footer-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.home-footer-bottom .container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 6px clamp(48px, 5vw, 112px) 0 clamp(104px, 8vw, 200px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.home-footer-bottom p {
+  margin: 0;
+  color: rgba(236, 248, 239, 0.72);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.site-footer-disclaimer {
+  max-width: 980px;
+  margin: 8px auto 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.site-footer-disclaimer strong {
+  font-weight: 800;
+}
+
+.site-footer-disclaimer em {
+  font-style: italic;
+}
+
+.site-footer-disclaimer a {
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.site-footer-disclaimer a:hover,
+.site-footer-disclaimer a:focus {
+  color: #ffffff;
+}
+
+@media (max-width: 1120px) {
+  .home-footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .home-footer-bottom .container {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-footer-grid {
+    grid-template-columns: 1fr;
+    padding-left: clamp(20px, 5vw, 32px);
+    padding-right: clamp(20px, 5vw, 32px);
+  }
+
+  .home-footer-brand {
+    margin-left: 0;
+  }
 }
 
 /* Auth page specific layout adjustments */
