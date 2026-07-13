@@ -86,11 +86,11 @@
 
   <% const defaultFeaturedTeams = [
 
-    { number: "1114", name: "Simbotics", logo: "SB", location: "St. Catharines, ON", league: "FRC", members: 35, championships: 3, openRoles: ["Mechanical", "Programming"], color: "#e74c3c", description: "One of FRC's most celebrated teams, known for consistent excellence in design and strategy." },
+    { number: "1114", name: "Simbotics", logo: "SB", location: "St. Catharines, ON", league: "FRC", openRoles: ["Mechanical", "Programming"], color: "#e74c3c", description: "One of FRC's most celebrated teams, known for consistent excellence in design and strategy." },
 
-    { number: "254", name: "Cheesy Poofs", logo: "CP", location: "San Jose, CA", league: "FRC", members: 28, championships: 4, openRoles: ["Software", "CAD", "Business"], color: "#f39c12", description: "A powerhouse team with deep ties to Silicon Valley's tech community and strong mentorship culture." },
+    { number: "254", name: "Cheesy Poofs", logo: "CP", location: "San Jose, CA", league: "FRC", openRoles: ["Software", "CAD", "Business"], color: "#f39c12", description: "A powerhouse team with deep ties to Silicon Valley's tech community and strong mentorship culture." },
 
-    { number: "3647", name: "Millennium Falcons", logo: "MF", location: "Austin, TX", league: "FTC", members: 12, championships: 1, openRoles: ["Mechanical", "Drive Team", "Media"], color: "#3498db", description: "A growing FTC team built around inclusivity and hands-on learning for students of all backgrounds." }
+    { number: "3647", name: "Millennium Falcons", logo: "MF", location: "Austin, TX", league: "FTC", openRoles: ["Mechanical", "Drive Team", "Media"], color: "#3498db", description: "A growing FTC team built around inclusivity and hands-on learning for students of all backgrounds." }
 
   ]; %>
 
@@ -464,14 +464,6 @@
                     <% } %>
                   </div>
                 <% } %>
-
-                <div class="team-meta">
-
-                  <span><span class="team-meta-icon" aria-hidden="true"><i class="fa-solid fa-users" aria-hidden="true"></i></span> <%= team.members %> members</span>
-
-                  <span><span class="team-meta-icon" aria-hidden="true"><i class="fa-solid fa-trophy" aria-hidden="true"></i></span> <%= team.championships %> championship<%= team.championships !== 1 ? 's' : '' %></span>
-
-                </div>
 
                 <div class="team-roles">
 

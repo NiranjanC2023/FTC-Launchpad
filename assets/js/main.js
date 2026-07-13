@@ -1595,9 +1595,10 @@ function loadSharedFooter() {
   fetch('/assets/partial/footer.html')
     .then(r => r.text())
     .then(html => {
-      const footerContainer = document.createElement('div');
-      footerContainer.innerHTML = html;
-      document.body.appendChild(footerContainer);
+      const footerTemplate = document.createElement('template');
+      footerTemplate.innerHTML = html.trim();
+      const footer = footerTemplate.content.firstElementChild;
+      if (footer) document.body.appendChild(footer);
       const yearEl = document.getElementById('site-year');
       if (yearEl) yearEl.textContent = new Date().getFullYear();
     })

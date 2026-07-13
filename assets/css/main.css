@@ -70,6 +70,8 @@ body {
 
 body {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   color: var(--text-primary);
   background:
     linear-gradient(120deg, transparent 0 16%, var(--bg-field-line) 16.15% 16.55%, transparent 16.7% 100%),
@@ -919,6 +921,7 @@ header .navbar {
 
 main {
   width: min(100% - 32px, var(--content-width));
+  flex: 1 0 auto;
   min-height: auto;
   margin: 0 auto;
   padding: 52px 0 72px;
@@ -4075,8 +4078,9 @@ footer p,
 
 .home-footer {
   width: 100%;
+  flex: 0 0 auto;
   max-width: none;
-  margin: 0;
+  margin: auto 0 0;
   padding: 12px 0 8px;
   background:
     radial-gradient(circle at 18% 12%, rgba(68, 197, 117, 0.12), transparent 26%),

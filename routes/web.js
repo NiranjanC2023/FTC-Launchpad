@@ -1631,14 +1631,14 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         let pendingInvitations = [];
         if (team) {
             teamManagers = team.managers && team.managers.length
-                ? await User.find({ _id: { $in: team.managers } }).select('name role email').lean().exec()
+                ? await User.find({ _id: { $in: team.managers } }).select('name email').lean().exec()
                 : [];
 
             const normalizedContact = normalizeEmail(team.contact);
             let primaryManager = null;
             if (normalizedContact) {
                 primaryManager = await User.findOne({ email: normalizedContact })
-                    .select('name role email')
+                    .select('name email')
                     .lean()
                     .exec();
             }
@@ -2794,7 +2794,7 @@ router.post('/signup', async function(req, res){
     const mode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
     try {
         if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
-        const { name, email, password, age, phone, profilePicture, interests, experience, role, inviteToken } = req.body;
+        const { name, email, password, age, phone, profilePicture, interests, experience, inviteToken } = req.body;
         const nextPath = sanitizeNextPath(req.body.next, '');
         const normalizedEmail = normalizeEmail(email);
         const requiredFields = { name, normalizedEmail, password };
@@ -2815,8 +2815,7 @@ router.post('/signup', async function(req, res){
             phone: String(phone || '').trim(),
             profilePicture: String(profilePicture || '').trim(),
             interests: mode === 'seeker' ? String(interests || '').trim() : undefined,
-            experience: mode === 'seeker' ? String(experience || '').trim() : undefined,
-            role: String(role || '').trim()
+            experience: mode === 'seeker' ? String(experience || '').trim() : undefined
         });
         await user.setPassword(password);
         await user.save();
