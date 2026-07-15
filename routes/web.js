@@ -1404,7 +1404,7 @@ router.get("/teams-nearby", async function(req, res){
 
         let dbTeams = [];
         if (isDatabaseConnected()) {
-            dbTeams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
+            dbTeams = await Team.find({})
                 .sort({ recruiting: -1, teamNumber: 1 })
                 .lean()
                 .exec();

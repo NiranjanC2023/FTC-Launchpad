@@ -247,82 +247,35 @@ function distanceThresholdToKm(value, unitPreference) {
   return unitPreference === 'imperial' ? value / 0.621371 : value;
 }
 
-function buildGoogleMapsSearchUrl(position) {
-  if (!position || !Number.isFinite(position.lat) || !Number.isFinite(position.lng)) {
-    return 'https://www.google.com/maps';
-  }
-
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${position.lat},${position.lng}`)}`;
-}
-
-function buildGoogleMapsDirectionsUrl(destination, origin = null) {
-  if (!destination || !Number.isFinite(destination.lat) || !Number.isFinite(destination.lng)) {
-    return 'https://www.google.com/maps';
-  }
-
-  const params = new URLSearchParams({
-    api: '1',
-    destination: `${destination.lat},${destination.lng}`,
-    travelmode: 'driving'
-  });
-
-  if (origin && Number.isFinite(origin.lat) && Number.isFinite(origin.lng)) {
-    params.set('origin', `${origin.lat},${origin.lng}`);
-  }
-
-  return `https://www.google.com/maps/dir/?${params.toString()}`;
-}
-
-function buildGoogleMapsStreetViewUrl(position) {
-  if (!position || !Number.isFinite(position.lat) || !Number.isFinite(position.lng)) {
-    return 'https://www.google.com/maps';
-  }
-
-  return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${encodeURIComponent(`${position.lat},${position.lng}`)}`;
-}
-
-function setTeamsStatusText(message) {
-  const statusEl = document.getElementById('teamsStatus');
-  if (statusEl) statusEl.textContent = message || '';
-}
-
-function setTeamsLocationMessage(message, isError = false) {
-  const messageEl = document.getElementById('zipLocationMessage');
-  if (!messageEl) return;
-  messageEl.textContent = message || '';
-  messageEl.classList.toggle('is-error', Boolean(isError));
-}
-
-function createUserLocationMarker(map, userCoords, bounds, OverlayClass) {
+function createUserLocationMarker(map, userCoords, bounds) {
   if (!map || !userCoords || typeof userCoords.lat !== 'number' || typeof userCoords.lon !== 'number') return null;
 
-  const position = { lat: userCoords.lat, lng: userCoords.lon };
-  const marker = new OverlayClass({
-    position,
-    className: 'user-location-marker-icon',
-    html: `
-      <div class="user-location-marker-wrap" aria-hidden="true">
-        <span class="user-location-marker-tag">Your location</span>
-        <span class="team-zoom-notifier team-zoom-notifier--user"></span>
-      </div>
-    `
-  });
-  marker.setMap(map);
+  const marker = L.marker([userCoords.lat, userCoords.lon], {
+    interactive: false,
+    keyboard: false,
+    title: 'Your location',
+    icon: L.divIcon({
+      className: 'user-location-marker-icon',
+      html: `
+        <div class="user-location-marker-wrap" aria-hidden="true">
+          <span class="user-location-marker-tag">Your location</span>
+          <span class="team-zoom-notifier team-zoom-notifier--user"></span>
+        </div>
+      `,
+      iconSize: [88, 46],
+      iconAnchor: [44, 40],
+      popupAnchor: [0, -28]
+    })
+  }).addTo(map);
 
   if (bounds) {
-    bounds.extend(position);
+    bounds.extend([userCoords.lat, userCoords.lon]);
   }
-
-  marker.setPosition = (nextPosition) => {
-    if (!nextPosition || !Number.isFinite(nextPosition.lat) || !Number.isFinite(nextPosition.lng)) return;
-    marker.position = new google.maps.LatLng(nextPosition);
-    if (marker.draw) marker.draw();
-  };
 
   return marker;
 }
 
-function renderTeams(teams, userCoords, options = {}) {
+function renderTeams(teams, userCoords) {
   const list = document.getElementById('teamsList');
   if (!list) return;
 
@@ -333,7 +286,6 @@ function renderTeams(teams, userCoords, options = {}) {
   window._infoWindowTimer = null;
   window._infoWindow = null; // Reset infoWindow to ensure it's recreated with new map instance
   window._teamCards = {};
-  window._teamDataByName = {};
 
   // ensure a map container exists above the list
   let mapEl = document.getElementById('teamsMap');
@@ -363,71 +315,6 @@ function renderTeams(teams, userCoords, options = {}) {
         { value: '25', label: 'Within 25 km' },
         { value: '50', label: 'Within 50 km' }
       ];
-  const selectedTeamQuery = String(options.teamQuery || '').trim();
-  const maxRenderedTeams = 800;
-  const matchesTeamQuery = (team, query) => {
-    const normalizedQuery = String(query || '').trim().toLowerCase();
-    if (!normalizedQuery) return false;
-    const name = String(team && team.name || '').trim().toLowerCase();
-    const number = String(team && team.teamNumber || '').trim().toLowerCase();
-    const key = String(team && team.key || '').trim().toLowerCase();
-    return Boolean(
-      name.includes(normalizedQuery)
-      || number === normalizedQuery
-      || key.includes(normalizedQuery)
-    );
-  };
-  const teamsWithCoordinates = Array.isArray(teams)
-    ? teams.filter(team => Number.isFinite(team && team.lat) && Number.isFinite(team && team.lon))
-    : [];
-  let renderableTeams = teamsWithCoordinates;
-  if (selectedTeamQuery) {
-    const matchingTeams = teamsWithCoordinates.filter(team => matchesTeamQuery(team, selectedTeamQuery));
-    if (matchingTeams.length) {
-      renderableTeams = matchingTeams.slice(0, maxRenderedTeams);
-    } else if (userCoords && Number.isFinite(userCoords.lat) && Number.isFinite(userCoords.lon)) {
-      renderableTeams = teamsWithCoordinates
-        .map(team => ({
-          team,
-          distance: haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon)
-        }))
-        .sort((left, right) => left.distance - right.distance)
-        .slice(0, maxRenderedTeams)
-        .map(item => item.team);
-    } else {
-      renderableTeams = teamsWithCoordinates.slice(0, maxRenderedTeams);
-    }
-  } else if (userCoords && Number.isFinite(userCoords.lat) && Number.isFinite(userCoords.lon)) {
-    renderableTeams = teamsWithCoordinates
-      .map(team => ({
-        team,
-        distance: haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon)
-      }))
-      .sort((left, right) => left.distance - right.distance)
-      .slice(0, maxRenderedTeams)
-      .map(item => item.team);
-  } else {
-    renderableTeams = teamsWithCoordinates.slice(0, maxRenderedTeams);
-  }
-  renderableTeams = renderableTeams
-    .slice()
-    .sort((left, right) => {
-      const leftRank = getTeamStatusRank(left);
-      const rightRank = getTeamStatusRank(right);
-      if (leftRank !== rightRank) return leftRank - rightRank;
-
-      const leftProgram = String(left.program || 'FTC');
-      const rightProgram = String(right.program || 'FTC');
-      if (leftProgram !== rightProgram) return leftProgram.localeCompare(rightProgram);
-
-      const leftNumber = Number(left.teamNumber);
-      const rightNumber = Number(right.teamNumber);
-      if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber) && leftNumber !== rightNumber) {
-        return leftNumber - rightNumber;
-      }
-
-      return String(left.name || '').localeCompare(String(right.name || ''));
-    });
   const searchWrap = document.createElement('div');
   searchWrap.className = 'teams-search';
   searchWrap.innerHTML = `
@@ -500,20 +387,6 @@ function renderTeams(teams, userCoords, options = {}) {
 
   list.appendChild(teamsListContainer);
 
-  const mapState = window._teamsMapUi || (window._teamsMapUi = {});
-  mapState.map = null;
-  mapState.allTeams = teams;
-  mapState.teams = renderableTeams;
-  mapState.userCoords = userCoords;
-  mapState.bounds = null;
-  mapState.selectedTeamQuery = selectedTeamQuery;
-  mapState.activeTeamName = selectedTeamQuery || mapState.activeTeamName || '';
-  mapState.mapType = mapState.mapType || 'roadmap';
-  mapState.trafficEnabled = Boolean(mapState.trafficEnabled);
-  mapState.transitEnabled = Boolean(mapState.transitEnabled);
-  mapState.trafficLayer = mapState.trafficLayer || null;
-  mapState.transitLayer = mapState.transitLayer || null;
-
   const searchInput = searchWrap.querySelector('#teamsSearch');
   const programFilter = searchWrap.querySelector('#teamsProgramFilter');
   const awardsFilter = searchWrap.querySelector('#teamsAwardsFilter');
@@ -560,22 +433,8 @@ function isTeamRecruiting(team) {
   return true;
 }
 
-function isTeamRegistered(team) {
-  return !(team && typeof team === 'object' && team.registered === false);
-}
-
 function getTeamRecruitingLabel(team) {
-  if (!isTeamRegistered(team)) return 'Not registered';
   return isTeamRecruiting(team) ? 'Recruiting' : 'Not recruiting';
-}
-
-function getTeamStatusRank(team) {
-  if (!isTeamRegistered(team)) return 2;
-  return isTeamRecruiting(team) ? 0 : 1;
-}
-
-function canSendInfoToTeam(team) {
-  return isTeamRegistered(team) && isTeamRecruiting(team);
 }
 
   function advancementLevelRank(level) {
@@ -634,25 +493,6 @@ function canSendInfoToTeam(team) {
       el.classList.remove('marker-label--active');
     });
     // Circle focus is handled through the matching card and map popup.
-  }
-
-  function getMapActionTarget() {
-    const activeTeam = mapState.activeTeamName ? window._teamDataByName[mapState.activeTeamName] : null;
-    if (activeTeam && Number.isFinite(activeTeam.lat) && Number.isFinite(activeTeam.lon)) {
-      return { lat: activeTeam.lat, lng: activeTeam.lon };
-    }
-
-    const mapCenter = mapState.map && mapState.map.getCenter ? mapState.map.getCenter() : null;
-    if (mapCenter) {
-      return { lat: mapCenter.lat(), lng: mapCenter.lng() };
-    }
-
-    const currentUserCoords = mapState.userCoords || userCoords;
-    if (currentUserCoords && Number.isFinite(currentUserCoords.lat) && Number.isFinite(currentUserCoords.lon)) {
-      return { lat: currentUserCoords.lat, lng: currentUserCoords.lon };
-    }
-
-    return null;
   }
 
   function applySearch() {
@@ -723,17 +563,11 @@ function canSendInfoToTeam(team) {
 
     highlightTeamCard(teamName, { scroll: Boolean(options.scroll) });
     activateMarkerLabel(teamName);
-    if (window._teamsMapUi) {
-      window._teamsMapUi.activeTeamName = teamName;
-    }
 
     if (!marker || !map) return false;
 
     try {
-      if (marker.getCenter && map.panTo) {
-        map.panTo(marker.getCenter());
-        map.setZoom(Math.max(map.getZoom() || 0, options.zoom || 14));
-      } else if (marker.getLatLng && map.setView) {
+      if (marker.getLatLng && map.setView) {
         map.setView(marker.getLatLng(), Math.max(map.getZoom(), options.zoom || 12));
       } else if (marker.getPosition && map.panTo) {
         map.panTo(marker.getPosition());
@@ -753,8 +587,7 @@ function canSendInfoToTeam(team) {
         marker.openPopup();
       } else if (options.openPopup !== false && window._infoWindow) {
         window._infoWindow.setContent(marker.popupContent);
-        window._infoWindow.setPosition(marker.getCenter ? marker.getCenter() : marker.getPosition());
-        window._infoWindow.open({ map, shouldFocus: false });
+        window._infoWindow.open(map, marker);
       }
       return true;
     } catch (e) {
@@ -836,26 +669,7 @@ function canSendInfoToTeam(team) {
     const marker = (window._teamMarkers || {})[teamName];
     const map = window._teamsMapInstance;
     if (layerSet) {
-      if (layerSet.grouped && layerSet.teamVisibility) {
-        layerSet.teamVisibility[teamName] = visible;
-        visible = Object.values(layerSet.teamVisibility).some(Boolean);
-      } else {
-        layerSet.visible = visible;
-      }
-      if (layerSet.circle && layerSet.circle.setMap) {
-        layerSet.circle.setMap(visible ? map : null);
-      }
-      if (layerSet.privacyBlur && layerSet.privacyBlur.setMap) {
-        layerSet.privacyBlur.setMap(visible ? map : null);
-      }
-      if (layerSet.notifier && layerSet.notifier.setVisible) {
-        layerSet.notifier.setVisible(visible);
-      }
-      if (layerSet.circle && layerSet.circle.setMap) {
-        if (visible && typeof window._updateTeamZoomNotifiers === 'function') window._updateTeamZoomNotifiers();
-        if (typeof window._updatePrivacyBlur === 'function') window._updatePrivacyBlur();
-        return;
-      }
+      layerSet.visible = visible;
       [layerSet.circle, layerSet.privacyBlur].forEach(layer => {
         if (!layer || !map || !map.hasLayer || !map.addLayer || !map.removeLayer) return;
         if (visible && !map.hasLayer(layer)) {
@@ -934,14 +748,12 @@ function canSendInfoToTeam(team) {
     `;
   }
 
-  renderableTeams.forEach(team => {
+  teams.forEach(team => {
     const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
     const teamName = String(team.name || 'Unnamed team');
     const programLabel = String(team.program || 'FTC');
     const isNewTeam = Boolean(team.isNewTeam);
-    const isRegistered = isTeamRegistered(team);
     const isRecruiting = isTeamRecruiting(team);
-    const canReceiveInfo = isRegistered && isRecruiting;
     const teamNumber = isNewTeam
       ? 'New Team'
       : (team.teamNumber ? `${programLabel} ${team.teamNumber}` : `${programLabel} team`);
@@ -959,7 +771,7 @@ function canSendInfoToTeam(team) {
     const advancementEntries = advancementHistory.length
       ? advancementHistory.map((entry, index) => formatAdvancementEntry(entry, advancementLevels, index))
       : advancementLevels;
-    const hasTeamRequirements = Boolean(notes);
+    const teamRequirementsText = notes || 'Add your team requirements, such as meeting schedule, grades accepted, skills needed, or application steps.';
     const distanceData = Number.isFinite(dist) ? formatDistance(dist, distanceUnitPreference) : null;
 
     const card = document.createElement('div');
@@ -980,8 +792,8 @@ function canSendInfoToTeam(team) {
       <div class="team-card-head">
         <div class="team-card-heading">
           <h3 class="team-card-title">${escapeHTML(teamName)}</h3>
-          <span class="team-card-label${isNewTeam ? ' team-card-label--new-team' : ''}${!isRegistered ? ' team-card-label--not-registered' : (isRecruiting ? '' : ' team-card-label--not-recruiting')}">${escapeHTML(teamNumber)}${regionLabel ? ` · ${escapeHTML(regionLabel)}` : ''}${isNewTeam ? ' · new team' : (team.verified ? ' · verified' : '')}${!isRegistered ? ' · not registered' : (isRecruiting ? '' : ' · not recruiting')}</span>
-          <span class="team-card-status-pill${!isRegistered ? ' team-card-status-pill--not-registered' : (isRecruiting ? ' team-card-status-pill--recruiting' : ' team-card-status-pill--not-recruiting')}">${escapeHTML(getTeamRecruitingLabel(team))}</span>
+          <span class="team-card-label${isNewTeam ? ' team-card-label--new-team' : ''}${isRecruiting ? '' : ' team-card-label--not-recruiting'}">${escapeHTML(teamNumber)}${regionLabel ? ` · ${escapeHTML(regionLabel)}` : ''}${isNewTeam ? ' · new team' : (team.verified ? ' · verified' : '')}${isRecruiting ? '' : ' · not recruiting'}</span>
+          <span class="team-card-status-pill${isRecruiting ? ' team-card-status-pill--recruiting' : ' team-card-status-pill--not-recruiting'}">${escapeHTML(getTeamRecruitingLabel(team))}</span>
         </div>
         <div class="team-card-toolbar">
           <button class="btn btn-link goto-marker team-card-icon-button" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-map-pin"></i></button>
@@ -989,7 +801,7 @@ function canSendInfoToTeam(team) {
         </div>
       </div>
       <div class="team-details-content" style="margin-top: 12px; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 260ms ease, opacity 200ms ease;">
-        <p class="team-card-contact">${escapeHTML(contact || (isRegistered ? 'Contact unavailable' : 'Not registered'))}</p>
+        <p class="team-card-contact">${escapeHTML(contact)}</p>
         ${(location || regionLabel) ? `<p class="team-card-meta">${escapeHTML([location, regionLabel].filter(Boolean).join(' · '))}</p>` : ''}
         ${scoutingUrl ? `
           <p class="team-card-source">
@@ -1010,15 +822,13 @@ function canSendInfoToTeam(team) {
             </div>
           </div>
         ` : ''}
-        ${hasTeamRequirements ? `
-          <div class="team-card-requirements">
-            <div class="team-card-requirements-head">
-              <span class="team-card-requirements-icon" aria-hidden="true"><i class="fa-solid fa-list-check"></i></span>
-              <span class="team-card-requirements-title">Team Requirements</span>
-            </div>
-            <p class="team-card-requirements-text">${escapeHTML(notes)}</p>
+        <div class="team-card-requirements">
+          <div class="team-card-requirements-head">
+            <span class="team-card-requirements-icon" aria-hidden="true"><i class="fa-solid fa-list-check"></i></span>
+            <span class="team-card-requirements-title">Team Requirements</span>
           </div>
-        ` : ''}
+          <p class="team-card-requirements-text">${escapeHTML(teamRequirementsText)}</p>
+        </div>
         ${awardHistory.length ? `
           ${renderExpandableHistorySection({
             title: 'Awards achieved',
@@ -1037,14 +847,14 @@ function canSendInfoToTeam(team) {
           })}
         ` : ''}
         <div class="team-actions">
-          <button class="btn btn-primary send-btn"${canReceiveInfo ? '' : ' disabled aria-disabled="true"'}>${canReceiveInfo ? 'Send My Info' : (!isRegistered ? 'Not Registered' : 'Not Recruiting')}</button>
+          <button class="btn btn-primary send-btn">${isRecruiting ? 'Send My Info' : 'Not Recruiting'}</button>
         </div>
       </div>
     `;
     window._teamCards[teamName] = card;
 
     const sendBtn = card.querySelector('.send-btn');
-    if (sendBtn && canReceiveInfo) sendBtn.addEventListener('click', (e) => { e.stopPropagation(); sendToTeam(team); });
+    if (sendBtn) sendBtn.addEventListener('click', (e) => { e.stopPropagation(); sendToTeam(team); });
 
     const gotoBtn = card.querySelector('.goto-marker');
     if (gotoBtn) gotoBtn.addEventListener('click', event => {
@@ -1145,119 +955,84 @@ function canSendInfoToTeam(team) {
 
     listEl.appendChild(card);
   });
-  if (selectedTeamQuery && searchInput) {
-    searchInput.value = selectedTeamQuery;
-  }
   applySearch();
 
-  if (selectedTeamQuery) {
-    const normalizedTeamQuery = selectedTeamQuery.toLowerCase();
-    const selectedTeam = renderableTeams.find(team => (
-      String(team && team.name || '').trim().toLowerCase() === normalizedTeamQuery
-      || String(team && team.teamNumber || '').trim().toLowerCase() === normalizedTeamQuery
-    ));
-    if (selectedTeam) {
-      focusTeamWhenReady(String(selectedTeam.name || ''), { openPopup: true, zoom: 14, scroll: true });
-    }
-  }
-
-  // Initialize Google Maps when its async script is ready.
-  let mapInitAttempts = 0;
-  const showGoogleMapsError = () => {
-    mapEl.innerHTML = '<p class="map-load-error">Google Maps is unavailable. Enable the Maps JavaScript API for the configured key, then reload this page.</p>';
-  };
-  window.addEventListener('google-maps-auth-error', showGoogleMapsError, { once: true });
-
+  // initialize Leaflet map when available
   function tryInitMap() {
-    if (window.__GOOGLE_MAPS_AUTH_FAILED__) {
-      showGoogleMapsError();
-      return;
-    }
-    if (!window.google || !google.maps || !google.maps.Map) {
-      mapInitAttempts += 1;
-      if (mapInitAttempts > 60) {
-        showGoogleMapsError();
-        return;
-      }
+    if (!window.L) {
       setTimeout(tryInitMap, 200);
       return;
     }
 
-    if (window._teamsMapInstance && google.maps.event) {
-      google.maps.event.clearInstanceListeners(window._teamsMapInstance);
+    if (window._teamsMapInstance && window._teamsMapInstance.remove) {
+      window._teamsMapInstance.remove();
     }
-    mapEl.innerHTML = '';
 
-    const map = new google.maps.Map(mapEl, {
-      center: { lat: 39.5, lng: -98.35 },
+    const map = L.map('teamsMap', {
+      center: [39.5, -98.35],
       zoom: 4,
-      mapTypeControl: true,
-      streetViewControl: true,
-      scaleControl: true,
-      zoomControl: true,
-      rotateControl: true,
-      fullscreenControl: true,
-      // Use normal map gestures so Google doesn't show the ctrl+scroll hint overlay.
-      gestureHandling: 'greedy'
+      scrollWheelZoom: true
     });
     const privacyBlurZoom = 16;
-
-    class MapDomOverlay extends google.maps.OverlayView {
-      constructor({ position, className, html, title, onClick }) {
-        super();
-        this.position = new google.maps.LatLng(position);
-        this.className = className || '';
-        this.html = html || '';
-        this.title = title || '';
-        this.onClick = onClick;
-        this.visible = true;
-        this.element = null;
-      }
-
-      onAdd() {
-        const element = document.createElement('div');
-        element.className = `google-team-overlay ${this.className}`.trim();
-        element.innerHTML = this.html;
-        element.style.position = 'absolute';
-        element.style.display = this.visible ? 'block' : 'none';
-        if (this.title) element.title = this.title;
-        if (this.onClick) {
-          element.tabIndex = 0;
-          element.setAttribute('role', 'button');
-          element.addEventListener('click', this.onClick);
-          element.addEventListener('keydown', event => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              this.onClick(event);
-            }
-          });
-        }
-        this.element = element;
-        this.getPanes().overlayMouseTarget.appendChild(element);
-      }
-
-      draw() {
-        if (!this.element) return;
-        const point = this.getProjection().fromLatLngToDivPixel(this.position);
-        if (!point) return;
-        this.element.style.left = `${point.x}px`;
-        this.element.style.top = `${point.y}px`;
-      }
-
-      onRemove() {
-        if (this.element) this.element.remove();
-        this.element = null;
-      }
-
+    const notifierMaxZoom = 10;
+    const privacyBlurLayers = [];
+    const PrivacyBlurCircle = L.Layer.extend({
+      initialize(latlng, radiusMeters) {
+        this._latlng = L.latLng(latlng);
+        this._radiusMeters = radiusMeters;
+      },
+      onAdd(layerMap) {
+        this._map = layerMap;
+        this._el = L.DomUtil.create('div', 'team-privacy-blur');
+        layerMap.getPanes().overlayPane.appendChild(this._el);
+        layerMap.on('zoom viewreset move', this._reset, this);
+        this._reset();
+      },
+      onRemove(layerMap) {
+        layerMap.off('zoom viewreset move', this._reset, this);
+        if (this._el) L.DomUtil.remove(this._el);
+        this._map = null;
+        this._el = null;
+      },
       setVisible(visible) {
-        this.visible = Boolean(visible);
-        if (this.element) this.element.style.display = this.visible ? 'block' : 'none';
-      }
+        if (this._el) this._el.classList.toggle('is-visible', visible);
+      },
+      _reset() {
+        if (!this._map || !this._el) return;
+        const center = this._map.latLngToLayerPoint(this._latlng);
+        const lngOffset = this._radiusMeters / (111320 * Math.cos(this._latlng.lat * Math.PI / 180));
+        const edge = this._map.latLngToLayerPoint([this._latlng.lat, this._latlng.lng + lngOffset]);
+        const radiusPx = Math.max(8, Math.abs(edge.x - center.x));
+        const size = radiusPx * 2;
 
-      getPosition() {
-        return this.position;
+        this._el.style.width = `${size}px`;
+        this._el.style.height = `${size}px`;
+        L.DomUtil.setPosition(this._el, center.subtract([radiusPx, radiusPx]));
       }
-    }
+    });
+    const updatePrivacyBlur = () => {
+      const shouldBlur = map.getZoom() >= privacyBlurZoom;
+      privacyBlurLayers.forEach(layer => layer.setVisible(shouldBlur));
+    };
+    const updateTeamZoomNotifiers = () => {
+      const shouldShow = map.getZoom() <= notifierMaxZoom;
+      Object.values(window._teamMapLayers || {}).forEach(layerSet => {
+        if (!layerSet.notifier) return;
+        const onMap = map.hasLayer(layerSet.notifier);
+        if (shouldShow && layerSet.visible !== false && !onMap) {
+          layerSet.notifier.addTo(map);
+        } else if ((!shouldShow || layerSet.visible === false) && onMap) {
+          map.removeLayer(layerSet.notifier);
+        }
+      });
+    };
+    window._updatePrivacyBlur = updatePrivacyBlur;
+    window._updateTeamZoomNotifiers = updateTeamZoomNotifiers;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
     window._teamsMapInstance = map;
     window._infoWindowTimer = null;
@@ -1265,390 +1040,142 @@ function canSendInfoToTeam(team) {
     window._teamMapLayers = {};
     window._teamMarkers = {};
     window._userLocationMarker = null;
-    window._activeInfoTeam = null;
-    window._infoWindow = new google.maps.InfoWindow({ maxWidth: 320 });
-    mapState.map = map;
-    mapState.trafficLayer = mapState.trafficLayer || new google.maps.TrafficLayer();
-    mapState.transitLayer = mapState.transitLayer || new google.maps.TransitLayer();
-    if (mapState.mapType && map.setMapTypeId) {
-      map.setMapTypeId(mapState.mapType);
-    }
-    if (mapState.trafficEnabled && mapState.trafficLayer) {
-      mapState.trafficLayer.setMap(map);
-    }
-    if (mapState.transitEnabled && mapState.transitLayer) {
-      mapState.transitLayer.setMap(map);
-    }
 
-    window._infoWindow.addListener('domready', () => {
-      const btn = document.querySelector('.gm-style-iw .popup-send-btn');
-      if (!btn || btn.disabled) return;
-      btn.onclick = () => {
-        const activeTeam = window._activeInfoTeam;
-        if (activeTeam) sendToTeam(activeTeam);
-      };
+    const bounds = L.latLngBounds();
+    window._userLocationMarker = createUserLocationMarker(map, userCoords, bounds);
 
-      const wrappers = [
-        document.querySelector('.gm-style-iw'),
-        document.querySelector('.gm-style-iw-d'),
-        document.querySelector('.gm-style-iw-c'),
-        document.querySelector('.gm-style-iw-t')
-      ].filter(Boolean);
-      wrappers.forEach((el) => {
-        el.style.overflow = 'visible';
-        el.style.maxHeight = 'none';
-        el.style.maxWidth = 'none';
-      });
-    });
-
-    const updatePrivacyBlur = () => {
-      const shouldBlur = (map.getZoom() || 0) >= privacyBlurZoom;
-      Object.values(window._teamMapLayers || {}).forEach(layerSet => {
-        if (!layerSet.privacyBlur || !layerSet.privacyBlur.setOptions) return;
-        layerSet.privacyBlur.setOptions({
-          visible: layerSet.visible !== false,
-          fillOpacity: shouldBlur && layerSet.visible !== false ? 0.08 : 0
-        });
-      });
-    };
-    const updateTeamZoomNotifiers = () => {
-      Object.values(window._teamMapLayers || {}).forEach(layerSet => {
-        if (layerSet.notifier && layerSet.notifier.setVisible) {
-          layerSet.notifier.setVisible(layerSet.visible !== false);
-        }
-      });
-    };
-    window._updatePrivacyBlur = updatePrivacyBlur;
-    window._updateTeamZoomNotifiers = updateTeamZoomNotifiers;
-
-    const bounds = new google.maps.LatLngBounds();
-    mapState.bounds = bounds;
-    window._userLocationMarker = createUserLocationMarker(map, userCoords, bounds, MapDomOverlay);
-
-    const notRecruitingBuckets = new Map();
-    const renderEntries = [];
-
-    renderableTeams.forEach(team => {
+    teams.forEach(team => {
       if (typeof team.lat !== 'number' || typeof team.lon !== 'number') return;
+      if (team.registered === false) return;
 
-      const teamName = String(team.name || 'Unnamed team');
-      const isRegistered = isTeamRegistered(team);
-      const isRecruiting = isTeamRecruiting(team);
-      const radiusMeters = Number(team.radiusMeters) || 1000;
-      const center = { lat: team.lat, lng: team.lon };
-      const locationKey = String(team.location || '').trim().toLowerCase().replace(/\s+/g, ' ');
-
-      if (!isRecruiting) {
-        if (!locationKey) {
-          renderEntries.push({
-            kind: 'single',
-            team,
-            teamName,
-            center,
-            radiusMeters,
-            isRegistered,
-            isRecruiting: false
-          });
-          return;
-        }
-
-        const bucketKey = locationKey;
-        const bucket = notRecruitingBuckets.get(bucketKey) || [];
-        bucket.push(team);
-        notRecruitingBuckets.set(bucketKey, bucket);
-        return;
-      }
-
-      renderEntries.push({
-        kind: 'single',
-        team,
-        teamName,
-        center,
-        radiusMeters,
-        isRegistered,
-        isRecruiting: true
-      });
-    });
-
-    notRecruitingBuckets.forEach((bucketTeams, bucketKey) => {
-      const groupKey = `cluster-${bucketKey}`;
-
-      if (bucketTeams.length >= 2) {
-        const firstTeam = bucketTeams[0];
-        renderEntries.push({
-          kind: 'group',
-          groupKey,
-          teams: bucketTeams,
-          teamName: String(firstTeam.name || 'Unnamed team'),
-          center: { lat: firstTeam.lat, lng: firstTeam.lon },
-          radiusMeters: Math.max(...bucketTeams.map(item => Number(item.radiusMeters) || 1000))
-        });
-        return;
-      }
-
-      bucketTeams.forEach(team => {
-        renderEntries.push({
-          kind: 'single',
-          team,
-          teamName: String(team.name || 'Unnamed team'),
-          center: { lat: team.lat, lng: team.lon },
-          radiusMeters: Number(team.radiusMeters) || 1000,
-          isRegistered: isTeamRegistered(team),
-          isRecruiting: false
-        });
-      });
-    });
-
-    function buildSingleTeamPopupContent(team, options = {}) {
       const teamName = String(team.name || 'Unnamed team');
       const programLabel = String(team.program || 'FTC');
       const isNewTeam = Boolean(team.isNewTeam);
-      const isRegistered = isTeamRegistered(team);
       const isRecruiting = isTeamRecruiting(team);
-      const canReceiveInfo = isRegistered && isRecruiting;
+      const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
+      const distanceData = Number.isFinite(dist) ? formatDistance(dist, distanceUnitPreference) : null;
       const location = String(team.location || '').trim();
       const radiusMeters = Number(team.radiusMeters) || 1000;
-      const yearsInProgram = Number(team.yearsInProgram);
-      const awardsText = String(team.awards || '').trim();
-      const awardHistory = Array.isArray(team.awardHistory) ? team.awardHistory.filter(Boolean) : [];
-      const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.map(normalizeAdvancementLevel).filter(Boolean) : [];
-      const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(Boolean) : [];
-      const advancementEntries = advancementHistory.length
-        ? advancementHistory.map((entry, index) => formatAdvancementEntry(entry, advancementLevels, index))
-        : advancementLevels;
-      const center = { lat: team.lat, lng: team.lon };
-      const googleMapsSearchUrl = buildGoogleMapsSearchUrl(center);
-      const googleMapsDirectionsUrl = buildGoogleMapsDirectionsUrl(center, userCoords);
-      const googleMapsStreetViewUrl = buildGoogleMapsStreetViewUrl(center);
-      const distanceData = options.distanceData || null;
-      const yearsBlock = Number.isFinite(yearsInProgram)
-        ? `<div class="google-team-popup-detail"><strong>Years</strong><span>${yearsInProgram === 0 ? 'New Team Forming' : `${escapeHTML(String(yearsInProgram))} year${yearsInProgram === 1 ? '' : 's'} in program`}</span></div>`
-        : '';
-      const awardsBlock = (awardsText || awardHistory.length)
-        ? `<div class="google-team-popup-detail"><strong>Awards</strong><span>${escapeHTML(awardHistory.length ? formatAwardHistoryDisplayEntry(awardHistory[0]) : awardsText)}${awardHistory.length > 1 ? ` +${awardHistory.length - 1} more` : ''}</span></div>`
-        : '';
-      const advancementBlock = advancementEntries.length
-        ? `<div class="google-team-popup-detail"><strong>Advancement</strong><span>${escapeHTML(advancementEntries.slice(0, 2).join(', '))}${advancementEntries.length > 2 ? ` +${advancementEntries.length - 2} more` : ''}</span></div>`
-        : '';
 
-      return `
-      <div class="google-team-popup google-team-popup--single">
-        <h4>${escapeHTML(teamName)}</h4>
-          ${isNewTeam ? '<p class="google-team-popup-subtitle">New Team</p>' : (team.teamNumber ? `<p class="google-team-popup-subtitle">${escapeHTML(programLabel)} ${escapeHTML(team.teamNumber)}</p>` : '')}
-          ${location ? `<p>${escapeHTML(location)}</p>` : ''}
-          <p class="google-team-popup-status${canReceiveInfo ? '' : ' is-inactive'}${!isRegistered ? ' is-not-registered' : ''}">${getTeamRecruitingLabel(team)}</p>
-          <p class="google-team-popup-area">Approximate ${escapeHTML(radiusMeters)}-meter area</p>
-          ${yearsBlock}
-          ${awardsBlock}
-          ${advancementBlock}
-          <div class="google-team-popup-contact"><strong>Contact</strong><span>${escapeHTML(team.contact || (isRegistered ? 'Unavailable' : 'Not registered'))}</span></div>
-          ${distanceData ? `<p class="google-team-popup-distance">${distanceData.label} away</p>` : ''}
-          <div class="google-team-popup-actions">
-            <button class="popup-send-btn btn btn-primary" data-team="${escapeHTML(teamName)}"${canReceiveInfo ? '' : ' disabled aria-disabled="true"'}>${canReceiveInfo ? 'Send My Info' : (!isRegistered ? 'Not Registered' : 'Not Recruiting')}</button>
+      const popupContent = `
+        <div style="padding: 2px 15px 15px 15px; color: #111; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; min-width: 220px; line-height: 1.4;">
+      <h4 style="margin: 0 0 10px 0; font-size: 1.8em; font-weight: 900; color: #0056b3; line-height: 1.15; padding-top: 0;">${escapeHTML(teamName)}</h4>
+          ${isNewTeam ? `<p style="margin: 0 0 6px 0; font-size: 1.1em; font-weight: 700; color: #333;">New Team</p>` : (team.teamNumber ? `<p style="margin: 0 0 6px 0; font-size: 1.1em; font-weight: 700; color: #333;">${escapeHTML(programLabel)} ${escapeHTML(team.teamNumber)}</p>` : '')}
+          ${location ? `<p style="margin: 0 0 10px 0; font-size: 0.95em; font-weight: 600; color: #444;">${escapeHTML(location)}</p>` : ''}
+          <p style="margin: 0 0 10px 0; font-size: 0.98em; font-weight: 900; color: ${isRecruiting ? '#1f6f45' : '#4b5563'};">${getTeamRecruitingLabel(team)}</p>
+          <p style="margin: 0 0 12px 0; font-size: 0.95em; font-weight: 700; color: #0056b3;">Approximate ${escapeHTML(radiusMeters)}-meter area</p>
+          <div style="margin-bottom: 12px;">
+            <p style="margin: 0; font-size: 0.9em; font-weight: 800; color: #555; text-transform: uppercase;">Contact</p>
+            <p style="margin: 0; font-size: 1em; font-weight: 600; color: #222;">${escapeHTML(team.contact || 'Unavailable')}</p>
           </div>
+          ${distanceData ? `<p style="margin: 0 0 15px 0; font-size: 1em; font-weight: 800; color: #d32f2f;">${distanceData.label} away</p>` : ''}
+          <button class="popup-send-btn btn btn-primary" style="width: 100%; font-weight: 800; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none;" data-team="${escapeHTML(teamName)}">Send My Info</button>
         </div>
       `;
-    }
 
-    function buildGroupedPopupContent(teamsInGroup, center, radiusMeters) {
-      const sortedTeams = teamsInGroup.slice().sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
-      const googleMapsSearchUrl = buildGoogleMapsSearchUrl(center);
-      const teamListHtml = sortedTeams.map((team) => {
-        const teamName = String(team.name || 'Unnamed team');
-        const programLabel = String(team.program || 'FTC');
-        const teamNumber = team.teamNumber ? `<span class="google-team-popup-team-number">${escapeHTML(programLabel)} ${escapeHTML(team.teamNumber)}</span>` : '';
-        const teamStatus = getTeamRecruitingLabel(team);
-        const contact = String(team.contact || (isTeamRegistered(team) ? 'Unavailable' : 'Not registered'));
-        const teamLocation = String(team.location || '').trim();
-        const yearsInProgram = Number(team.yearsInProgram);
-        const awardsText = String(team.awards || '').trim();
-        const awardHistory = Array.isArray(team.awardHistory) ? team.awardHistory.filter(Boolean) : [];
-        const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.map(normalizeAdvancementLevel).filter(Boolean) : [];
-        const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(Boolean) : [];
-        const advancementEntries = advancementHistory.length
-          ? advancementHistory.map((entry, index) => formatAdvancementEntry(entry, advancementLevels, index))
-          : advancementLevels;
-        return `
-          <li class="google-team-popup-team-item">
-            <div class="google-team-popup-team-title">
-              <strong>${escapeHTML(teamName)}</strong>
-              ${teamNumber}
-            </div>
-            <div class="google-team-popup-team-meta">
-              <span>${escapeHTML(teamStatus)}</span>
-              <span>${escapeHTML(contact)}</span>
-            </div>
-            ${teamLocation ? `<div class="google-team-popup-team-location">${escapeHTML(teamLocation)}</div>` : ''}
-            ${Number.isFinite(yearsInProgram) ? `<div class="google-team-popup-team-detail"><strong>Years:</strong> ${yearsInProgram === 0 ? 'New Team Forming' : `${escapeHTML(String(yearsInProgram))} year${yearsInProgram === 1 ? '' : 's'} in program`}</div>` : ''}
-            ${(awardsText || awardHistory.length) ? `<div class="google-team-popup-team-detail"><strong>Awards:</strong> ${escapeHTML(awardHistory.length ? formatAwardHistoryDisplayEntry(awardHistory[0]) : awardsText)}${awardHistory.length > 1 ? ` +${awardHistory.length - 1} more` : ''}</div>` : ''}
-            ${advancementEntries.length ? `<div class="google-team-popup-team-detail"><strong>Advancement:</strong> ${escapeHTML(advancementEntries.slice(0, 2).join(', '))}${advancementEntries.length > 2 ? ` +${advancementEntries.length - 2} more` : ''}</div>` : ''}
-          </li>
-        `;
-      }).join('');
-
-      return `
-      <div class="google-team-popup google-team-popup--group">
-        <h4>${escapeHTML(sortedTeams.length)} teams share this location</h4>
-        <p class="google-team-popup-status is-inactive">Not recruiting</p>
-        <p class="google-team-popup-area">Approximate ${escapeHTML(radiusMeters)}-meter area</p>
-        <div class="google-team-popup-contact"><strong>Note</strong><span>Only one marker is shown for this location because these teams are all not recruiting and share the same exact location.</span></div>
-        <ul class="google-team-popup-team-list">
-          ${teamListHtml}
-        </ul>
-      </div>
-      `;
-    }
-
-    renderEntries.forEach((entry) => {
-      const team = entry.kind === 'group' ? entry.teams[0] : entry.team;
-      if (!team) return;
-
-      const teamName = String(entry.teamName || team.name || 'Unnamed team');
-      const isRegistered = isTeamRegistered(team);
-      const isRecruiting = isTeamRecruiting(team);
-      const canReceiveInfo = isRegistered && isRecruiting;
-      const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, entry.center.lat, entry.center.lng) : null;
-      const distanceData = Number.isFinite(dist) ? formatDistance(dist, distanceUnitPreference) : null;
-      const popupContent = entry.kind === 'group'
-        ? buildGroupedPopupContent(entry.teams, entry.center, entry.radiusMeters)
-        : buildSingleTeamPopupContent(team, { distanceData });
-      const markerFillColor = canReceiveInfo ? '#2f80ed' : '#9ca3af';
-      const markerStrokeColor = canReceiveInfo ? '#0056b3' : '#4b5563';
-
-      const teamCount = entry.kind === 'group' ? entry.teams.length : 1;
-      let markerObject = null;
-      const notifier = new MapDomOverlay({
-        position: entry.center,
-        className: 'team-zoom-notifier-icon',
-        title: teamCount > 1 ? `${teamCount} teams are in this area` : `${teamName} is in this area`,
-        html: `<span class="team-zoom-notifier${canReceiveInfo ? '' : (isRegistered ? ' team-zoom-notifier--inactive' : ' team-zoom-notifier--unregistered')}${entry.kind === 'group' ? ' team-zoom-notifier--group' : ''}" aria-hidden="true">${entry.kind === 'group' ? `<span class="team-zoom-notifier-count">${escapeHTML(teamCount)}</span>` : ''}</span>`,
-        onClick: event => {
-          if (event && event.stopPropagation) event.stopPropagation();
-          window._pinnedTeamPopup = { teamName, marker: markerObject };
-          focusTeam(teamName, { scroll: true, openPopup: true, zoom: 12 });
-        }
+      const marker = L.circle([team.lat, team.lon], {
+        radius: radiusMeters,
+        color: isRecruiting ? '#0056b3' : '#4b5563',
+        weight: 2,
+        opacity: 0.95,
+        fillColor: isRecruiting ? '#2f80ed' : '#9ca3af',
+        fillOpacity: isRecruiting ? 0.18 : 0.34,
+        bubblingMouseEvents: false
+      }).addTo(map);
+      const privacyBlurLayer = new PrivacyBlurCircle([team.lat, team.lon], radiusMeters).addTo(map);
+      privacyBlurLayers.push(privacyBlurLayer);
+      const notifier = L.marker([team.lat, team.lon], {
+        interactive: true,
+        keyboard: true,
+        title: `${teamName} is in this area`,
+        icon: L.divIcon({
+          className: 'team-zoom-notifier-icon',
+          html: `<span class="team-zoom-notifier${isRecruiting ? '' : ' team-zoom-notifier--inactive'}" aria-hidden="true"></span>`,
+          iconSize: [28, 36],
+          iconAnchor: [14, 34],
+          popupAnchor: [0, -34]
+        })
       });
-      notifier.setMap(map);
-      markerObject = notifier;
 
-      const circle = isRegistered ? new google.maps.Circle({
-        map,
-        center: entry.center,
-        radius: entry.radiusMeters,
-        strokeColor: markerStrokeColor,
-        strokeOpacity: 0.95,
-        strokeWeight: 2,
-        fillColor: markerFillColor,
-        fillOpacity: canReceiveInfo ? 0.18 : 0.34,
-        clickable: true,
-        zIndex: entry.kind === 'group' ? 3 : 2
-      }) : null;
-      const privacyBlur = circle ? new google.maps.Circle({
-        map,
-        center: entry.center,
-        radius: entry.radiusMeters,
-        strokeOpacity: 0,
-        fillColor: '#ffffff',
-        fillOpacity: 0,
-        clickable: false,
-        zIndex: 1
-      }) : null;
-
-      const openPopup = () => {
-        window._activeInfoTeam = team;
-        mapState.activeTeamName = teamName;
-        window._infoWindow.setContent(popupContent);
-        window._infoWindow.setPosition(entry.center);
-        window._infoWindow.open({ map, shouldFocus: false });
+      marker.bindPopup(popupContent, { maxWidth: 320 });
+      if (!window._teamMarkers) window._teamMarkers = {};
+      window._teamMarkers[teamName] = marker;
+      if (!window._teamMapLayers) window._teamMapLayers = {};
+      window._teamMapLayers[teamName] = {
+        circle: marker,
+        notifier,
+        privacyBlur: privacyBlurLayer,
+        visible: true
       };
 
-      if (circle) {
-        circle.popupContent = popupContent;
-        circle.openPopup = openPopup;
-        circle.closePopup = () => window._infoWindow.close();
-      }
-      markerObject = circle || notifier;
-
-      if (entry.kind === 'group') {
-        entry.teams.forEach((groupTeam) => {
-          const groupTeamName = String(groupTeam.name || 'Unnamed team');
-          window._teamDataByName[groupTeamName] = groupTeam;
-          window._teamMarkers[groupTeamName] = markerObject;
-          window._teamMapLayers[groupTeamName] = {
-            circle,
-            notifier,
-            privacyBlur,
-            visible: true,
-            grouped: true,
-            noCircle: !circle,
-            groupKey: entry.groupKey,
-            teamNames: entry.teams.map(t => String(t.name || 'Unnamed team')),
-            teamVisibility: Object.fromEntries(entry.teams.map(t => [String(t.name || 'Unnamed team'), true]))
-          };
-        });
-      } else {
-        window._teamDataByName[teamName] = team;
-        window._teamMarkers[teamName] = markerObject;
-        window._teamMapLayers[teamName] = { circle, notifier, privacyBlur, visible: true, noCircle: !circle };
-      }
-
-      if (circle) {
-        circle.addListener('mouseover', () => {
-          if (window._pinnedTeamPopup) return;
-          if (window._infoWindowTimer) clearTimeout(window._infoWindowTimer);
+      marker.on('mouseover', () => {
+        if (window._pinnedTeamPopup) return;
+        if (window._infoWindowTimer) {
+          clearTimeout(window._infoWindowTimer);
           window._infoWindowTimer = null;
-          openPopup();
-        });
-        circle.addListener('mouseout', () => {
-          if (window._pinnedTeamPopup && window._pinnedTeamPopup.marker === circle) return;
-          window._infoWindowTimer = setTimeout(() => {
-            window._infoWindow.close();
-            window._infoWindowTimer = null;
-          }, 500);
-        });
-        circle.addListener('click', () => {
-          window._pinnedTeamPopup = { teamName, marker: circle };
-          focusTeam(teamName, { scroll: true, openPopup: true });
-        });
+        }
+        marker.openPopup();
+      });
 
-        const circleBounds = circle.getBounds();
-        if (circleBounds) bounds.union(circleBounds);
-      } else {
-        notifier.addListener && notifier.addListener('mouseover', () => {
-          if (window._pinnedTeamPopup) return;
-          if (window._infoWindowTimer) clearTimeout(window._infoWindowTimer);
+      marker.on('mouseout', () => {
+        if (window._pinnedTeamPopup && window._pinnedTeamPopup.marker === marker) return;
+        window._infoWindowTimer = setTimeout(() => {
+          marker.closePopup();
           window._infoWindowTimer = null;
-          openPopup();
-        });
-        notifier.addListener && notifier.addListener('mouseout', () => {
-          if (window._pinnedTeamPopup && window._pinnedTeamPopup.marker === notifier) return;
-          window._infoWindowTimer = setTimeout(() => {
-            window._infoWindow.close();
-            window._infoWindowTimer = null;
-          }, 500);
-        });
-      }
+        }, 500);
+      });
+
+      marker.on('click', (event) => {
+        if (window.L && L.DomEvent && event && event.originalEvent) {
+          L.DomEvent.stopPropagation(event.originalEvent);
+        }
+        window._pinnedTeamPopup = { teamName, marker };
+        focusTeam(teamName, { scroll: true, openPopup: true });
+      });
+      notifier.on('click', (event) => {
+        if (window.L && L.DomEvent && event && event.originalEvent) {
+          L.DomEvent.stopPropagation(event.originalEvent);
+        }
+        window._pinnedTeamPopup = { teamName, marker };
+        focusTeam(teamName, { scroll: true, openPopup: true, zoom: 12 });
+      });
+
+      bounds.extend(marker.getBounds());
     });
 
     if (userCoords && typeof userCoords.lat === 'number' && typeof userCoords.lon === 'number') {
-      map.setCenter({ lat: userCoords.lat, lng: userCoords.lon });
-      map.setZoom(12);
-    } else if (!bounds.isEmpty()) {
-      map.fitBounds(bounds, 24);
-      google.maps.event.addListenerOnce(map, 'idle', () => {
-        if ((map.getZoom() || 0) > 14) map.setZoom(14);
-      });
+      map.setView([userCoords.lat, userCoords.lon], 12);
+    } else if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [24, 24] });
+    } else if (window._userLocationMarker && userCoords) {
+      map.setView([userCoords.lat, userCoords.lon], 13);
     }
-
     updatePrivacyBlur();
     updateTeamZoomNotifiers();
-    map.addListener('zoom_changed', updatePrivacyBlur);
-    map.addListener('zoom_changed', updateTeamZoomNotifiers);
-    map.addListener('click', () => {
+    map.on('zoomend', updatePrivacyBlur);
+    map.on('zoomend', updateTeamZoomNotifiers);
+    map.on('click', () => {
       window._pinnedTeamPopup = null;
-      if (window._infoWindowTimer) clearTimeout(window._infoWindowTimer);
-      window._infoWindowTimer = null;
-      window._infoWindow.close();
+      if (window._infoWindowTimer) {
+        clearTimeout(window._infoWindowTimer);
+        window._infoWindowTimer = null;
+      }
+      map.closePopup();
+    });
+
+    map.on('popupopen', event => {
+      const popupEl = event.popup && event.popup.getElement ? event.popup.getElement() : null;
+      if (popupEl && window.L && L.DomEvent) {
+        L.DomEvent.disableClickPropagation(popupEl);
+      }
+      const btn = popupEl ? popupEl.querySelector('.popup-send-btn') : null;
+      if (btn) {
+        btn.onclick = () => {
+          const teamName = btn.getAttribute('data-team');
+          const team = teams.find(t => t.name === teamName);
+          if (team) sendToTeam(team);
+        };
+      }
     });
 
     applySearch();
@@ -1658,16 +1185,6 @@ function canSendInfoToTeam(team) {
 }
 
 async function sendToTeam(team) {
-  if (!isTeamRegistered(team)) {
-    alert('This team is not registered in the app and cannot receive applications.');
-    return;
-  }
-
-  if (!isTeamRecruiting(team)) {
-    alert('This team is not currently recruiting and cannot receive applications.');
-    return;
-  }
-
   if (!getCurrentUser()) {
     redirectToAuthGate(window.location.pathname || '/teams-nearby', 'Send My Info');
     return;
@@ -1736,16 +1253,14 @@ function initTeamsPage() {
   const zipForm = document.getElementById('zipLocationForm');
   const zipInput = document.getElementById('zipLocationInput');
   const zipMessage = document.getElementById('zipLocationMessage');
-  const searchParams = new URLSearchParams(window.location.search);
-  const initialQuery = String(searchParams.get('q') || '').trim();
-  const initialTeamQuery = String(searchParams.get('team') || '').trim();
+  const initialQuery = String(new URLSearchParams(window.location.search).get('q') || '').trim();
   status.textContent = 'Loading teams…';
 
   if (zipInput && initialQuery) {
     zipInput.value = initialQuery;
   }
 
-  renderTeams(teams, coords, { teamQuery: initialTeamQuery });
+  renderTeams(teams, coords);
 
   function setZipMessage(message, isError = false) {
     if (!zipMessage) return;
@@ -1814,7 +1329,7 @@ function initTeamsPage() {
 
       try {
         const location = await lookupLocation(query);
-        renderTeams(teams, location.coords, { teamQuery: initialTeamQuery });
+        renderTeams(teams, location.coords);
         updateLocationStatus(location.coords, `Showing teams near ${location.label}`);
         setZipMessage('');
       } catch (err) {
@@ -1826,7 +1341,7 @@ function initTeamsPage() {
   if (initialQuery) {
     lookupLocation(initialQuery)
       .then((location) => {
-        renderTeams(teams, location.coords, { teamQuery: initialTeamQuery });
+        renderTeams(teams, location.coords);
         updateLocationStatus(location.coords, `Showing teams near ${location.label}`);
         setZipMessage('');
       })
@@ -1840,7 +1355,7 @@ function initTeamsPage() {
     const geoOptions = { maximumAge: 60000, timeout: 2000, enableHighAccuracy: false };
     navigator.geolocation.getCurrentPosition((pos) => {
       const userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      renderTeams(teams, userCoords, { teamQuery: initialTeamQuery });
+      renderTeams(teams, userCoords);
       updateLocationStatus(userCoords, 'Showing nearby teams');
     }, () => {
       status.textContent = 'Using nearby teams (location unavailable)';
@@ -1982,7 +1497,7 @@ function renderHomeFeaturedTeams(teams) {
             <span>${escapeHTML(verifiedLabel)}</span>
             <span>${escapeHTML(team.isNewTeam ? 'New Team' : 'Established')}</span>
           </div>
-          <a href="/teams-nearby?team=${encodeURIComponent(team.name || '')}" class="team-button">View Team &amp; Apply</a>
+          <a href="/teams-nearby" class="team-button">View Team &amp; Apply</a>
         </div>
       </article>
     `;

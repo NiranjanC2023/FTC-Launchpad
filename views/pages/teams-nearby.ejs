@@ -11,7 +11,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Styles -->
-  <link rel="stylesheet" href="/assets/css/main.css?v=28">
+  <link rel="stylesheet" href="/assets/css/main.css?v=25">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <!-- Font Awesome for marker icon -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -28,7 +29,7 @@
       </div>
       <h1>Teams Near You</h1>
       <p id="teamsStatus" class="subtitle">Looking for teams...</p>
-      <p class="teams-map-legend"><span class="teams-map-legend-dot" aria-hidden="true"></span> Blue circles represent recruiting teams. Grey circles mean not recruiting or not registered.</p>
+      <p class="teams-map-legend"><span class="teams-map-legend-dot" aria-hidden="true"></span> Blue circles represent recruiting teams. Grey circles mean not recruiting.</p>
       <form id="zipLocationForm" class="zip-location-form" novalidate>
         <label for="zipLocationInput">Search by city, county, state, country, or ZIP</label>
         <div class="zip-location-row">
@@ -53,15 +54,7 @@
     window.__USER__ = <%- JSON.stringify(typeof user !== 'undefined' ? user : null) %>;
   </script>
 
-  <% if (googleMapsApiKey) { %>
-    <script>
-      window.gm_authFailure = function () {
-        window.__GOOGLE_MAPS_AUTH_FAILED__ = true;
-        window.dispatchEvent(new Event('google-maps-auth-error'));
-      };
-    </script>
-    <script async src="https://maps.googleapis.com/maps/api/js?key=<%= encodeURIComponent(googleMapsApiKey) %>&amp;loading=async&amp;v=weekly"></script>
-  <% } %>
-  <script src="/assets/js/main.js?v=38"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/assets/js/main.js?v=35"></script>
 </body>
 </html>
