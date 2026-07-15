@@ -8,6 +8,7 @@ const Student = require('../models/student');
 const { createNotification, normalizeEmail } = require('../lib/notifications');
 const { DEFAULT_FROM, sendTransactionalEmail, buildTransactionalEmailTemplate } = require('../lib/email');
 const { isRecruitingTeam } = require('../lib/team-status');
+const { getOfficialTeamsForMap, getPreferredTeamName } = require('../lib/official-teams');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -326,21 +327,37 @@ var sortHistoryEntriesMostRecent = function(entries) {
 };
 
 function mapTeam(team) {
+    const lat = toNumber(team.lat);
+    const lon = toNumber(team.lon);
+    const teamNumber = team.teamNumber !== undefined && team.teamNumber !== null && String(team.teamNumber).trim() !== ''
+        ? team.teamNumber
+        : (team.number !== undefined && team.number !== null && String(team.number).trim() !== ''
+            ? team.number
+            : (team.profile && team.profile.number !== undefined && team.profile.number !== null ? team.profile.number : null));
+    const teamName = getPreferredTeamName(team) || String(
+        team.name
+        || (team.profile && team.profile.name)
+        || team.schoolName
+        || ''
+    ).trim();
     const location = team.city
         ? [team.city, team.state, team.country].filter(Boolean).join(', ')
         : [team.address, team.state, team.country].filter(Boolean).join(', ');
-    const displayCoords = privacyOffsetCoords(team.lat, team.lon, [
-        String(team._id || ''),
-        team.program,
-        String(team.teamNumber || ''),
-        team.name
-    ]);
+    const displayCoords = Number.isFinite(lat) && Number.isFinite(lon)
+        ? privacyOffsetCoords(lat, lon, [
+            String(team._id || ''),
+            team.program,
+            String(team.teamNumber || ''),
+            team.name
+        ])
+        : { lat: null, lon: null };
 
     return {
         id: team._id,
+        key: team.key || `${team.program || 'FTC'}:${String(teamNumber || teamName || '')}`,
         program: team.program || 'FTC',
-        teamNumber: team.teamNumber,
-        name: team.name,
+        teamNumber,
+        name: teamName,
         contact: team.contact,
         lat: displayCoords.lat,
         lon: displayCoords.lon,
@@ -352,6 +369,8 @@ function mapTeam(team) {
         advancementLevels: team.advancementLevels,
         advancementHistory: sortHistoryEntriesMostRecent(team.advancementHistory || []),
         recruiting: isRecruitingTeam(team),
+        registered: team.registered !== false,
+        source: team.source || (team.registered === false ? 'official-api' : 'database'),
         verified: team.verified,
         radiusMeters: 1000,
         location
@@ -457,7 +476,7 @@ function formatSeasonLabel(program, season) {
 
 function extractTeamDisplayName(team) {
     if (!team) return '';
-    return String(
+    return getPreferredTeamName(team) || String(
         team.team_nickname
         || team.nickname
         || team.name
@@ -619,6 +638,16 @@ function formatTeamTenureLabel(team) {
     return `${yearsElapsed} year${yearsElapsed === 1 ? '' : 's'}`;
 }
 
+function extractTeamLocationFromApiProfile(profile) {
+    if (!profile) return { city: '', state: '', country: '' };
+    const location = profile.location && typeof profile.location === 'object' ? profile.location : {};
+    return {
+        city: String(location.city || profile.city || '').trim(),
+        state: String(location.state || profile.state_prov || profile.state || '').trim(),
+        country: String(location.country || profile.country || '').trim()
+    };
+}
+
 function normalizeTeamName(value) {
     return String(value || '')
         .toLowerCase()
@@ -630,7 +659,7 @@ function normalizeTeamName(value) {
 
 function getTeamNameFromApiProfile(profile) {
     if (!profile) return '';
-    return String(
+    return getPreferredTeamName(profile) || String(
         profile.name
         || profile.nickname
         || profile.team_name
@@ -672,7 +701,7 @@ function getUniqueNumericValues(values) {
 
 async function fetchFtcScoutTeamDetails(teamNumber) {
     const body = {
-        query: 'query($number:Int!){ teamByNumber(number:$number){ number name schoolName rookieYear awards { type placement season } matches { season event { type } } activeSeasons } }',
+        query: 'query($number:Int!){ teamByNumber(number:$number){ number name schoolName location { city state country } rookieYear awards { type placement season } matches { season event { type } } activeSeasons } }',
         variables: { number: Number(teamNumber) }
     };
 
@@ -730,6 +759,11 @@ async function fetchFtcScoutTeamDetails(teamNumber) {
             number: Number(team.number || teamNumber),
             name: String(team.name || '').trim(),
             schoolName: String(team.schoolName || '').trim(),
+            location: {
+                city: String(team.location && team.location.city || '').trim(),
+                state: String(team.location && team.location.state || '').trim(),
+                country: String(team.location && team.location.country || '').trim()
+            },
             rookieYear: team.rookieYear
         },
         yearsInProgram: competitionSeasons.length || null,
@@ -832,7 +866,7 @@ async function fetchTeamDetailsViaApi(program, teamNumber) {
             const ftcScoutDetails = await fetchFtcScoutTeamDetails(teamNumber).catch(() => null);
             if (!ftcScoutDetails) return null;
             return {
-                profile: { team_number: Number(teamNumber) },
+                profile: ftcScoutDetails.profile,
                 awards: ftcScoutDetails.awards,
                 awardHistory: ftcScoutDetails.awardHistory,
                 yearsInProgram: ftcScoutDetails.yearsInProgram,
@@ -921,6 +955,7 @@ async function enrichTeamWithApi(team) {
 
     return {
         ...team,
+        name: getPreferredTeamName(apiDetails.profile) || getPreferredTeamName(team) || team.name,
         awards: apiDetails.awards || team.awards || '',
         awardHistory: apiDetails.awardHistory && apiDetails.awardHistory.length
             ? sortHistoryEntriesMostRecent(apiDetails.awardHistory)
@@ -979,7 +1014,8 @@ function compareTeamNameToNumber(submittedName, officialName) {
     const normalizedSubmitted = normalizeTeamName(submittedName);
     const normalizedOfficial = normalizeTeamName(officialName);
     if (!normalizedSubmitted || !normalizedOfficial) return false;
-    return normalizedSubmitted === normalizedOfficial;
+    if (normalizedSubmitted === normalizedOfficial) return true;
+    return normalizedSubmitted.includes(normalizedOfficial) || normalizedOfficial.includes(normalizedSubmitted);
 }
 
 // Home page
@@ -1349,16 +1385,73 @@ router.get("/team-org", function(req, res){
 
 router.get("/teams-nearby", async function(req, res){
     try {
-        if (!isDatabaseConnected()) return res.render("pages/teams-nearby", { teams: [] });
-        const teams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
-            .sort({ recruiting: -1, teamNumber: 1 })
-            .limit(300)
-            .lean()
-            .exec();
-        const normalizedTeams = teams.map((team) => ({
-            ...team,
-            recruiting: isRecruitingTeam(team)
-        }));
+        const officialTeams = await getOfficialTeamsForMap().catch(() => []);
+        const officialTeamMap = new Map(
+            Array.isArray(officialTeams)
+                ? officialTeams.map((team) => {
+                    const key = team && (team.key || `${team.program || 'FTC'}:${String(team.teamNumber || '')}`);
+                    return [key, {
+                        ...team,
+                        recruiting: false,
+                        registered: false,
+                        verified: false,
+                        source: team.source || 'official-api',
+                        contact: team.contact || 'Not registered'
+                    }];
+                }).filter(([key]) => Boolean(key))
+                : []
+        );
+
+        let dbTeams = [];
+        if (isDatabaseConnected()) {
+            dbTeams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
+                .sort({ recruiting: -1, teamNumber: 1 })
+                .lean()
+                .exec();
+        }
+
+        const normalizedTeams = [];
+        const seenTeamKeys = new Set();
+
+        dbTeams.forEach((team) => {
+            const key = `${team.program || 'FTC'}:${String(team.teamNumber || team.name || '')}`;
+            if (seenTeamKeys.has(key)) return;
+            seenTeamKeys.add(key);
+            normalizedTeams.push({
+                ...team,
+                recruiting: isRecruitingTeam(team),
+                registered: team.registered !== false,
+                source: team.source || 'database'
+            });
+        });
+
+        officialTeamMap.forEach((team, key) => {
+            if (seenTeamKeys.has(key)) return;
+            seenTeamKeys.add(key);
+            normalizedTeams.push(team);
+        });
+
+        normalizedTeams.sort((left, right) => {
+            const leftRegistered = left.registered !== false;
+            const rightRegistered = right.registered !== false;
+            const leftRecruiting = isRecruitingTeam(left);
+            const rightRecruiting = isRecruitingTeam(right);
+            const leftRank = !leftRegistered ? 2 : (leftRecruiting ? 0 : 1);
+            const rightRank = !rightRegistered ? 2 : (rightRecruiting ? 0 : 1);
+            if (leftRank !== rightRank) return leftRank - rightRank;
+
+            const leftProgram = String(left.program || 'FTC');
+            const rightProgram = String(right.program || 'FTC');
+            if (leftProgram !== rightProgram) return leftProgram.localeCompare(rightProgram);
+
+            const leftNumber = Number(left.teamNumber);
+            const rightNumber = Number(right.teamNumber);
+            if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber) && leftNumber !== rightNumber) {
+                return leftNumber - rightNumber;
+            }
+
+            return String(left.name || '').localeCompare(String(right.name || ''));
+        });
 
         let studentApp = null;
         let currentUser = null;
@@ -1386,6 +1479,7 @@ router.get("/teams-nearby", async function(req, res){
 
                 return {
                     ...team,
+                    name: getPreferredTeamName(apiDetails.profile) || getPreferredTeamName(team) || team.name,
                     awards: apiDetails.awards || team.awards || '',
                     awardHistory: apiDetails.awardHistory && apiDetails.awardHistory.length
                         ? sortHistoryEntriesMostRecent(apiDetails.awardHistory)
@@ -1428,13 +1522,19 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         const isNewTeam = registrationMode === 'new';
         const contact = normalizeEmail(values.contact);
         const teamNumber = isNewTeam ? null : toNumber(values.teamNumber);
+        const usesOfficialApiLocation = !isNewTeam && (program === 'FTC' || program === 'FRC');
         const hasLocation = Boolean([values.address, values.city].some(value => (value || '').trim()));
+        const hasRequiredLocation = usesOfficialApiLocation
+            ? Boolean(String(values.address || '').trim())
+            : Boolean(hasLocation && String(values.country || '').trim());
 
-        if ((!isNewTeam && !teamNumber) || !values.name || !contact || !hasLocation || !values.country) {
+        if ((!isNewTeam && !teamNumber) || !values.name || !contact || !hasRequiredLocation) {
             return res.render('pages/team-register', {
                 error: isNewTeam
                     ? 'Program, team name, contact email, address, and country are required for a new team.'
-                    : 'Program, team number, team name, contact email, address, and country are required.',
+                    : usesOfficialApiLocation
+                        ? 'Program, team number, team name, contact email, and team address are required. City, state, and country come from the official team API.'
+                        : 'Program, team number, team name, contact email, address, and country are required.',
                 message: null,
                 values
             });
@@ -1449,18 +1549,38 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         }
 
         const official = verification.team;
+        const officialLocation = usesOfficialApiLocation
+            ? extractTeamLocationFromApiProfile(official)
+            : { city: '', state: '', country: '' };
+        if (usesOfficialApiLocation && (!officialLocation.city || !officialLocation.country)) {
+            return res.render('pages/team-register', {
+                error: `The official ${program} team API did not provide a complete city and country for team ${teamNumber}.`,
+                message: null,
+                values
+            });
+        }
         const officialName = isNewTeam
             ? String(values.name || '').trim()
             : (verification.officialName || extractTeamDisplayName(official) || official.team_nickname || official.team_name_calc || official.team_name || values.name);
         const recruiting = values.recruiting === 'on';
         const allowFllExtras = program === 'FLL Challenge' || program === 'FLL Explore';
         const canUseTeamApiAwards = program === 'FTC' || program === 'FRC' || allowFllExtras;
-        const coords = await geocodeAddress(values);
+        const resolvedLocation = usesOfficialApiLocation
+            ? {
+                address: String(values.address || '').trim(),
+                city: officialLocation.city,
+                state: officialLocation.state,
+                country: officialLocation.country
+            }
+            : values;
+        const coords = await geocodeAddress(resolvedLocation);
         const apiTeamDetails = !isNewTeam && shouldUseTeamApi(program, teamNumber) ? await fetchTeamDetailsViaApi(program, teamNumber).catch(() => null) : null;
 
         if (!coords) {
             return res.render('pages/team-register', {
-                error: 'Could not find that location on the map. Try adding the city, state, and country, or use a more specific address.',
+                error: usesOfficialApiLocation
+                    ? 'Could not find that team address on the map. Enter a more specific street or meeting address.'
+                    : 'Could not find that location on the map. Try adding the city, state, and country, or use a more specific address.',
                 message: null,
                 values
             });
@@ -1476,10 +1596,10 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             isNewTeam,
             name: officialName,
             contact,
-            address: values.address || values.city,
-            city: values.city,
-            state: values.state,
-            country: values.country || 'USA',
+            address: resolvedLocation.address || resolvedLocation.city,
+            city: resolvedLocation.city,
+            state: resolvedLocation.state,
+            country: resolvedLocation.country || 'USA',
             lat: coords.lat,
             lon: coords.lon,
             notes: values.notes,
@@ -3254,6 +3374,8 @@ module.exports = router;
 module.exports.__test = {
     compareTeamNameToNumber,
     attachContactTeamsToUser,
+    extractTeamLocationFromApiProfile,
+    fetchTeamDetailsViaApi,
     getTeamNameFromApiProfile,
     normalizeTeamName
 };

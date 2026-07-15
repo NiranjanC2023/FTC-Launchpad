@@ -28,6 +28,7 @@
         <% const selectedMode = values.registrationMode || 'existing'; %>
         <% const selectedProgram = values.program || 'FTC'; %>
         <% const showRegistrationExtras = selectedMode !== 'new' && (selectedProgram === 'FLL Challenge' || selectedProgram === 'FLL Explore'); %>
+        <% const usesOfficialApiLocation = selectedMode !== 'new' && (selectedProgram === 'FTC' || selectedProgram === 'FRC'); %>
 
         <div class="registration-choice form-grid-full">
           <p class="registration-choice-question">Is this a new team or an existing registered team?</p>
@@ -63,18 +64,18 @@
         <label for="contact">Contact email</label>
         <input id="contact" name="contact" type="email" required value="<%= values.contact || '' %>" />
 
-        <label for="address">Address</label>
-        <input id="address" name="address" placeholder="Street address, meeting area, or landmark" value="<%= values.address || '' %>" />
-        <small class="text-muted form-note form-grid-full">For team privacy, the map marker is offset from the exact address. Students will see the listed city or region and an approximate marker location.</small>
+        <label for="address">Team address</label>
+        <input id="address" name="address" placeholder="Street or meeting address" <%= usesOfficialApiLocation ? 'required' : '' %> value="<%= values.address || '' %>" />
+        <small class="text-muted form-note form-grid-full" data-location-note>For privacy, the exact team address is hidden. Students see a 1,000-meter circle centered on an offset map location.</small>
 
-        <label for="city">City</label>
-        <input id="city" name="city" value="<%= values.city || '' %>" />
+        <label for="city" class="<%= usesOfficialApiLocation ? 'registration-hidden' : '' %>" data-detailed-location-field>City</label>
+        <input id="city" name="city" class="<%= usesOfficialApiLocation ? 'registration-hidden' : '' %>" data-detailed-location-field <%= usesOfficialApiLocation ? 'disabled' : '' %> value="<%= values.city || '' %>" />
 
-        <label for="state">State</label>
-        <input id="state" name="state" value="<%= values.state || '' %>" />
+        <label for="state" class="<%= usesOfficialApiLocation ? 'registration-hidden' : '' %>" data-detailed-location-field>State</label>
+        <input id="state" name="state" class="<%= usesOfficialApiLocation ? 'registration-hidden' : '' %>" data-detailed-location-field <%= usesOfficialApiLocation ? 'disabled' : '' %> value="<%= values.state || '' %>" />
 
-        <label for="country">Country</label>
-        <select id="country" name="country" required>
+        <label for="country" class="<%= usesOfficialApiLocation ? 'registration-hidden' : '' %>" data-detailed-location-field>Country</label>
+        <select id="country" name="country" class="<%= usesOfficialApiLocation ? 'registration-hidden' : '' %>" data-detailed-location-field <%= usesOfficialApiLocation ? 'disabled' : 'required' %>>
           <% const selectedCountry = values.country || 'USA'; %>
           <option value="USA" <%= selectedCountry === 'USA' ? 'selected' : '' %>>United States</option>
           <option value="Canada" <%= selectedCountry === 'Canada' ? 'selected' : '' %>>Canada</option>
@@ -120,12 +121,18 @@
       const awardsInput = form.querySelector('#awards');
       const yearsInput = form.querySelector('#yearsInProgram');
       const extraInputs = [awardsInput, yearsInput].filter(Boolean);
+      const addressInput = form.querySelector('#address');
+      const countryInput = form.querySelector('#country');
+      const detailedLocationFields = Array.from(form.querySelectorAll('[data-detailed-location-field]'));
+      const detailedLocationInputs = detailedLocationFields.filter(field => field.matches('input, select'));
+      const locationNote = form.querySelector('[data-location-note]');
 
       function syncMode() {
         const selected = modeInputs.find(input => input.checked);
         const isNew = selected && selected.value === 'new';
         const programValue = String(form.querySelector('#program')?.value || '').trim();
         const showExtras = !isNew && (programValue === 'FLL Challenge' || programValue === 'FLL Explore');
+        const usesApiLocation = !isNew && (programValue === 'FTC' || programValue === 'FRC');
 
         if (teamNumberField) teamNumberField.classList.toggle('registration-hidden', isNew);
         if (teamNumberInput) {
@@ -138,6 +145,18 @@
         extraInputs.forEach((input) => {
           input.disabled = !showExtras;
         });
+
+        detailedLocationFields.forEach((field) => {
+          field.classList.toggle('registration-hidden', usesApiLocation);
+        });
+        detailedLocationInputs.forEach((input) => {
+          input.disabled = usesApiLocation;
+        });
+        if (addressInput) addressInput.required = usesApiLocation;
+        if (countryInput) countryInput.required = !usesApiLocation;
+        if (locationNote) {
+          locationNote.textContent = 'For privacy, the exact team address is hidden. Students see a 1,000-meter circle centered on an offset map location.';
+        }
       }
 
       modeInputs.forEach(input => input.addEventListener('change', syncMode));

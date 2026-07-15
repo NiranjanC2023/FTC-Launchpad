@@ -34,6 +34,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 app.locals.formatAwardHistoryDisplayEntry = formatAwardHistoryDisplayEntry;
+app.locals.googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY || '';
 
 const sharedFooterHtml = fs.readFileSync(path.join(__dirname, "assets", "partial", "footer.html"), "utf8");
 
