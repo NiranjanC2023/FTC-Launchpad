@@ -1046,7 +1046,8 @@ function getTeamRecruitingLabel(team) {
 
     teams.forEach(team => {
       if (typeof team.lat !== 'number' || typeof team.lon !== 'number') return;
-      
+      if (team.registered === false) return;
+
       const teamName = String(team.name || 'Unnamed team');
       const programLabel = String(team.program || 'FTC');
       const isNewTeam = Boolean(team.isNewTeam);

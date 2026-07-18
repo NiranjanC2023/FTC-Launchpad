@@ -164,8 +164,11 @@ router.post('/signups', async function(req, res) {
 		if (!normalizedEmail) return res.status(400).json({ ok: false, error: 'valid email required' });
 		const normalizedTeamId = String(teamId || '').trim();
 		const shouldApplyToTeam = Boolean(normalizedTeamId && mongoose.Types.ObjectId.isValid(normalizedTeamId));
-		const team = shouldApplyToTeam ? await Team.findById(normalizedTeamId).select('_id name teamNumber contact').lean().exec() : null;
+		const team = shouldApplyToTeam ? await Team.findById(normalizedTeamId).select('_id name teamNumber contact recruiting').lean().exec() : null;
 		if (normalizedTeamId && !team) return res.status(400).json({ ok: false, error: 'valid team required' });
+		if (team && !isRecruitingTeam(team)) {
+			return res.status(403).json({ ok: false, error: 'This team is not currently recruiting and cannot receive applications.' });
+		}
 
 		const now = new Date();
 		let student = await Student.findOne({ email: normalizedEmail }).exec();

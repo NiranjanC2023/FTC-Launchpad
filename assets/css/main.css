@@ -2525,6 +2525,21 @@ textarea.form-control {
   background: #6b7280;
 }
 
+.team-card--not-registered {
+  opacity: 0.97;
+}
+
+.team-card--not-registered:hover,
+.team-card--not-registered.is-active {
+  border-color: #cfd6de;
+  background: linear-gradient(180deg, #ffffff, #f4f6f9);
+  box-shadow: 0 20px 40px rgba(100, 116, 139, 0.12);
+}
+
+.team-card--not-registered::before {
+  background: #9ca3af;
+}
+
 .team-card-head {
   display: flex;
   align-items: flex-start;
@@ -2571,6 +2586,10 @@ textarea.form-control {
   color: #6b7280;
 }
 
+.team-card-label--not-registered {
+  color: #6b7280;
+}
+
 .team-card-status-pill {
   display: inline-flex;
   align-items: center;
@@ -2593,6 +2612,11 @@ textarea.form-control {
 .team-card-status-pill--not-recruiting {
   background: rgba(107, 114, 128, 0.12);
   color: #4b5563;
+}
+
+.team-card-status-pill--not-registered {
+  background: rgba(148, 163, 184, 0.16);
+  color: #475569;
 }
 
 .team-card-contact {
@@ -2666,6 +2690,16 @@ textarea.form-control {
 .team-card--not-recruiting .team-button {
   background: #6b7280;
   box-shadow: 0 10px 22px rgba(107, 114, 128, 0.18);
+}
+
+.team-card--not-recruiting .send-btn,
+.team-card--not-recruiting .send-btn:hover,
+.team-card--not-recruiting .send-btn:focus {
+  background: #6b7280;
+  border-color: #6b7280;
+  color: #fff;
+  cursor: not-allowed;
+  opacity: 0.9;
 }
 
 .team-card--not-recruiting .team-button:hover,
@@ -3424,7 +3458,7 @@ textarea.form-control {
   width: 100%;
   height: min(58vh, 560px);
   min-height: 390px;
-  margin: 24px auto 18px;
+  margin: 16px auto 18px;
   overflow: hidden;
   background: var(--surface-soft);
   border: 1px solid var(--border-color);
@@ -3432,20 +3466,15 @@ textarea.form-control {
   box-shadow: var(--shadow-md);
 }
 
-#teamsMap .team-privacy-blur {
+.google-team-overlay {
   position: absolute;
-  z-index: 350;
-  border-radius: 50%;
-  opacity: 0;
-  pointer-events: none;
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
-  background: rgba(255, 255, 255, 0.04);
-  transition: opacity 180ms ease;
+  z-index: 4;
+  transform: translate(-50%, -100%);
+  transform-origin: 50% 100%;
 }
 
-#teamsMap .team-privacy-blur.is-visible {
-  opacity: 1;
+.google-team-overlay[role="button"] {
+  cursor: pointer;
 }
 
 .team-zoom-notifier-icon {
@@ -3470,6 +3499,10 @@ textarea.form-control {
   background: #6b7280;
 }
 
+.team-zoom-notifier--unregistered {
+  background: #9ca3af;
+}
+
 .team-zoom-notifier::after {
   content: "";
   position: absolute;
@@ -3482,8 +3515,29 @@ textarea.form-control {
   transform: translate(-50%, -50%);
 }
 
-.leaflet-marker-icon:hover .team-zoom-notifier,
-.leaflet-marker-icon:focus .team-zoom-notifier {
+.team-zoom-notifier--group {
+  width: 28px;
+  height: 28px;
+}
+
+.team-zoom-notifier--group::after {
+  display: none;
+}
+
+.team-zoom-notifier-count {
+  display: inline-grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.google-team-overlay:hover .team-zoom-notifier,
+.google-team-overlay:focus .team-zoom-notifier {
   transform: translateY(-3px) rotate(-45deg);
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.22);
 }
@@ -3576,72 +3630,209 @@ textarea.form-control {
   transform: translateY(8px);
 }
 
-.leaflet-marker-icon.fa-marker-icon {
-  width: 48px;
-  height: 48px;
-  background: transparent;
-  border: none;
-}
-
-.leaflet-tooltip.marker-label {
-  margin-top: -4px;
-  padding: 6px 10px;
-  color: #1f1d1a;
-  background: #fffdf9;
-  border: 1px solid #cfc4b5;
-  border-radius: 8px;
-  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.22);
-  font-family: Inter, Arial, sans-serif;
-  font-size: 0.82rem;
-  font-weight: 700;
-  line-height: 1.2;
-  white-space: nowrap;
-  opacity: 1;
-  z-index: 650;
-}
-
-/* Google Maps InfoWindow fade support */
 .gm-style-iw-t {
   transition: opacity 0.2s ease !important;
 }
 
-.leaflet-tooltip.marker-label::before {
-  display: none;
+.gm-style-iw,
+.gm-style-iw-d,
+.gm-style-iw-c {
+  overflow: visible !important;
+  max-height: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
 }
 
-.marker-label--dim {
-  opacity: 0.72;
-}
-
-.marker-label--active {
-  opacity: 1;
-  border-color: var(--accent-secondary);
-  color: #07243e;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent-primary) 22%, transparent);
-}
-
-.leaflet-popup-content-wrapper {
-  border-radius: 12px;
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
-}
-
-.leaflet-popup-content {
-  margin: 14px;
-  min-width: 150px;
-  color: #1f1d1a;
-  font-family: Inter, Arial, sans-serif;
-  font-size: 0.9rem;
-  line-height: 1.35;
+.google-team-popup {
+  min-width: 230px;
+  max-width: 320px;
+  padding: 16px 18px 18px;
+  color: #1f2937;
+  font-family: inherit;
+  font-size: 0.92rem;
+  line-height: 1.42;
   text-align: left;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
 }
 
-.leaflet-popup-content .btn {
+.google-team-popup--single {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.google-team-popup h4 {
+  margin: 0;
+  color: #0056b3;
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1.12;
+}
+
+.google-team-popup p {
+  margin: 0;
+}
+
+.google-team-popup-subtitle,
+.google-team-popup-area,
+.google-team-popup-distance {
+  font-size: 0.84rem;
+}
+
+.google-team-popup-subtitle {
+  color: #374151;
+  font-weight: 800;
+}
+
+.google-team-popup-status {
+  color: #146b3a;
+  font-weight: 800;
+}
+
+.google-team-popup-status.is-inactive {
+  color: #596168;
+}
+
+.google-team-popup-status.is-not-registered {
+  color: #64748b;
+}
+
+.google-team-popup-contact {
+  display: grid;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.google-team-popup-contact strong {
+  color: #111827;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.google-team-popup-contact span {
+  overflow-wrap: anywhere;
+}
+
+.google-team-popup-detail,
+.google-team-popup-team-detail {
+  color: #374151;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.google-team-popup-detail strong,
+.google-team-popup-team-detail strong {
+  color: #111827;
+  font-weight: 800;
+}
+
+.google-team-popup-team-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.google-team-popup-team-item {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  background: rgba(242, 247, 244, 0.88);
+  border: 1px solid rgba(201, 214, 206, 0.8);
+  border-radius: 12px;
+}
+
+.google-team-popup-team-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.google-team-popup-team-number {
+  color: #5f6b65;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.google-team-popup-team-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: #5f6b65;
+  font-size: 0.78rem;
+}
+
+.google-team-popup-team-location {
+  color: #374151;
+  font-size: 0.78rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.google-team-popup .btn {
   width: 100%;
-  min-height: 40px;
-  margin-top: 8px;
-  padding: 9px 12px;
-  font-size: 0.9rem;
+  min-height: 48px;
+  padding: 12px 14px;
+  font-size: 0.95rem;
   line-height: 1.15;
+  border-radius: 12px;
+}
+
+.google-team-popup--single .google-team-popup-actions {
+  margin-top: 12px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.google-team-popup--single .btn.btn-primary {
+  background: #16734a;
+  border-color: #16734a;
+  box-shadow: 0 10px 18px rgba(22, 115, 74, 0.2);
+}
+
+.google-team-popup--single .btn.btn-primary:hover,
+.google-team-popup--single .btn.btn-primary:focus {
+  background: #125f3d;
+  border-color: #125f3d;
+}
+
+.google-team-popup--single .google-team-popup-status {
+  color: #1d7a44;
+}
+
+.google-team-popup--single .google-team-popup-area {
+  color: #2f80ed;
+  font-weight: 800;
+}
+
+.google-team-popup--single .google-team-popup-distance {
+  color: #dc2626;
+  font-weight: 800;
+}
+
+.map-load-error {
+  display: grid;
+  min-height: inherit;
+  margin: 0;
+  padding: 32px;
+  place-items: center;
+  color: #5f2b23;
+  font-weight: 700;
+  text-align: center;
 }
 
 @keyframes fadeIn {

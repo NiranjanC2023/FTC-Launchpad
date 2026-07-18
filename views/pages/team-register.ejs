@@ -28,6 +28,7 @@
         <% const selectedMode = values.registrationMode || 'existing'; %>
         <% const selectedProgram = values.program || 'FTC'; %>
         <% const showRegistrationExtras = selectedMode !== 'new' && (selectedProgram === 'FLL Challenge' || selectedProgram === 'FLL Explore'); %>
+        <% const usesOfficialApiLocation = selectedMode !== 'new' && (selectedProgram === 'FTC' || selectedProgram === 'FRC'); %>
 
         <div class="registration-choice form-grid-full">
           <p class="registration-choice-question">Is this a new team or an existing registered team?</p>
@@ -151,6 +152,18 @@
         extraInputs.forEach((input) => {
           input.disabled = !showExtras;
         });
+
+        detailedLocationFields.forEach((field) => {
+          field.classList.toggle('registration-hidden', usesApiLocation);
+        });
+        detailedLocationInputs.forEach((input) => {
+          input.disabled = usesApiLocation;
+        });
+        if (addressInput) addressInput.required = usesApiLocation;
+        if (countryInput) countryInput.required = !usesApiLocation;
+        if (locationNote) {
+          locationNote.textContent = 'For privacy, the exact team address is hidden. Students see a 1,000-meter circle centered on an offset map location.';
+        }
       }
 
       modeInputs.forEach(input => input.addEventListener('change', syncMode));
