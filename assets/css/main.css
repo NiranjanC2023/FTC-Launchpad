@@ -2127,6 +2127,17 @@ h3 {
   align-items: center;
 }
 
+.registration-location-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.42fr) 1fr;
+  gap: 14px 18px;
+  align-items: center;
+}
+
+.registration-location-grid .form-note {
+  grid-column: 1 / -1;
+}
+
 .registration-extra-grid .form-note {
   grid-column: 1 / -1;
 }

@@ -65,24 +65,25 @@
 
         <label for="address">Address</label>
         <input id="address" name="address" placeholder="Street address, meeting area, or landmark" value="<%= values.address || '' %>" />
-        <small class="text-muted form-note form-grid-full">For team privacy, the map marker is offset from the exact address. Students will see the listed city or region and an approximate marker location.</small>
+        <small class="text-muted form-note form-grid-full">For team privacy, the map marker is offset from the exact address and shown inside a 1000 meter bubble.</small>
 
-        <label for="city">City</label>
-        <input id="city" name="city" value="<%= values.city || '' %>" />
+        <div class="registration-location-grid form-grid-full <%= selectedMode !== 'new' && (selectedProgram === 'FTC' || selectedProgram === 'FRC') ? 'registration-hidden' : '' %>" data-team-location-fields>
+          <label for="city">City</label>
+          <input id="city" name="city" value="<%= values.city || '' %>" />
 
-        <label for="state">State</label>
-        <input id="state" name="state" value="<%= values.state || '' %>" />
+          <label for="state">State</label>
+          <input id="state" name="state" value="<%= values.state || '' %>" />
 
-        <label for="country">Country</label>
-        <select id="country" name="country" required>
-          <% const selectedCountry = values.country || 'USA'; %>
-          <option value="USA" <%= selectedCountry === 'USA' ? 'selected' : '' %>>United States</option>
-          <option value="Canada" <%= selectedCountry === 'Canada' ? 'selected' : '' %>>Canada</option>
-          <option value="Mexico" <%= selectedCountry === 'Mexico' ? 'selected' : '' %>>Mexico</option>
-          <option value="Australia" <%= selectedCountry === 'Australia' ? 'selected' : '' %>>Australia</option>
-          <option value="United Kingdom" <%= selectedCountry === 'United Kingdom' ? 'selected' : '' %>>United Kingdom</option>
-          <option value="Other" <%= selectedCountry === 'Other' ? 'selected' : '' %>>Other</option>
-        </select>
+          <label for="country">Country</label>
+          <input
+            id="country"
+            name="country"
+            type="text"
+            <%= selectedMode === 'new' || (selectedProgram !== 'FTC' && selectedProgram !== 'FRC') ? 'required' : '' %>
+            value="<%= values.country || '' %>"
+            placeholder="Country (for example, USA, Canada, India)"
+          />
+        </div>
 
         <label for="notes">Recruiting info</label>
         <textarea id="notes" name="notes" rows="4" placeholder="Meeting days, grades accepted, application link, or what students should include."><%= values.notes || '' %></textarea>
@@ -93,7 +94,6 @@
 
           <label for="yearsInProgram">Years in program</label>
           <input id="yearsInProgram" name="yearsInProgram" type="number" min="0" step="1" placeholder="Optional: 1, 3, 6..." value="<%= values.yearsInProgram || '' %>" />
-          <small class="text-muted form-note form-grid-full">FTC teams can auto-fill awards and years in program from FTC Scout, and FRC teams can do the same through Blue Alliance when verified.</small>
         </div>
 
         <span></span>
@@ -120,12 +120,16 @@
       const awardsInput = form.querySelector('#awards');
       const yearsInput = form.querySelector('#yearsInProgram');
       const extraInputs = [awardsInput, yearsInput].filter(Boolean);
+      const locationFields = form.querySelector('[data-team-location-fields]');
+      const countryInput = form.querySelector('#country');
 
       function syncMode() {
         const selected = modeInputs.find(input => input.checked);
         const isNew = selected && selected.value === 'new';
         const programValue = String(form.querySelector('#program')?.value || '').trim();
         const showExtras = !isNew && (programValue === 'FLL Challenge' || programValue === 'FLL Explore');
+        const isApiVerifiedProgram = programValue === 'FTC' || programValue === 'FRC';
+        const hideLocation = !isNew && isApiVerifiedProgram;
 
         if (teamNumberField) teamNumberField.classList.toggle('registration-hidden', isNew);
         if (teamNumberInput) {
@@ -133,6 +137,15 @@
           teamNumberInput.disabled = isNew;
           if (isNew) teamNumberInput.value = '';
         }
+
+        if (locationFields) locationFields.classList.toggle('registration-hidden', hideLocation);
+        ['city', 'state', 'country'].forEach((fieldName) => {
+          const input = form.querySelector(`#${fieldName}`);
+          if (!input) return;
+          input.disabled = hideLocation;
+          input.required = !hideLocation && (fieldName === 'country' ? (isNew || !isApiVerifiedProgram) : false);
+          if (hideLocation) input.value = '';
+        });
 
         if (extrasField) extrasField.classList.toggle('registration-hidden', !showExtras);
         extraInputs.forEach((input) => {

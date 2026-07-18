@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Stats | FTC Starter Hub</title>
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .stats-dashboard {
+            width: min(100% - 28px, 1400px);
+            padding: 34px 0 76px;
+            box-sizing: border-box;
+        }
+        .stats-hero {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 20px;
+            align-items: end;
+            padding: 30px;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, rgba(11, 94, 52, 0.96), rgba(18, 112, 79, 0.92));
+            color: #f7fffa;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 18px;
+            box-shadow: 0 24px 50px rgba(7, 46, 27, 0.18);
+            position: relative;
+            overflow: hidden;
+        }
+        .stats-hero::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at top right, rgba(255,255,255,0.16), transparent 30%),
+                radial-gradient(circle at bottom left, rgba(255,255,255,0.1), transparent 28%);
+            pointer-events: none;
+        }
+        .stats-hero > * { position: relative; z-index: 1; }
+        .stats-eyebrow {
+            margin: 0 0 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            font-size: 0.76rem;
+            font-weight: 800;
+            opacity: 0.78;
+        }
+        .stats-hero h1 {
+            margin: 0;
+            font-size: clamp(2.2rem, 5vw, 4rem);
+            line-height: 0.96;
+            font-weight: 900;
+            letter-spacing: -0.06em;
+        }
+        .stats-hero p {
+            margin: 14px 0 0;
+            max-width: 62ch;
+            font-size: 1.02rem;
+            line-height: 1.65;
+            color: rgba(247, 255, 250, 0.88);
+        }
+        .stats-hero .btn {
+            white-space: nowrap;
+        }
+        .stats-subtle {
+            margin-top: 10px;
+            font-size: 0.88rem;
+            color: rgba(247, 255, 250, 0.78);
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .metric-card {
+            background: var(--surface);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: var(--shadow-sm);
+            min-width: 0;
+        }
+        .metric-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-muted);
+            font-weight: 800;
+        }
+        .metric-label i {
+            color: var(--accent-primary);
+        }
+        .metric-value {
+            margin: 12px 0 4px;
+            font-size: clamp(1.8rem, 3vw, 2.6rem);
+            line-height: 1;
+            font-weight: 900;
+            letter-spacing: -0.05em;
+        }
+        .metric-note {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.92rem;
+            line-height: 1.45;
+        }
+        .stats-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.85fr);
+            gap: 24px;
+            align-items: start;
+        }
+        .stats-column {
+            display: grid;
+            gap: 24px;
+            min-width: 0;
+        }
+        .stats-panel {
+            background: var(--surface);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+        }
+        .stats-panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 22px 24px;
+            background: linear-gradient(180deg, var(--surface-soft), var(--surface));
+            border-bottom: 1px solid var(--border-color);
+        }
+        .stats-panel-head h2 {
+            margin: 0;
+            font-size: 1.18rem;
+            font-weight: 900;
+            letter-spacing: -0.03em;
+        }
+        .stats-panel-head p {
+            margin: 6px 0 0;
+            color: var(--text-muted);
+            font-size: 0.93rem;
+        }
+        .stats-panel-body {
+            padding: 22px 24px 24px;
+        }
+        .legend {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            font-size: 0.86rem;
+            color: var(--text-muted);
+        }
+        .legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .legend i {
+            font-size: 0.8rem;
+        }
+        .stacked-list,
+        .bar-list,
+        .feed-list {
+            display: grid;
+            gap: 12px;
+        }
+        .stacked-item {
+            display: grid;
+            gap: 10px;
+        }
+        .stacked-item-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: baseline;
+            font-size: 0.94rem;
+        }
+        .stacked-item-head strong {
+            font-weight: 800;
+        }
+        .stacked-item-head span {
+            color: var(--text-muted);
+            font-size: 0.88rem;
+        }
+        .stacked-bar {
+            height: 14px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: #e5efe9;
+            display: flex;
+        }
+        .stacked-bar > span {
+            display: block;
+            height: 100%;
+        }
+        .stacked-bar .bar-users { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
+        .stacked-bar .bar-teams { background: linear-gradient(90deg, #16a34a, #22c55e); }
+        .stacked-bar .bar-students { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .breakdown-item {
+            display: grid;
+            gap: 8px;
+        }
+        .breakdown-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: baseline;
+            font-size: 0.94rem;
+        }
+        .breakdown-head strong {
+            font-weight: 800;
+        }
+        .breakdown-head span {
+            color: var(--text-muted);
+            font-size: 0.88rem;
+        }
+        .bar-track {
+            width: 100%;
+            height: 10px;
+            background: #e8eef2;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+        }
+        .location-item,
+        .feed-item {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: center;
+            padding: 14px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(248,250,252,0.9));
+        }
+        .location-item strong,
+        .feed-item strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+        .location-item p,
+        .feed-item p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.45;
+        }
+        .badge-soft {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.74rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            background: #edf7ef;
+            color: #0f5132;
+            white-space: nowrap;
+        }
+        .badge-soft.is-team { background: #eef6ff; color: #174ea6; }
+        .badge-soft.is-student { background: #fff7e6; color: #9a6700; }
+        .badge-soft.is-invite { background: #f3ecff; color: #6b21a8; }
+        .feed-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+            text-align: right;
+            min-width: 110px;
+        }
+        .muted-empty {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+        @media (max-width: 1180px) {
+            .stats-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+            .stats-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+        @media (max-width: 720px) {
+            .stats-dashboard {
+                width: min(100% - 20px, 1400px);
+            }
+            .stats-hero {
+                grid-template-columns: 1fr;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .stats-panel-head {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .location-item,
+            .feed-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .feed-meta {
+                align-items: flex-start;
+                text-align: left;
+                min-width: 0;
+            }
+        }
+    </style>
+</head>
+<body class="dashboard-page stats-page">
+    <header></header>
+
+    <main class="container dashboard-wrapper stats-dashboard">
+        <section class="stats-hero">
+            <div>
+                <p class="stats-eyebrow">Support only</p>
+                <h1>Website Stats</h1>
+                <p>Live analytics for users, teams, student activity, manager invites, and notifications across FTC Starter Hub.</p>
+                <div class="stats-subtle">Signed in as <%= user && user.email ? user.email : 'unknown account' %></div>
+            </div>
+            <div>
+                <a href="/account" class="btn btn-secondary">Back to Account</a>
+            </div>
+        </section>
+
+        <% if (error) { %>
+            <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+
+        <% if (stats) { %>
+            <% const maxMonthly = stats.monthlyRegistrations.reduce((max, item) => Math.max(max, item.total), 0) || 1; %>
+            <% const maxLocation = stats.topLocations.reduce((max, item) => Math.max(max, item.count), 0) || 1; %>
+            <section class="stats-grid">
+                <% stats.summary.forEach((item, index) => { %>
+                    <% const icons = ['fa-users', 'fa-people-group', 'fa-user-graduate', 'fa-envelope-open-text', 'fa-circle-check', 'fa-bell']; %>
+                    <article class="metric-card">
+                        <div class="metric-label">
+                            <i class="fa-solid <%= icons[index] || 'fa-chart-simple' %>"></i>
+                            <span><%= item.label %></span>
+                        </div>
+                        <div class="metric-value"><%= item.value %></div>
+                        <p class="metric-note"><%= item.note %></p>
+                    </article>
+                <% }) %>
+            </section>
+
+            <div class="stats-layout">
+                <div class="stats-column">
+                    <section class="stats-panel">
+                        <div class="stats-panel-head">
+                            <div>
+                                <h2>Growth Over The Last 12 Months</h2>
+                                <p>New users, teams, and student profiles created each month.</p>
+                            </div>
+                            <div class="legend">
+                                <span><i class="fa-solid fa-circle" style="color:#38bdf8;"></i> Users</span>
+                                <span><i class="fa-solid fa-circle" style="color:#22c55e;"></i> Teams</span>
+                                <span><i class="fa-solid fa-circle" style="color:#fbbf24;"></i> Students</span>
+                            </div>
+                        </div>
+                        <div class="stats-panel-body">
+                            <div class="stacked-list">
+                                <% stats.monthlyRegistrations.forEach((item) => { %>
+                                    <% const totalWidth = Math.max(0, Math.round((item.total / maxMonthly) * 100)); %>
+                                    <% const userWidth = item.total ? Math.max(4, Math.round((item.users / item.total) * 100)) : 0; %>
+                                    <% const teamWidth = item.total ? Math.max(4, Math.round((item.teams / item.total) * 100)) : 0; %>
+                                    <% const studentWidth = item.total ? Math.max(4, 100 - userWidth - teamWidth) : 0; %>
+                                    <div class="stacked-item">
+                                        <div class="stacked-item-head">
+                                            <strong><%= item.label %></strong>
+                                            <span><%= item.total %> total</span>
+                                        </div>
+                                        <div class="stacked-bar" aria-label="<%= item.label %> registrations">
+                                            <span class="bar-users" style="width: <%= item.total ? userWidth : 0 %>%;"></span>
+                                            <span class="bar-teams" style="width: <%= item.total ? teamWidth : 0 %>%;"></span>
+                                            <span class="bar-students" style="width: <%= item.total ? studentWidth : 0 %>%;"></span>
+                                        </div>
+                                        <div class="legend">
+                                            <span>Users <strong><%= item.users %></strong></span>
+                                            <span>Teams <strong><%= item.teams %></strong></span>
+                                            <span>Students <strong><%= item.students %></strong></span>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="stats-panel">
+                        <div class="stats-panel-head">
+                            <div>
+                                <h2>Top Team Locations</h2>
+                                <p>Where the registered teams on the site are concentrated.</p>
+                            </div>
+                        </div>
+                        <div class="stats-panel-body">
+                            <% if (stats.topLocations.length) { %>
+                                <div class="bar-list">
+                                    <% stats.topLocations.forEach((item) => { %>
+                                        <% const width = Math.max(8, Math.round((item.count / maxLocation) * 100)); %>
+                                        <div class="breakdown-item">
+                                            <div class="breakdown-head">
+                                                <strong><%= item.label %></strong>
+                                                <span><%= item.count %></span>
+                                            </div>
+                                            <div class="bar-track">
+                                                <div class="bar-fill" style="width: <%= width %>%;"></div>
+                                            </div>
+                                        </div>
+                                    <% }) %>
+                                </div>
+                            <% } else { %>
+                                <p class="muted-empty">No team locations are available yet.</p>
+                            <% } %>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="stats-column">
+                    <section class="stats-panel">
+                        <div class="stats-panel-head">
+                            <div>
+                                <h2>Team Breakdown</h2>
+                                <p>Program, verification, recruiting, and country mix.</p>
+                            </div>
+                        </div>
+                        <div class="stats-panel-body">
+                            <div class="bar-list">
+                                <% stats.teamProgramBreakdown.forEach((item) => { %>
+                                    <div class="breakdown-item">
+                                        <div class="breakdown-head">
+                                            <strong><%= item.label %></strong>
+                                            <span><%= item.count %> (<%= item.pct %>%)</span>
+                                        </div>
+                                        <div class="bar-track"><div class="bar-fill" style="width: <%= item.pct %>%;"></div></div>
+                                    </div>
+                                <% }) %>
+                                <% stats.teamVerificationBreakdown.forEach((item) => { %>
+                                    <div class="breakdown-item">
+                                        <div class="breakdown-head">
+                                            <strong><%= item.label %></strong>
+                                            <span><%= item.count %> (<%= item.pct %>%)</span>
+                                        </div>
+                                        <div class="bar-track"><div class="bar-fill" style="width: <%= item.pct %>%;"></div></div>
+                                    </div>
+                                <% }) %>
+                                <% stats.teamRecruitingBreakdown.forEach((item) => { %>
+                                    <div class="breakdown-item">
+                                        <div class="breakdown-head">
+                                            <strong><%= item.label %></strong>
+                                            <span><%= item.count %> (<%= item.pct %>%)</span>
+                                        </div>
+                                        <div class="bar-track"><div class="bar-fill" style="width: <%= item.pct %>%;"></div></div>
+                                    </div>
+                                <% }) %>
+                                <% stats.teamCountryBreakdown.forEach((item) => { %>
+                                    <div class="breakdown-item">
+                                        <div class="breakdown-head">
+                                            <strong><%= item.label %></strong>
+                                            <span><%= item.count %> (<%= item.pct %>%)</span>
+                                        </div>
+                                        <div class="bar-track"><div class="bar-fill" style="width: <%= item.pct %>%;"></div></div>
+                                    </div>
+                                <% }) %>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="stats-panel">
+                        <div class="stats-panel-head">
+                            <div>
+                                <h2>Student Pipeline</h2>
+                                <p>Applications and team invitation activity.</p>
+                            </div>
+                        </div>
+                        <div class="stats-panel-body">
+                            <div class="bar-list">
+                                <% stats.applicationStatusBreakdown.forEach((item) => { %>
+                                    <div class="breakdown-item">
+                                        <div class="breakdown-head">
+                                            <strong><%= item.label %></strong>
+                                            <span><%= item.label === 'Accepted' ? '' : item.count + ' ' %>(<%= item.pct %>%)</span>
+                                        </div>
+                                        <div class="bar-track"><div class="bar-fill" style="width: <%= item.pct %>%;"></div></div>
+                                    </div>
+                                <% }) %>
+                                <% stats.inviteStatusBreakdown.forEach((item) => { %>
+                                    <div class="breakdown-item">
+                                        <div class="breakdown-head">
+                                            <strong><%= item.label %></strong>
+                                            <span><%= item.count %> (<%= item.pct %>%)</span>
+                                        </div>
+                                        <div class="bar-track"><div class="bar-fill" style="width: <%= item.pct %>%;"></div></div>
+                                    </div>
+                                <% }) %>
+                            </div>
+                            <p class="metric-note" style="margin-top: 16px;">Total submitted team applications recorded: <strong><%= stats.totalSentApplications %></strong></p>
+                        </div>
+                    </section>
+
+                    <section class="stats-panel">
+                        <div class="stats-panel-head">
+                            <div>
+                                <h2>Recent Activity</h2>
+                                <p>Newest notifications and site changes across users, teams, students, and invites.</p>
+                            </div>
+                        </div>
+                        <div class="stats-panel-body">
+                            <% if (stats.activityFeed.length) { %>
+                                <div class="feed-list">
+                                    <% stats.activityFeed.forEach((item) => { %>
+                                        <div class="feed-item">
+                                            <div>
+                                                <strong><%= item.label %></strong>
+                                                <p><%= item.detail %></p>
+                                            </div>
+                                            <div class="feed-meta">
+                                                <span class="badge-soft <%= item.type === 'Team' ? 'is-team' : item.type === 'Student' || item.type === 'Application' ? 'is-student' : item.type === 'Invite' || item.type === 'Message' ? 'is-invite' : '' %>"><%= item.type %></span>
+                                                <span class="metric-note"><%= item.dateLabel %></span>
+                                            </div>
+                                        </div>
+                                    <% }) %>
+                                </div>
+                            <% } else { %>
+                                <p class="muted-empty">No activity has been recorded yet.</p>
+                            <% } %>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        <% } else { %>
+            <section class="stats-panel">
+                <div class="stats-panel-body">
+                    <p class="muted-empty">No analytics are available yet.</p>
+                </div>
+            </section>
+        <% } %>
+    </main>
+
+    <script src="/assets/js/main.js"></script>
+</body>
+</html>

@@ -7,6 +7,7 @@ const User = require('../models/user');
 const { createNotification, listNotifications, countUnreadNotifications, markNotificationsRead, clearNotifications, serializeNotification, normalizeEmail } = require('../lib/notifications');
 const { DEFAULT_FROM, buildTransactionalEmailTemplate, sendTransactionalEmail } = require('../lib/email');
 const { isRecruitingTeam } = require('../lib/team-status');
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
 
 function publicUser(user) {
 	return {
@@ -451,7 +452,7 @@ router.get('/users/me', async function(req, res) {
 		const unreadCount = await countUnreadNotifications(normalizedEmail);
 		res.json({
 			ok: true,
-			user: { ...publicUser(user), hasTeam: !!team },
+			user: { ...publicUser(user), hasTeam: !!team, canViewStats: normalizedEmail === normalizeEmail(SUPPORT_EMAIL) },
 			notifications: notifications.map(serializeNotification),
 			unreadCount
 		});

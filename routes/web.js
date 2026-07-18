@@ -6,6 +6,7 @@ const Team = require('../models/team');
 const ManagerInvite = require('../models/managerInvite');
 const Student = require('../models/student');
 const { createNotification, normalizeEmail } = require('../lib/notifications');
+const Notification = require('../models/notification');
 const { DEFAULT_FROM, sendTransactionalEmail, buildTransactionalEmailTemplate } = require('../lib/email');
 const { isRecruitingTeam } = require('../lib/team-status');
 const fs = require('fs');
@@ -258,6 +259,186 @@ function normalizeManagerRole(role) {
 
 function isManagerRole(role) {
     return Boolean(normalizeManagerRole(role));
+}
+
+function isStatsAccessUser(user) {
+    return Boolean(user && normalizeEmail(user.email) === normalizeEmail(SUPPORT_EMAIL));
+}
+
+function getMonthKey(date) {
+    if (!date) return '';
+    const value = new Date(date);
+    if (Number.isNaN(value.getTime())) return '';
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+}
+
+function getMonthLabel(key) {
+    if (!key) return '';
+    const [year, month] = String(key).split('-').map(Number);
+    if (!Number.isFinite(year) || !Number.isFinite(month)) return key;
+    const date = new Date(Date.UTC(year, month - 1, 1));
+    return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
+function buildMonthWindow(totalMonths = 12) {
+    const months = [];
+    const cursor = new Date();
+    cursor.setUTCDate(1);
+    cursor.setUTCHours(0, 0, 0, 0);
+
+    for (let index = totalMonths - 1; index >= 0; index -= 1) {
+        const date = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() - index, 1));
+        const key = getMonthKey(date);
+        months.push({ key, label: getMonthLabel(key) });
+    }
+
+    return months;
+}
+
+function bucketByMonth(items, dateGetter, monthWindow) {
+    const counts = new Map(monthWindow.map(month => [month.key, 0]));
+    for (const item of items || []) {
+        const key = getMonthKey(dateGetter(item));
+        if (!key || !counts.has(key)) continue;
+        counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return monthWindow.map(month => ({
+        key: month.key,
+        label: month.label,
+        count: counts.get(month.key) || 0
+    }));
+}
+
+function countByKey(items, keyGetter) {
+    const counts = new Map();
+    for (const item of items || []) {
+        const key = String(keyGetter(item) || '').trim();
+        if (!key) continue;
+        counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return counts;
+}
+
+function buildBreakdown(items, keyGetter, preferredOrder = []) {
+    const counts = countByKey(items, keyGetter);
+    const orderedKeys = [
+        ...preferredOrder.filter(key => counts.has(key)),
+        ...Array.from(counts.keys()).filter(key => !preferredOrder.includes(key)).sort((left, right) => counts.get(right) - counts.get(left) || left.localeCompare(right))
+    ];
+    const total = Array.from(counts.values()).reduce((sum, value) => sum + value, 0) || 1;
+
+    return orderedKeys.map((label) => {
+        const count = counts.get(label) || 0;
+        return {
+            label,
+            count,
+            pct: Math.round((count / total) * 100)
+        };
+    });
+}
+
+function buildTopLocations(items, limit = 8) {
+    const counts = new Map();
+    for (const item of items || []) {
+        const parts = [item.city, item.state, item.country].map(value => String(value || '').trim()).filter(Boolean);
+        if (!parts.length) continue;
+        const label = parts.join(', ');
+        counts.set(label, (counts.get(label) || 0) + 1);
+    }
+
+    return Array.from(counts.entries())
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .slice(0, limit)
+        .map(([label, count]) => ({ label, count }));
+}
+
+function describeNotificationActivity(notification, teamLookup, studentLookup) {
+    if (!notification) return null;
+    const metadata = notification.metadata && typeof notification.metadata === 'object' ? notification.metadata : {};
+    const teamName = metadata.teamId && teamLookup.has(String(metadata.teamId))
+        ? teamLookup.get(String(metadata.teamId))
+        : String(metadata.teamName || '').trim();
+    const recruitName = metadata.recruitId && studentLookup.has(String(metadata.recruitId))
+        ? studentLookup.get(String(metadata.recruitId))
+        : '';
+    const recipientEmail = String(notification.recipientEmail || '').trim();
+    const baseTitle = String(notification.title || 'Notification').trim();
+    const baseBody = String(notification.body || '').trim();
+    const status = String(metadata.status || '').trim().toLowerCase();
+    const source = String(metadata.source || '').trim();
+
+    if (notification.type === 'application-status') {
+        const statusLabel = status === 'accepted'
+            ? 'accepted'
+            : status === 'waitlisted'
+                ? 'waitlisted'
+                : status === 'rejected'
+                    ? 'rejected'
+                    : 'updated';
+        const actionVerb = status === 'accepted' ? 'accepted' : status === 'waitlisted' ? 'waitlisted' : status === 'rejected' ? 'rejected' : 'updated';
+        return {
+            type: 'Application',
+            label: teamName
+                ? `${teamName} ${statusLabel}${recruitName ? ` ${recruitName}'s application` : ' a student application'}`
+                : baseTitle,
+            detail: recruitName
+                ? `${teamName || 'A team'} ${actionVerb} ${recruitName}'s application.`
+                : `${teamName || 'A team'} ${actionVerb} a student application.`,
+            source: source || 'application-status'
+        };
+    }
+
+    if (notification.type === 'team-contact') {
+        return {
+            type: 'Message',
+            label: teamName ? `${teamName} sent a team message` : baseTitle,
+            detail: recruitName
+                ? `A manager from ${teamName || 'the team'} contacted ${recruitName} about joining.`
+                : `A manager from ${teamName || 'the team'} sent a direct message to a student.`,
+            source: source || 'team-contact'
+        };
+    }
+
+    if (notification.type === 'manager-invite') {
+        return {
+            type: 'Invite',
+            label: teamName ? `${teamName} invited a manager` : baseTitle,
+            detail: recipientEmail
+                ? `${teamName || 'A team'} invited ${recipientEmail} to manage the team.`
+                : `${teamName || 'A team'} sent a manager invitation.`,
+            source: source || 'manager-invite'
+        };
+    }
+
+    if (notification.type === 'application') {
+        const teamLabel = teamName || baseTitle.replace(/^Application (sent to|updated|submitted)\s*/i, '').trim();
+        return {
+            type: 'Application',
+            label: teamLabel ? `${teamLabel} received an application update` : baseTitle,
+            detail: teamName
+                ? `${baseBody || `A student submitted an application to ${teamName}.`}`
+                : (baseBody || 'A student application was submitted or updated.'),
+            source: source || 'application'
+        };
+    }
+
+    if (notification.type === 'info') {
+        return {
+            type: 'Info',
+            label: baseTitle,
+            detail: baseBody || 'Informational update recorded.',
+            source: source || 'info'
+        };
+    }
+
+    return {
+        type: 'Notification',
+        label: baseTitle,
+        detail: baseBody || 'Notification recorded.',
+        source: source || notification.type || 'notification'
+    };
 }
 
 function getTeamManagerRole(team, userId) {
@@ -672,7 +853,7 @@ function getUniqueNumericValues(values) {
 
 async function fetchFtcScoutTeamDetails(teamNumber) {
     const body = {
-        query: 'query($number:Int!){ teamByNumber(number:$number){ number name schoolName rookieYear awards { type placement season } matches { season event { type } } activeSeasons } }',
+        query: 'query($number:Int!){ teamByNumber(number:$number){ number name schoolName rookieYear location { venue city state country } awards { type placement season } matches { season event { type } } activeSeasons } }',
         variables: { number: Number(teamNumber) }
     };
 
@@ -730,7 +911,15 @@ async function fetchFtcScoutTeamDetails(teamNumber) {
             number: Number(team.number || teamNumber),
             name: String(team.name || '').trim(),
             schoolName: String(team.schoolName || '').trim(),
-            rookieYear: team.rookieYear
+            rookieYear: team.rookieYear,
+            location: team.location && typeof team.location === 'object'
+                ? {
+                    city: String(team.location.city || '').trim(),
+                    state: String(team.location.state || '').trim(),
+                    country: String(team.location.country || '').trim(),
+                    venue: String(team.location.venue || '').trim()
+                }
+                : null
         },
         yearsInProgram: competitionSeasons.length || null,
         awards: uniqueAwardTypes.slice(0, 6).join(', ') || null,
@@ -812,6 +1001,11 @@ async function fetchBlueAllianceTeamDetails(teamNumber) {
 
     return {
         profile,
+        location: {
+            city: String(profile.city || '').trim(),
+            state: String(profile.state_prov || profile.state || '').trim(),
+            country: String(profile.country || '').trim()
+        },
         awards: uniqueAwardTypes.slice(0, 6).join(', ') || null,
         awardHistory,
         yearsInProgram,
@@ -832,7 +1026,8 @@ async function fetchTeamDetailsViaApi(program, teamNumber) {
             const ftcScoutDetails = await fetchFtcScoutTeamDetails(teamNumber).catch(() => null);
             if (!ftcScoutDetails) return null;
             return {
-                profile: { team_number: Number(teamNumber) },
+                profile: ftcScoutDetails.profile,
+                location: ftcScoutDetails.profile && ftcScoutDetails.profile.location ? ftcScoutDetails.profile.location : null,
                 awards: ftcScoutDetails.awards,
                 awardHistory: ftcScoutDetails.awardHistory,
                 yearsInProgram: ftcScoutDetails.yearsInProgram,
@@ -847,6 +1042,7 @@ async function fetchTeamDetailsViaApi(program, teamNumber) {
             if (!frcDetails || !frcDetails.profile) return null;
             return {
                 profile: frcDetails.profile,
+                location: frcDetails.location || null,
                 awards: frcDetails.awards,
                 awardHistory: frcDetails.awardHistory,
                 yearsInProgram: frcDetails.yearsInProgram,
@@ -980,6 +1176,21 @@ function compareTeamNameToNumber(submittedName, officialName) {
     const normalizedOfficial = normalizeTeamName(officialName);
     if (!normalizedSubmitted || !normalizedOfficial) return false;
     return normalizedSubmitted === normalizedOfficial;
+}
+
+function extractTeamLocation(details) {
+    const profile = details && details.profile ? details.profile : details;
+    const location = profile && profile.location && typeof profile.location === 'object'
+        ? profile.location
+        : details && details.location && typeof details.location === 'object'
+            ? details.location
+            : {};
+
+    return {
+        city: String(location.city || profile && profile.city || '').trim(),
+        state: String(location.state || profile && profile.state || profile && profile.state_prov || '').trim(),
+        country: String(location.country || profile && profile.country || '').trim()
+    };
 }
 
 // Home page
@@ -1428,17 +1639,6 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         const isNewTeam = registrationMode === 'new';
         const contact = normalizeEmail(values.contact);
         const teamNumber = isNewTeam ? null : toNumber(values.teamNumber);
-        const hasLocation = Boolean([values.address, values.city].some(value => (value || '').trim()));
-
-        if ((!isNewTeam && !teamNumber) || !values.name || !contact || !hasLocation || !values.country) {
-            return res.render('pages/team-register', {
-                error: isNewTeam
-                    ? 'Program, team name, contact email, address, and country are required for a new team.'
-                    : 'Program, team number, team name, contact email, address, and country are required.',
-                message: null,
-                values
-            });
-        }
 
         let verification = { ok: true, team: null, source: 'Self-reported' };
         if (!isNewTeam) {
@@ -1449,18 +1649,48 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         }
 
         const official = verification.team;
+        const apiTeamDetails = !isNewTeam && shouldUseTeamApi(program, teamNumber) ? await fetchTeamDetailsViaApi(program, teamNumber).catch(() => null) : null;
+        const apiLocation = !isNewTeam ? extractTeamLocation(apiTeamDetails || verification.team || verification) : {};
+        const resolvedCity = isNewTeam ? String(values.city || '').trim() : String(apiLocation.city || values.city || '').trim();
+        const resolvedState = isNewTeam ? String(values.state || '').trim() : String(apiLocation.state || values.state || '').trim();
+        const resolvedCountry = isNewTeam ? String(values.country || '').trim() : String(apiLocation.country || values.country || '').trim();
+        const hasLocation = Boolean([values.address, resolvedCity, resolvedState, resolvedCountry].some(value => (value || '').trim()));
+
+        if ((!isNewTeam && !teamNumber) || !values.name || !contact || !hasLocation || (isNewTeam && !values.country)) {
+            return res.render('pages/team-register', {
+                error: isNewTeam
+                    ? 'Program, team name, contact email, address, and country are required for a new team.'
+                    : 'Program, team number, team name, contact email, and address or team location are required.',
+                message: null,
+                values
+            });
+        }
+
         const officialName = isNewTeam
             ? String(values.name || '').trim()
             : (verification.officialName || extractTeamDisplayName(official) || official.team_nickname || official.team_name_calc || official.team_name || values.name);
         const recruiting = values.recruiting === 'on';
         const allowFllExtras = program === 'FLL Challenge' || program === 'FLL Explore';
         const canUseTeamApiAwards = program === 'FTC' || program === 'FRC' || allowFllExtras;
-        const coords = await geocodeAddress(values);
-        const apiTeamDetails = !isNewTeam && shouldUseTeamApi(program, teamNumber) ? await fetchTeamDetailsViaApi(program, teamNumber).catch(() => null) : null;
+        const geocodeValues = {
+            ...values,
+            city: resolvedCity,
+            state: resolvedState,
+            country: resolvedCountry
+        };
+        const coords = await geocodeAddress(geocodeValues);
 
         if (!coords) {
             return res.render('pages/team-register', {
                 error: 'Could not find that location on the map. Try adding the city, state, and country, or use a more specific address.',
+                message: null,
+                values
+            });
+        }
+
+        if (!isNewTeam && !resolvedCountry) {
+            return res.render('pages/team-register', {
+                error: 'We could not determine the team country from the API. Please enter it manually and try again.',
                 message: null,
                 values
             });
@@ -1477,9 +1707,9 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             name: officialName,
             contact,
             address: values.address || values.city,
-            city: values.city,
-            state: values.state,
-            country: values.country || 'USA',
+            city: resolvedCity,
+            state: resolvedState,
+            country: resolvedCountry || (isNewTeam ? 'USA' : ''),
             lat: coords.lat,
             lon: coords.lon,
             notes: values.notes,
@@ -1532,6 +1762,175 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
     } catch (err) {
         console.error('Team registration failed:', err);
         res.render('pages/team-register', { error: err.message, message: null, values });
+    }
+});
+
+router.get('/stats', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) {
+            return res.render('pages/site-stats', { error: databaseErrorMessage(), user: null, stats: null });
+        }
+
+        const user = await User.findById(req.session.userId).select('name email createdAt teamNumber').lean().exec();
+        if (!user) return res.redirect('/logout');
+        if (!isStatsAccessUser(user)) return res.redirect('/');
+
+        const monthWindow = buildMonthWindow(12);
+        const [allUsers, allTeams, allStudents, allInvites, recentNotifications, notificationCount, unreadNotificationCount] = await Promise.all([
+            User.find({}).select('createdAt').lean().exec(),
+            Team.find({}).select('program teamNumber name city state country recruiting verified isNewTeam createdAt updatedAt').lean().exec(),
+            Student.find({}).select('applicationStatus applicationTeam sentApplications createdAt updatedAt').lean().exec(),
+            ManagerInvite.find({}).select('acceptedAt expiresAt createdAt').lean().exec(),
+            Notification.find({}).select('type title body link metadata recipientEmail readAt createdAt').sort({ createdAt: -1 }).limit(12).lean().exec(),
+            Notification.countDocuments({}).exec(),
+            Notification.countDocuments({
+                $or: [
+                    { readAt: { $exists: false } },
+                    { readAt: null }
+                ]
+            }).exec()
+        ]);
+
+        const usersMonthly = bucketByMonth(allUsers, item => item.createdAt, monthWindow);
+        const teamsMonthly = bucketByMonth(allTeams, item => item.createdAt, monthWindow);
+        const studentsMonthly = bucketByMonth(allStudents, item => item.createdAt, monthWindow);
+        const monthlyMap = new Map(monthWindow.map(month => [month.key, {
+            key: month.key,
+            label: month.label,
+            users: 0,
+            teams: 0,
+            students: 0,
+            total: 0
+        }]));
+
+        usersMonthly.forEach((item) => {
+            const entry = monthlyMap.get(item.key);
+            if (entry) entry.users = item.count;
+        });
+        teamsMonthly.forEach((item) => {
+            const entry = monthlyMap.get(item.key);
+            if (entry) entry.teams = item.count;
+        });
+        studentsMonthly.forEach((item) => {
+            const entry = monthlyMap.get(item.key);
+            if (entry) entry.students = item.count;
+        });
+
+        const monthlyRegistrations = Array.from(monthlyMap.values()).map((entry) => ({
+            ...entry,
+            total: entry.users + entry.teams + entry.students
+        }));
+
+        const teamProgramBreakdown = buildBreakdown(allTeams, team => normalizeProgram(team.program), ['FTC', 'FRC', 'FLL Challenge', 'FLL Explore']);
+        const teamVerificationBreakdown = buildBreakdown(allTeams, team => (team.verified ? 'Verified' : 'Unverified'), ['Verified', 'Unverified']);
+        const teamTypeBreakdown = buildBreakdown(allTeams, team => (team.isNewTeam ? 'New team' : 'Existing team'), ['Existing team', 'New team']);
+        const teamRecruitingBreakdown = buildBreakdown(allTeams, team => (team.recruiting ? 'Recruiting' : 'Not recruiting'), ['Recruiting', 'Not recruiting']);
+        const teamCountryBreakdown = buildBreakdown(allTeams, team => String(team.country || '').trim() || 'Unlisted', ['USA', 'Canada', 'Mexico', 'United Kingdom', 'Australia', 'Other', 'Unlisted']);
+
+        const applicationStatusBreakdown = buildBreakdown(allStudents, (student) => {
+            const status = String(student.applicationStatus || '').toLowerCase();
+            if (status === 'accepted') return 'Accepted';
+            if (status === 'waitlisted') return 'Waitlisted';
+            if (status === 'rejected') return 'Rejected';
+            if (status === 'pending') return 'Pending';
+            if (student.applicationTeam || (Array.isArray(student.sentApplications) && student.sentApplications.length)) return 'Pending';
+            return 'No application';
+        }, ['Pending', 'Accepted', 'Waitlisted', 'Rejected', 'No application']);
+
+        const inviteStatusBreakdown = buildBreakdown(allInvites, (invite) => {
+            if (invite.acceptedAt) return 'Accepted';
+            if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) return 'Expired';
+            return 'Pending';
+        }, ['Pending', 'Accepted', 'Expired']);
+
+        const topLocations = buildTopLocations(allTeams, 8);
+        const totalSentApplications = allStudents.reduce((sum, student) => sum + (Array.isArray(student.sentApplications) ? student.sentApplications.length : 0), 0);
+        const teamLookup = new Map(allTeams.map(team => [String(team._id), `${team.program || 'FTC'} ${team.teamNumber || ''} ${team.name || ''}`.replace(/\s+/g, ' ').trim()]));
+        const studentLookup = new Map(allStudents.map(student => [String(student._id), String(student.name || student.email || 'Student').trim()]));
+        const notificationActivity = (recentNotifications || [])
+            .map(notification => {
+                const described = describeNotificationActivity(notification, teamLookup, studentLookup);
+                if (!described) return null;
+                return {
+                    ...described,
+                    date: notification.createdAt,
+                    title: String(notification.title || '').trim(),
+                    dateLabel: new Date(notification.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                };
+            })
+            .filter(Boolean);
+
+        const legacyActivityFeed = [
+            ...allUsers.slice(0, 5).map(userDoc => ({
+                type: 'User',
+                label: userDoc.email || 'User',
+                detail: 'Account created',
+                date: userDoc.createdAt
+            })),
+            ...allTeams.slice(0, 5).map(team => ({
+                type: 'Team',
+                label: `${team.program || 'FTC'} ${team.teamNumber || ''} ${team.name || ''}`.replace(/\s+/g, ' ').trim(),
+                detail: `${team.verified ? 'Verified' : 'Unverified'}${team.recruiting ? ' • Recruiting' : ''}`,
+                date: team.updatedAt || team.createdAt
+            })),
+            ...allStudents.slice(0, 5).map(student => ({
+                type: 'Student',
+                label: student.createdAt ? `Student profile ${new Date(student.createdAt).toLocaleDateString()}` : 'Student profile',
+                detail: student.applicationStatus ? `Application ${student.applicationStatus}` : 'No application yet',
+                date: student.updatedAt || student.createdAt
+            })),
+            ...allInvites.slice(0, 5).map(invite => ({
+                type: 'Invite',
+                label: invite.acceptedAt ? 'Invite accepted' : 'Manager invite sent',
+                detail: invite.acceptedAt ? 'Accepted by recipient' : (invite.expiresAt && new Date(invite.expiresAt) < new Date() ? 'Expired' : 'Pending'),
+                date: invite.acceptedAt || invite.createdAt
+            }))
+        ]
+            .filter(item => item.date)
+            .sort((left, right) => new Date(right.date) - new Date(left.date))
+            .slice(0, 12)
+            .map(item => ({
+                ...item,
+                dateLabel: new Date(item.date).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+            }));
+
+        const activityFeed = [...notificationActivity, ...legacyActivityFeed]
+            .filter(item => item.date)
+            .sort((left, right) => new Date(right.date) - new Date(left.date))
+            .slice(0, 12)
+            .map(item => ({
+                ...item,
+                dateLabel: item.dateLabel || new Date(item.date).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+            }));
+
+        const stats = {
+            summary: [
+                { label: 'Users', value: allUsers.length, note: `${usersMonthly.reduce((sum, item) => sum + item.count, 0)} new in the last 12 months` },
+                { label: 'Teams', value: allTeams.length, note: `${teamRecruitingBreakdown.find(item => item.label === 'Recruiting')?.count || 0} currently recruiting` },
+                { label: 'Student profiles', value: allStudents.length, note: `${totalSentApplications} total team applications` },
+                { label: 'Manager invites', value: allInvites.length, note: `${inviteStatusBreakdown.find(item => item.label === 'Pending')?.count || 0} pending invites` },
+                { label: 'Verified teams', value: teamVerificationBreakdown.find(item => item.label === 'Verified')?.count || 0, note: `${teamTypeBreakdown.find(item => item.label === 'Existing team')?.count || 0} existing teams` },
+                { label: 'Notifications', value: notificationCount, note: `${unreadNotificationCount} unread` }
+            ],
+            monthlyRegistrations,
+            teamProgramBreakdown,
+            teamVerificationBreakdown,
+            teamTypeBreakdown,
+            teamRecruitingBreakdown,
+            teamCountryBreakdown,
+            applicationStatusBreakdown,
+            inviteStatusBreakdown,
+            topLocations,
+            activityFeed,
+            notificationCount,
+            unreadNotificationCount,
+            totalSentApplications
+        };
+
+        res.render('pages/site-stats', { error: null, user, stats });
+    } catch (err) {
+        console.error('Site stats error:', err);
+        res.status(500).render('pages/site-stats', { error: 'Unable to load stats right now.', user: null, stats: null });
     }
 });
 

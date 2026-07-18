@@ -35,15 +35,7 @@
           <input name="password" id="password" type="password" class="form-control" required />
         </div>
 
-        <div class="mb-3">
-          <label class="form-label">Team name or team number <span class="text-muted">(optional)</span></label>
-          <input name="team" class="form-control" value="<%= values && values.team ? values.team : '' %>" placeholder="Optional: team name or number" />
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">Phone</label>
-          <input name="phone" id="phone" type="tel" class="form-control" value="<%= values && values.phone ? values.phone : '' %>" />
-        </div>
+        <p class="text-muted" style="margin: 0 0 18px;">You can connect to a team after sign up from your dashboard.</p>
 
         <button class="btn btn-primary" type="submit">Create account</button>
       </form>

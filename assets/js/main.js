@@ -1717,7 +1717,9 @@ function loadSiteShells() {
           const initialsEl = document.querySelector('[data-account-initials]');
           const accountLabelEl = document.querySelector('.account-label');
           const inboxCountEls = document.querySelectorAll('[data-inbox-count]');
-          const accountLinks = accountDropdown ? accountDropdown.querySelectorAll('a') : [];
+          const statsLink = accountDropdown ? accountDropdown.querySelector('a[data-href="/stats"]') : null;
+          const settingsLink = accountDropdown ? accountDropdown.querySelector('a[data-href="/account"]') : null;
+          const signOutLink = accountDropdown ? accountDropdown.querySelector('a[data-href="/logout"]') : null;
           let notifications = Array.isArray(data.notifications) ? data.notifications : [];
           let unreadCount = Number.isFinite(Number(data.unreadCount)) ? Number(data.unreadCount) : 0;
 
@@ -1803,15 +1805,23 @@ function loadSiteShells() {
             if (accountLabelEl) accountLabelEl.textContent = 'Account';
             renderNotifications();
             syncUnreadCount(unreadCount);
-            if (accountLinks[0]) {
-              accountLinks[0].setAttribute('href', '/account');
-              accountLinks[0].setAttribute('data-href', '/account');
-              accountLinks[0].textContent = 'Settings';
+            if (settingsLink) {
+              settingsLink.setAttribute('href', '/account');
+              settingsLink.setAttribute('data-href', '/account');
+              settingsLink.textContent = 'Settings';
             }
-            if (accountLinks[1]) {
-              accountLinks[1].setAttribute('href', '/logout');
-              accountLinks[1].setAttribute('data-href', '/logout');
-              accountLinks[1].textContent = 'Sign Out';
+            if (signOutLink) {
+              signOutLink.setAttribute('href', '/logout');
+              signOutLink.setAttribute('data-href', '/logout');
+              signOutLink.textContent = 'Sign Out';
+            }
+            if (statsLink) {
+              const canViewStats = Boolean(user.canViewStats || String(user.email || '').toLowerCase() === 'evergreentechatrons.contact@gmail.com');
+              statsLink.style.display = canViewStats ? '' : 'none';
+              if (canViewStats) {
+                statsLink.setAttribute('href', '/stats');
+                statsLink.setAttribute('data-href', '/stats');
+              }
             }
           }
 
@@ -1923,6 +1933,10 @@ function loadSiteShells() {
             } else if (target === '/manage-team') {
               navItem.style.display = (user && user.hasTeam) ? '' : 'none';
               if (user) a.setAttribute('href', target);
+            } else if (target === '/stats') {
+              const canViewStats = Boolean(user && (user.canViewStats || String(user.email || '').toLowerCase() === 'evergreentechatrons.contact@gmail.com'));
+              navItem.style.display = canViewStats ? '' : 'none';
+              if (canViewStats) a.setAttribute('href', target);
             } else if (target === '/my-applications' || target === '/join-form') {
               // Show applications/join form only for students.
               // If the user is focused on registering a team, keep the header focused on that path instead.
