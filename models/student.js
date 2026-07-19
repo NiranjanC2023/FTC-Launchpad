@@ -24,4 +24,8 @@ const StudentSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+StudentSchema.index({ email: 1 });
+StudentSchema.index({ 'sentApplications.team': 1, createdAt: -1 });
+StudentSchema.index({ applicationTeam: 1, applicationStatus: 1 });
+
 module.exports = mongoose.model('Student', StudentSchema);

@@ -127,7 +127,12 @@ router.get('/geocode-location', async function(req, res) {
 // List teams
 router.get('/teams', async function(req, res) {
 	try {
-		const teams = await Team.find({}).sort({ createdAt: -1 }).limit(200).lean().exec();
+		const teams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
+			.sort({ createdAt: -1 })
+			.limit(200)
+			.select('_id program teamNumber isNewTeam name city state country lat lon notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified createdAt updatedAt')
+			.lean()
+			.exec();
 		res.json({
 			ok: true,
 			teams: Array.isArray(teams)

@@ -1029,10 +1029,13 @@ function getTeamRecruitingLabel(team) {
     window._updatePrivacyBlur = updatePrivacyBlur;
     window._updateTeamZoomNotifiers = updateTeamZoomNotifiers;
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    const mapTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+      attribution: '&copy; OpenStreetMap contributors',
+      updateWhenIdle: true,
+      updateWhenZooming: false,
+      keepBuffer: 1
+    });
 
     window._teamsMapInstance = map;
     window._infoWindowTimer = null;
@@ -1150,6 +1153,9 @@ function getTeamRecruitingLabel(team) {
     } else if (window._userLocationMarker && userCoords) {
       map.setView([userCoords.lat, userCoords.lon], 13);
     }
+    // Add tiles only after the final initial viewport is known. This avoids
+    // downloading one tile set for the default view and another for fitBounds.
+    mapTiles.addTo(map);
     updatePrivacyBlur();
     updateTeamZoomNotifiers();
     map.on('zoomend', updatePrivacyBlur);
@@ -1606,31 +1612,34 @@ function loadSharedFooter() {
     .catch(() => {});
 }
 
-// Load shared header/footer and Bootstrap stylesheet
+// Initialize the shared site shell. Server-rendered pages already include it;
+// the fetch remains as a fallback for standalone/static documents.
 function loadSiteShells() {
-  // inject Bootstrap CSS if not present
+  // Keep a local fallback for pages that are not rendered through Express.
   if (!document.querySelector('link[href*="bootstrap.min.css"]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = 'https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css';
+    link.href = '/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6';
     const appStylesheet = document.querySelector('link[href*="/assets/css/main.css"], link[href*="assets/css/main.css"]');
     document.head.insertBefore(link, appStylesheet || document.head.firstChild);
   }
 
-  // prefix not used; removed to clean up
+  const headerReady = document.querySelector('header .navbar, body > .navbar')
+    ? Promise.resolve()
+    : fetch('/assets/partial/header.html')
+      .then(r => r.text())
+      .then(html => {
+        const header = document.querySelector('header');
+        if (header) {
+          header.innerHTML = html;
+        } else {
+          const h = document.createElement('div');
+          h.innerHTML = html;
+          document.body.insertBefore(h, document.body.firstChild);
+        }
+      });
 
-  // load header
-    fetch('/assets/partial/header.html')
-    .then(r => r.text())
-    .then(html => {
-      const header = document.querySelector('header');
-      if (header) {
-        header.innerHTML = html;
-      } else {
-        const h = document.createElement('div');
-        h.innerHTML = html;
-        document.body.insertBefore(h, document.body.firstChild);
-      }
+    headerReady.then(() => {
 
       // Immediately rewrite all links so they work even while auth is loading
       const initialAnchors = document.querySelectorAll('[data-href]');
@@ -1697,9 +1706,13 @@ function loadSiteShells() {
 
       bindNavbarDrawer();
 
-      // Update links and toggle visibility based on auth status
-      fetch('/api/users/me')
-        .then(r => r.json())
+      // Anonymous pages can initialize immediately without an extra API request.
+      const authRequest = document.documentElement.dataset.authState === 'anonymous'
+        ? Promise.resolve({ user: null, notifications: [], unreadCount: 0 })
+        : fetch('/api/users/me').then(r => r.json());
+
+      // Update links and toggle visibility based on auth status.
+      authRequest
         .then(data => { 
           const user = data.user;
           window.__USER__ = user || null;
@@ -1954,4 +1967,3 @@ function loadSiteShells() {
 
     // (removed) prefix calculation — always use absolute paths for partials
 }
-

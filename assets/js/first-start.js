@@ -1,6 +1,40 @@
 document.addEventListener('DOMContentLoaded', function(){
   if (typeof Splide !== 'undefined') {
-    new Splide('#fs-carousel-home', {
+    const carouselRoot = document.querySelector('#fs-carousel-home');
+    const sourceSlides = carouselRoot
+      ? Array.from(carouselRoot.querySelectorAll('.splide__list > .splide__slide'))
+      : [];
+    const hydrateImage = (image) => {
+      if (!image || !image.dataset.carouselSrc) return;
+      if (image.dataset.carouselSrcset) {
+        image.srcset = image.dataset.carouselSrcset;
+        delete image.dataset.carouselSrcset;
+      }
+      image.src = image.dataset.carouselSrc;
+      delete image.dataset.carouselSrc;
+    };
+    const hydrateSlide = (slide) => {
+      if (!slide) return;
+      hydrateImage(slide.querySelector('img[data-carousel-src]'));
+    };
+    const hydrateSourceIndex = (index) => {
+      if (!sourceSlides.length) return;
+      const normalizedIndex = ((index % sourceSlides.length) + sourceSlides.length) % sourceSlides.length;
+      hydrateSlide(sourceSlides[normalizedIndex]);
+    };
+    let preloadTimer = null;
+    const queueNextSlide = (index) => {
+      if (preloadTimer) clearTimeout(preloadTimer);
+      preloadTimer = setTimeout(() => hydrateSourceIndex(index + 1), 1200);
+    };
+    const hydrateActiveSlide = () => {
+      if (!carouselRoot) return;
+      carouselRoot
+        .querySelectorAll('.splide__slide.is-active img[data-carousel-src], .splide__slide.is-visible img[data-carousel-src]')
+        .forEach(hydrateImage);
+    };
+
+    const carousel = new Splide('#fs-carousel-home', {
       type: 'loop',
       perPage: 1,
       autoplay: true,
@@ -12,8 +46,24 @@ document.addEventListener('DOMContentLoaded', function(){
       pagination: true,
       arrows: true,
       accessibility: true,
-      cover: true,
-    }).mount();
+    });
+
+    carousel.on('mounted', () => {
+      hydrateSourceIndex(carousel.index);
+      hydrateActiveSlide();
+      queueNextSlide(carousel.index);
+    });
+    carousel.on('move', (newIndex) => {
+      hydrateSourceIndex(newIndex);
+      const activeSlide = carousel.Components.Slides.getAt(newIndex);
+      hydrateSlide(activeSlide && activeSlide.slide);
+      queueNextSlide(newIndex);
+    });
+    carousel.on('active', (slide) => {
+      hydrateSlide(slide && slide.slide);
+      hydrateActiveSlide();
+    });
+    carousel.mount();
   }
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -65,5 +115,13 @@ document.addEventListener('DOMContentLoaded', function(){
     rootMargin: '0px 0px -8% 0px'
   });
 
-  revealItems.forEach(element => observer.observe(element));
+  revealItems.forEach(element => {
+    const rect = element.getBoundingClientRect();
+    const isPartlyInInitialViewport = rect.top < window.innerHeight && rect.bottom > 0;
+    if (element.id === 'fs-carousel-home' && isPartlyInInitialViewport) {
+      requestAnimationFrame(() => element.classList.add('is-visible'));
+      return;
+    }
+    observer.observe(element);
+  });
 });

@@ -36,4 +36,7 @@ UserSchema.methods.createPasswordResetToken = function() {
   return token;
 };
 
+UserSchema.index({ teamNumber: 1 });
+UserSchema.index({ passwordResetTokenHash: 1, passwordResetTokenExpiresAt: 1 });
+
 module.exports = mongoose.model('User', UserSchema, 'Users');

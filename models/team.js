@@ -32,4 +32,10 @@ const TeamSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+TeamSchema.index({ verified: 1, updatedAt: -1 });
+TeamSchema.index({ isNewTeam: 1, updatedAt: -1 });
+TeamSchema.index({ recruiting: -1, teamNumber: 1 });
+TeamSchema.index({ contact: 1 });
+TeamSchema.index({ managers: 1 });
+
 module.exports = mongoose.model('Team', TeamSchema);

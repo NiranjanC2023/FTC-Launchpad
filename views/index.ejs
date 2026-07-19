@@ -15,6 +15,13 @@
   <meta name="robots" content="index, follow" />
 
 
+  <% if (typeof carouselImages !== 'undefined' && carouselImages.length) { %>
+
+  <link rel="preload" as="image" href="<%= carouselImages[0].src %>"<% if (carouselImages[0].srcset) { %> imagesrcset="<%= carouselImages[0].srcset %>"<% } %> fetchpriority="high">
+
+  <% } %>
+
+
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
 
@@ -28,7 +35,7 @@
 
   <link rel="stylesheet" href="/assets/css/main.css?v=18">
 
-  <link rel="stylesheet" href="/assets/css/first-start.css?v=25">
+  <link rel="stylesheet" href="/assets/css/first-start.css?v=30">
 
 </head>
 
@@ -178,7 +185,12 @@
 
                       <li class="splide__slide">
 
-                        <img src="<%= item.src %>" <%= item.srcset ? ('srcset="' + item.srcset + '"') : '' %> alt="Robotics team image <%= idx + 1 %>">
+                        <img
+                          <% if (idx === 0) { %>src="<%= item.src %>"<% } else { %>data-carousel-src="<%= item.src %>"<% } %>
+                          <% if (item.srcset && idx === 0) { %>srcset="<%= item.srcset %>"<% } else if (item.srcset) { %>data-carousel-srcset="<%= item.srcset %>"<% } %>
+                          alt="Robotics team image <%= idx + 1 %>"
+                          <%= idx === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy" fetchpriority="low"' %>
+                          decoding="async">
 
                       </li>
 
@@ -186,13 +198,13 @@
 
                   <% } else { %>
 
-                    <li class="splide__slide"><img src="/assets/img/carousel/54353383874_f79a24fab7_c%20(2).jpg" alt="Robotics team image 1"></li>
+                    <li class="splide__slide"><img src="/assets/img/carousel/54353383874_f79a24fab7_c%20(2).jpg" alt="Robotics team image 1" loading="eager" fetchpriority="high" decoding="async"></li>
 
-                    <li class="splide__slide"><img src="/assets/img/carousel/IMG_1014_frame_0_01_2f.jpeg" alt="Robotics team image 2"></li>
+                    <li class="splide__slide"><img data-carousel-src="/assets/img/carousel/IMG_1014_frame_0_01_2f.jpeg" alt="Robotics team image 2" loading="lazy" fetchpriority="low" decoding="async"></li>
 
-                    <li class="splide__slide"><img src="/assets/img/carousel/WhatsApp%20Image%202026-01-17%20at%201.09.15%20PM%20(3).jpeg" alt="Robotics team image 3"></li>
+                    <li class="splide__slide"><img data-carousel-src="/assets/img/carousel/WhatsApp%20Image%202026-01-17%20at%201.09.15%20PM%20(3).jpeg" alt="Robotics team image 3" loading="lazy" fetchpriority="low" decoding="async"></li>
 
-                    <li class="splide__slide"><img src="/assets/img/carousel/Untitled%20design.png" alt="Robotics team image 4"></li>
+                    <li class="splide__slide"><img data-carousel-src="/assets/img/carousel/Untitled%20design.jpg" data-carousel-srcset="/assets/img/carousel/Untitled%20design.jpg 1x, /assets/img/carousel/Untitled%20design@2x.jpg 2x" alt="Robotics team image 4" loading="lazy" fetchpriority="low" decoding="async"></li>
 
                   <% } %>
 
@@ -248,7 +260,7 @@
 
         <div class="home-why-image">
 
-          <img src="/assets/img/why-join-first.png" alt="Students collaborating on an engineering project">
+          <img src="/assets/img/why-join-first.png" alt="Students collaborating on an engineering project" loading="lazy" decoding="async">
 
         </div>
 
@@ -528,19 +540,12 @@
 
 
 
-  <script src="/assets/js/main.js?v=9"></script>
+  <script src="/assets/js/main.js?v=37"></script>
 
   <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.3/dist/js/splide.min.js"></script>
 
-  <script src="/assets/js/first-start.js?v=8"></script>
+  <script src="/assets/js/first-start.js?v=9"></script>
 
 </body>
 
 </html>
-
-
-
-
-
-
-

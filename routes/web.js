@@ -1193,6 +1193,26 @@ function extractTeamLocation(details) {
     };
 }
 
+function resolveBestCarouselImageFile(dir, fileName) {
+    const ext = path.extname(fileName);
+    const base = ext ? fileName.slice(0, -ext.length) : fileName;
+    const candidates = [
+        `${base}.webp`,
+        `${base}.jpg`,
+        `${base}.jpeg`,
+        `${base}.png`,
+        `${base}.gif`
+    ];
+
+    for (const candidate of candidates) {
+        if (fs.existsSync(path.join(dir, candidate))) {
+            return candidate;
+        }
+    }
+
+    return fileName;
+}
+
 // Home page
 router.get("/", function(req, res){
     let carouselImages = [];
@@ -1202,11 +1222,22 @@ router.get("/", function(req, res){
         if (fs.existsSync(dir)) {
             const files = fs.readdirSync(dir)
                 .filter(f => /\.(png|jpe?g|webp|gif)$/i.test(f))
+                .filter(f => !/@2x\.[^.]+$/i.test(f))
                 .filter(f => f !== '54352814752_6bf43c5dde_c.jpg')
-                .sort()
-                .slice(0,4);
+                .sort();
 
-            carouselImages = files.map(f => {
+            const filesByBase = new Map();
+            files.forEach((fileName) => {
+                const ext = path.extname(fileName);
+                const base = ext ? fileName.slice(0, -ext.length) : fileName;
+                if (!filesByBase.has(base)) {
+                    filesByBase.set(base, resolveBestCarouselImageFile(dir, fileName));
+                }
+            });
+
+            const selectedFiles = Array.from(new Set(filesByBase.values())).sort().slice(0, 4);
+
+            carouselImages = selectedFiles.map(f => {
                 const ext = path.extname(f);
                 const base = f.slice(0, -ext.length);
                 const hiRes = base + '@2x' + ext;
@@ -1227,14 +1258,11 @@ router.get("/", function(req, res){
     Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
         .sort({ updatedAt: -1, teamNumber: 1 })
         .limit(300)
+        .select('program teamNumber isNewTeam name city state country address notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified updatedAt')
         .lean()
         .exec()
-        .then(async (teams) => {
-            const enrichedTeams = await Promise.all((Array.isArray(teams) ? teams : []).map(async (team) => {
-                return enrichTeamWithApi(team).catch(() => team) || team;
-            }));
-
-            featuredTeams = enrichedTeams
+        .then((teams) => {
+            featuredTeams = (Array.isArray(teams) ? teams : [])
                 .map((team) => ({
                     ...team,
                     recruiting: isRecruitingTeam(team)
@@ -1564,6 +1592,7 @@ router.get("/teams-nearby", async function(req, res){
         const teams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
             .sort({ recruiting: -1, teamNumber: 1 })
             .limit(300)
+            .select('program teamNumber isNewTeam name contact city state country address lat lon notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified')
             .lean()
             .exec();
         const normalizedTeams = teams.map((team) => ({
@@ -1588,33 +1617,7 @@ router.get("/teams-nearby", async function(req, res){
             }
         }
 
-        const enrichedTeams = await Promise.all(
-            normalizedTeams.map(async (team) => {
-                if (!team || team.isNewTeam || !team.teamNumber || !shouldUseTeamApi(team.program, team.teamNumber)) return team;
-
-                const apiDetails = await fetchTeamDetailsViaApi(team.program, team.teamNumber).catch(() => null);
-                if (!apiDetails) return team;
-
-                return {
-                    ...team,
-                    awards: apiDetails.awards || team.awards || '',
-                    awardHistory: apiDetails.awardHistory && apiDetails.awardHistory.length
-                        ? sortHistoryEntriesMostRecent(apiDetails.awardHistory)
-                        : sortHistoryEntriesMostRecent(team.awardHistory || []),
-                    yearsInProgram: apiDetails.yearsInProgram !== null && apiDetails.yearsInProgram !== undefined
-                        ? apiDetails.yearsInProgram
-                        : team.yearsInProgram,
-                    advancementLevels: apiDetails.advancementLevels && apiDetails.advancementLevels.length
-                        ? apiDetails.advancementLevels
-                        : (team.advancementLevels || []),
-                    advancementHistory: apiDetails.advancementHistory && apiDetails.advancementHistory.length
-                        ? sortHistoryEntriesMostRecent(apiDetails.advancementHistory)
-                        : sortHistoryEntriesMostRecent(team.advancementHistory || [])
-                };
-            })
-        );
-
-        res.render("pages/teams-nearby", { teams: enrichedTeams.map(mapTeam), studentApp, user: currentUser });
+        res.render("pages/teams-nearby", { teams: normalizedTeams.map(mapTeam), studentApp, user: currentUser });
     } catch (err) {
         console.error('Failed to load nearby teams:', err);
         res.render("pages/teams-nearby", { teams: [] });

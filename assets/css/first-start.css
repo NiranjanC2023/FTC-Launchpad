@@ -1651,7 +1651,7 @@
 
 @media (max-width: 640px) {
   .home-page main {
-    width: min(100% - 20px, 100%);
+    width: 100%;
   }
 
   .home-main .container,
@@ -1738,19 +1738,50 @@
     padding: 15px 18px;
   }
 
+  .home-hero {
+    padding: 18px 0 34px;
+  }
+
+  .home-hero-grid {
+    gap: 22px;
+    padding-top: 12px;
+  }
+
   .hero-image-card { width: 100%; }
+  .home-hero-visual .hero-image-card {
+    grid-column: 1 / -1;
+    aspect-ratio: 16 / 10;
+  }
+  .home-carousel .splide__arrow {
+    width: 34px;
+    height: 34px;
+    opacity: 0.72;
+  }
   .floating-card {
-    width: 170px;
-    padding: 13px;
+    position: static;
+    width: auto;
+    min-width: 0;
+    padding: 12px 10px;
+    border-radius: 15px;
+    text-align: center;
   }
   .floating-card span {
-    font-size: 10px;
+    font-size: clamp(7.4px, 2.35vw, 9px);
+    letter-spacing: 0.03em;
+    white-space: nowrap;
   }
   .floating-card strong {
-    font-size: 28px;
+    font-size: clamp(22px, 7vw, 26px);
   }
   .floating-card p {
-    font-size: 12px;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  .floating-card-top {
+    width: auto;
+  }
+  .floating-card-bottom {
+    width: auto;
   }
   .home-why-image { justify-self: stretch; }
   .home-why-copy { justify-self: stretch; text-align: left; }
@@ -1762,7 +1793,12 @@
   }
   .home-hero-visual {
     order: 2;
-    margin-top: 24px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    min-height: auto;
+    margin-top: 10px;
+    padding-top: 0;
   }
   .hero-description,
   .home-search,
@@ -1833,11 +1869,44 @@
     padding-right: 20px;
   }
 
+  .home-footer {
+    padding: 26px 0 18px;
+  }
+
   .home-footer-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 0 20px 22px;
+  }
+
+  .home-footer-brand,
+  .home-footer-column {
+    text-align: center;
   }
 
   .home-footer-brand {
-    grid-column: 1 / -1;
+    grid-column: auto;
+    margin-left: 0;
+  }
+
+  .home-footer-brand p {
+    max-width: 32rem;
+    margin: 0 auto;
+  }
+
+  .home-footer-column {
+    padding: 14px 12px;
+    border: 1px solid rgba(130, 225, 150, 0.12);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .home-footer-column ul {
+    align-items: center;
+  }
+
+  .home-footer-bottom .container {
+    padding: 14px 20px 0;
+    text-align: center;
   }
 }
