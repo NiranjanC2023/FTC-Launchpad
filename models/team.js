@@ -2,9 +2,10 @@ const mongoose = require('mongoose');
 
 const TeamSchema = new mongoose.Schema({
   program: { type: String, required: true, trim: true, default: 'FTC' },
-  teamNumber: { type: Number, unique: true, sparse: true },
+  teamNumber: { type: Number },
   isNewTeam: { type: Boolean, default: false },
   name: { type: String, required: true },
+  organization: { type: String, trim: true },
   contact: { type: String, required: true, trim: true },
   managers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   managerRoles: [{
@@ -35,6 +36,13 @@ const TeamSchema = new mongoose.Schema({
 TeamSchema.index({ verified: 1, updatedAt: -1 });
 TeamSchema.index({ isNewTeam: 1, updatedAt: -1 });
 TeamSchema.index({ recruiting: -1, teamNumber: 1 });
+TeamSchema.index(
+  { program: 1, teamNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { teamNumber: { $type: 'number' } }
+  }
+);
 TeamSchema.index({ contact: 1 });
 TeamSchema.index({ managers: 1 });
 

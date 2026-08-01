@@ -13,11 +13,12 @@
   <meta name="description" content="Connects robotics teams with students seeking to join, fostering collaboration and innovation in robotics education and community engagement." />
 
   <meta name="robots" content="index, follow" />
+  <link rel="icon" href="/assets/img/first-logo.svg" type="image/svg+xml">
 
 
   <% if (typeof carouselImages !== 'undefined' && carouselImages.length) { %>
 
-  <link rel="preload" as="image" href="<%= carouselImages[0].src %>"<% if (carouselImages[0].srcset) { %> imagesrcset="<%= carouselImages[0].srcset %>" imagesizes="(max-width: 1480px) 100vw, 50vw"<% } %> fetchpriority="high">
+  <link rel="preload" as="image" href="<%= carouselImages[0].src %>"<% if (carouselImages[0].srcset) { %> imagesrcset="<%= carouselImages[0].srcset %>" imagesizes="(max-width: 700px) 100vw, (max-width: 1480px) 28vw, 20vw"<% } %> fetchpriority="high">
 
   <% } %>
 
@@ -31,11 +32,9 @@
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.3/dist/css/splide.min.css">
-
   <link rel="stylesheet" href="/assets/css/main.css?v=18">
 
-  <link rel="stylesheet" href="/assets/css/first-start.css?v=30">
+  <link rel="stylesheet" href="/assets/css/first-start.css?v=32">
 
 </head>
 
@@ -187,9 +186,9 @@
 
                         <img
                           <% if (idx === 0) { %>src="<%= item.src %>"<% } else { %>data-carousel-src="<%= item.src %>"<% } %>
-                          <% if (item.srcset && idx === 0) { %>srcset="<%= item.srcset %>" sizes="(max-width: 1480px) 100vw, 50vw"<% } else if (item.srcset) { %>data-carousel-srcset="<%= item.srcset %>"<% } %>
+                          <% if (item.srcset && idx === 0) { %>srcset="<%= item.srcset %>" sizes="(max-width: 700px) 100vw, (max-width: 1480px) 28vw, 20vw"<% } else if (item.srcset) { %>data-carousel-srcset="<%= item.srcset %>" sizes="(max-width: 700px) 100vw, (max-width: 1480px) 28vw, 20vw"<% } %>
                           alt="Robotics team image <%= idx + 1 %>"
-                          <%= idx === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy" fetchpriority="low"' %>
+                          <% if (idx === 0) { %>loading="eager" fetchpriority="high"<% } else { %>loading="lazy" fetchpriority="low"<% } %>
                           decoding="async">
 
                       </li>
@@ -198,7 +197,7 @@
 
                   <% } else { %>
 
-                    <li class="splide__slide"><img src="/assets/img/carousel/54353383874_f79a24fab7_c%20(2).jpg" alt="Robotics team image 1" loading="eager" fetchpriority="high" decoding="async"></li>
+                    <li class="splide__slide"><img src="/assets/img/carousel/IMG_1014_frame_0_01_2f.jpeg" alt="Robotics team image 1" loading="eager" fetchpriority="high" decoding="async"></li>
 
                     <li class="splide__slide"><img data-carousel-src="/assets/img/carousel/IMG_1014_frame_0_01_2f.jpeg" alt="Robotics team image 2" loading="lazy" fetchpriority="low" decoding="async"></li>
 
@@ -211,6 +210,10 @@
                 </ul>
 
               </div>
+
+              <button class="home-carousel-arrow home-carousel-arrow-prev" type="button" aria-label="Previous image">&#8249;</button>
+              <button class="home-carousel-arrow home-carousel-arrow-next" type="button" aria-label="Next image">&#8250;</button>
+              <div class="home-carousel-pagination" aria-label="Choose carousel image"></div>
 
             </div>
 
@@ -261,8 +264,8 @@
         <div class="home-why-image">
 
           <picture>
-            <source srcset="/assets/img/why-join-first.webp" type="image/webp">
-            <img src="/assets/img/why-join-first.png" alt="Students collaborating on an engineering project" loading="lazy" decoding="async">
+            <source srcset="/assets/img/why-join-first.webp?v=2" type="image/webp">
+            <img src="/assets/img/why-join-first.png" alt="Students collaborating on an engineering project" loading="lazy" decoding="async" width="533" height="799">
           </picture>
 
         </div>
@@ -273,7 +276,7 @@
 
           <p class="section-kicker">Why Robotics?</p>
 
-          <h3>Why join FIRST</h3>
+          <h2>Why join FIRST</h2>
 
           <p class="lead">FIRST builds science, technology, engineering, and math skills through teamwork, mentoring, and hands-on challenges.</p>
 
@@ -538,8 +541,6 @@
 
 
   <script src="/assets/js/main.js?v=37"></script>
-
-  <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.3/dist/js/splide.min.js"></script>
 
   <script src="/assets/js/first-start.js?v=9"></script>
 

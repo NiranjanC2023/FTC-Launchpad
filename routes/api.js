@@ -25,7 +25,13 @@ function publicUser(user) {
 }
 
 function signIn(req, user) {
-	req.session.userId = user._id.toString();
+	return new Promise((resolve, reject) => {
+		req.session.regenerate((regenerateError) => {
+			if (regenerateError) return reject(regenerateError);
+			req.session.userId = user._id.toString();
+			req.session.save((saveError) => saveError ? reject(saveError) : resolve());
+		});
+	});
 }
 
 function applyRememberMe(req, remember) {
@@ -45,6 +51,64 @@ function requireDatabase(res) {
 function parseCoordinate(value) {
 	const number = Number(value);
 	return Number.isFinite(number) ? number : null;
+}
+
+function internalError(res, err, context) {
+	console.error(context, err);
+	return res.status(500).json({ ok: false, error: 'The request could not be completed.' });
+}
+
+async function requireAuthenticatedApi(req, res, next) {
+	try {
+		if (!requireDatabase(res)) return;
+		if (!req.session || !req.session.userId) {
+			return res.status(401).json({ ok: false, error: 'Sign in is required.' });
+		}
+
+		const user = await User.findById(req.session.userId)
+			.select('_id name email age phone interests experience')
+			.lean()
+			.exec();
+		if (!user) {
+			return res.status(401).json({ ok: false, error: 'Sign in is required.' });
+		}
+		req.authUser = user;
+		return next();
+	} catch (err) {
+		return internalError(res, err, 'API authentication failed:');
+	}
+}
+
+function publicAreaCoords(lat, lon) {
+	// City-level precision only (roughly a 5-11 km area).
+	return {
+		lat: Math.round(lat * 10) / 10,
+		lon: Math.round(lon * 10) / 10
+	};
+}
+
+function publicTeam(team) {
+	const lat = parseCoordinate(team.lat);
+	const lon = parseCoordinate(team.lon);
+	const coords = lat !== null && lon !== null
+		? publicAreaCoords(lat, lon)
+		: { lat: null, lon: null };
+	return {
+		...team,
+		lat: coords.lat,
+		lon: coords.lon,
+		recruiting: isRecruitingTeam(team)
+	};
+}
+
+function publicStudent(student) {
+	return {
+		id: student._id,
+		applicationTeam: student.applicationTeam,
+		applicationStatus: student.applicationStatus,
+		requestCount: student.requestCount,
+		lastRequestAt: student.lastRequestAt
+	};
 }
 
 // Approximate a user's location from a US ZIP code.
@@ -88,6 +152,9 @@ router.get('/geocode-location', async function(req, res) {
 		const query = String(req.query.q || '').trim();
 		if (!query) {
 			return res.status(400).json({ ok: false, error: 'Enter a city, county, state, or ZIP code.' });
+		}
+		if (query.length > 160) {
+			return res.status(400).json({ ok: false, error: 'Location search is too long.' });
 		}
 
 		const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
@@ -138,37 +205,31 @@ router.get('/teams', async function(req, res) {
 		res.json({
 			ok: true,
 			teams: Array.isArray(teams)
-				? teams.map((team) => ({
-					...team,
-					recruiting: isRecruitingTeam(team)
-				}))
+				? teams.map(publicTeam)
 				: []
 		});
 	} catch (err) {
-		res.status(500).json({ ok: false, error: err.message });
+		internalError(res, err, 'Unable to list teams:');
 	}
 });
 
-// Create a team
-router.post('/teams', async function(req, res) {
-	try {
-		const { name, contact, lat, lon, notes } = req.body;
-		if (!name || !lat || !lon) return res.status(400).json({ ok: false, error: 'name/lat/lon required' });
-		const team = new Team({ name, contact, lat: parseFloat(lat), lon: parseFloat(lon), notes });
-		await team.save();
-		res.json({ ok: true, team });
-	} catch (err) {
-		res.status(500).json({ ok: false, error: err.message });
-	}
+// Team creation must pass the official verification workflow in /team-register.
+router.post('/teams', function(req, res) {
+	res.status(404).json({ ok: false, error: 'Use the verified team registration form.' });
 });
 
 // Create or update student signup
-router.post('/signups', async function(req, res) {
+router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 	try {
-		const { name, age, experience, email, phone, interests, teamId } = req.body;
-		if (!name) return res.status(400).json({ ok: false, error: 'name required' });
-		const normalizedEmail = normalizeEmail(email);
-		if (!normalizedEmail) return res.status(400).json({ ok: false, error: 'valid email required' });
+		const { teamId } = req.body;
+		const account = req.authUser;
+		const name = String(account.name || '').trim();
+		const normalizedEmail = normalizeEmail(account.email);
+		const age = account.age;
+		const experience = account.experience;
+		const phone = account.phone;
+		const interests = account.interests;
+		if (!name || !normalizedEmail) return res.status(400).json({ ok: false, error: 'Complete your account profile before applying.' });
 		const normalizedTeamId = String(teamId || '').trim();
 		const shouldApplyToTeam = Boolean(normalizedTeamId && mongoose.Types.ObjectId.isValid(normalizedTeamId));
 		const team = shouldApplyToTeam ? await Team.findById(normalizedTeamId).select('_id name teamNumber contact recruiting').lean().exec() : null;
@@ -272,7 +333,7 @@ router.post('/signups', async function(req, res) {
 					});
 				}
 			}
-			return res.json({ ok: true, student });
+			return res.json({ ok: true, student: publicStudent(student) });
 		}
 
 		student = new Student({
@@ -341,20 +402,15 @@ router.post('/signups', async function(req, res) {
 				});
 			}
 		}
-		res.json({ ok: true, student });
+		res.json({ ok: true, student: publicStudent(student) });
 	} catch (err) {
-		res.status(500).json({ ok: false, error: err.message });
+		internalError(res, err, 'Unable to save student signup:');
 	}
 });
 
-// List recent signups
-router.get('/signups', async function(req, res) {
-	try {
-		const students = await Student.find({}).sort({ createdAt: -1 }).limit(200).exec();
-		res.json({ ok: true, students });
-	} catch (err) {
-		res.status(500).json({ ok: false, error: err.message });
-	}
+// Raw applicant records are never exposed through a list API.
+router.get('/signups', function(req, res) {
+	res.status(404).json({ ok: false, error: 'Not found.' });
 });
 
 // User signup (API)
@@ -364,6 +420,7 @@ router.post('/users/signup', async function(req, res) {
 		const { name, email, password, age, phone, profilePicture, interests, experience } = req.body;
 		const normalizedEmail = normalizeEmail(email);
 		if (!name || !normalizedEmail || !password) return res.status(400).json({ ok: false, error: 'name/email/password required' });
+		if (String(password).length < 8) return res.status(400).json({ ok: false, error: 'password must be at least 8 characters' });
 		const existing = await User.findOne({ email: normalizedEmail }).exec();
 		if (existing) return res.status(400).json({ ok: false, error: 'email already registered' });
 		const user = new User({
@@ -378,10 +435,10 @@ router.post('/users/signup', async function(req, res) {
 		await user.setPassword(password);
 		await user.save();
 		// set session
-		signIn(req, user);
+		await signIn(req, user);
 		res.json({ ok: true, user: publicUser(user) });
 	} catch (err) {
-		res.status(500).json({ ok: false, error: err.message });
+		internalError(res, err, 'Unable to create user:');
 	}
 });
 
@@ -397,11 +454,11 @@ router.post('/users/login', async function(req, res) {
 		if (!user) return res.status(400).json({ ok: false, error: 'invalid credentials' });
 		const ok = await user.validatePassword(password);
 		if (!ok) return res.status(400).json({ ok: false, error: 'invalid credentials' });
-		signIn(req, user);
+		await signIn(req, user);
 		applyRememberMe(req, remember);
 		res.json({ ok: true, user: publicUser(user) });
 	} catch (err) {
-		res.status(500).json({ ok: false, error: err.message });
+		internalError(res, err, 'Unable to sign in:');
 	}
 });
 
@@ -409,6 +466,7 @@ router.post('/users/login', async function(req, res) {
 router.post('/users/logout', function(req, res) {
 	req.session.destroy(err => {
 		if (err) return res.status(500).json({ ok: false, error: 'failed to logout' });
+		res.clearCookie('firststart.sid');
 		res.json({ ok: true });
 	});
 });
@@ -424,7 +482,7 @@ router.post('/notifications/read', async function(req, res) {
 		await markNotificationsRead(user.email);
 		res.json({ ok: true });
 	} catch (err) {
-		res.status(500).json({ ok: false, error: err.message });
+		internalError(res, err, 'Unable to mark notifications read:');
 	}
 });
 
@@ -439,7 +497,7 @@ router.post('/notifications/clear', async function(req, res) {
 		const deletedCount = await clearNotifications(user.email);
 		res.json({ ok: true, deletedCount });
 	} catch (err) {
-		res.status(500).json({ ok: false, error: err.message });
+		internalError(res, err, 'Unable to clear notifications:');
 	}
 });
 
@@ -467,7 +525,7 @@ router.get('/users/me', async function(req, res) {
 			unreadCount
 		});
 	} catch (err) {
-		res.status(500).json({ ok: false, error: err.message });
+		internalError(res, err, 'Unable to load current user:');
 	}
 });
 

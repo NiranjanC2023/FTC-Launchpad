@@ -21,6 +21,7 @@ const commonFunctions = source.slice(0, teamsStart).trimEnd();
 const signupFunctions = source.slice(signupStart, initializeStart).trim();
 const shellFunctions = source.slice(sharedFooterStart).trim();
 const initializeShell = `document.addEventListener('DOMContentLoaded', () => {
+  initDeclarativeActions();
   initPageAnimations();
   loadSharedFooter();
   loadSiteShells();

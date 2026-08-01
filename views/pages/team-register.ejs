@@ -28,29 +28,17 @@
         <% const selectedMode = values.registrationMode || 'existing'; %>
         <% const selectedProgram = values.program || 'FTC'; %>
         <% const showRegistrationExtras = selectedMode !== 'new' && (selectedProgram === 'FLL Challenge' || selectedProgram === 'FLL Explore'); %>
-        <% const usesOfficialApiLocation = selectedMode !== 'new' && (selectedProgram === 'FTC' || selectedProgram === 'FRC'); %>
 
+        <input type="hidden" name="registrationMode" value="existing" />
         <div class="registration-choice form-grid-full">
-          <p class="registration-choice-question">Is this a new team or an existing registered team?</p>
-          <div class="registration-choice-options">
-            <label class="choice-pill">
-              <input type="radio" name="registrationMode" value="existing" <%= selectedMode === 'existing' ? 'checked' : '' %> />
-              <span>Existing team</span>
-            </label>
-            <label class="choice-pill">
-              <input type="radio" name="registrationMode" value="new" <%= selectedMode === 'new' ? 'checked' : '' %> />
-              <span>New team</span>
-            </label>
-          </div>
-          <p class="registration-choice-note">Existing teams will be verified and can use lookup-based details. New teams skip verification and show up as new teams on the map.</p>
+          <p class="registration-choice-question">Official FIRST team verification required</p>
+          <p class="registration-choice-note">The team number, name, school or organization, city, state or province, and country must match the official FIRST record. Unregistered teams cannot create a listing.</p>
         </div>
 
         <label for="program">FIRST program</label>
         <select id="program" name="program" required>
           <option value="FTC" <%= selectedProgram === 'FTC' ? 'selected' : '' %>>FIRST Tech Challenge</option>
           <option value="FRC" <%= selectedProgram === 'FRC' ? 'selected' : '' %>>FIRST Robotics Competition</option>
-          <option value="FLL Challenge" <%= selectedProgram === 'FLL Challenge' ? 'selected' : '' %>>FIRST LEGO League Challenge</option>
-          <option value="FLL Explore" <%= selectedProgram === 'FLL Explore' ? 'selected' : '' %>>FIRST LEGO League Explore</option>
         </select>
 
         <div class="registration-field-inline form-grid-full <%= selectedMode === 'new' ? 'registration-hidden' : '' %>" data-registration-field="teamNumber">
@@ -61,16 +49,22 @@
         <label for="name">Team name</label>
         <input id="name" name="name" required value="<%= values.name || '' %>" />
 
+        <div class="registration-field-inline form-grid-full <%= selectedMode === 'new' ? 'registration-hidden' : '' %>" data-registration-field="organization">
+          <label for="organization">School or organization</label>
+          <input id="organization" name="organization" <%= selectedMode === 'new' ? '' : 'required' %> value="<%= values.organization || '' %>" placeholder="Must match the official FIRST team record" />
+        </div>
+
         <label for="contact">Contact email</label>
-        <input id="contact" name="contact" type="email" required value="<%= values.contact || '' %>" />
+        <input id="contact" name="contact" type="email" required readonly value="<%= values.contact || '' %>" />
+        <small class="text-muted form-note form-grid-full">For account security, this must match the signed-in manager account.</small>
 
         <label for="address">Address</label>
         <input id="address" name="address" placeholder="Street address, meeting area, or landmark" value="<%= values.address || '' %>" />
         <small class="text-muted form-note form-grid-full">For team privacy, the map marker is offset from the exact address and shown inside a 1000 meter bubble.</small>
 
-        <div class="registration-location-grid form-grid-full <%= selectedMode !== 'new' && (selectedProgram === 'FTC' || selectedProgram === 'FRC') ? 'registration-hidden' : '' %>" data-team-location-fields>
+        <div class="registration-location-grid form-grid-full" data-team-location-fields>
           <label for="city">City</label>
-          <input id="city" name="city" value="<%= values.city || '' %>" />
+          <input id="city" name="city" required value="<%= values.city || '' %>" placeholder="Must match the official record for existing teams" />
 
           <label for="state">State</label>
           <input id="state" name="state" value="<%= values.state || '' %>" />
@@ -80,7 +74,7 @@
             id="country"
             name="country"
             type="text"
-            <%= selectedMode === 'new' || (selectedProgram !== 'FTC' && selectedProgram !== 'FRC') ? 'required' : '' %>
+            required
             value="<%= values.country || '' %>"
             placeholder="Country (for example, USA, Canada, India)"
           />
@@ -116,21 +110,20 @@
       if (!form) return;
       const modeInputs = Array.from(form.querySelectorAll('input[name="registrationMode"]'));
       const teamNumberField = form.querySelector('[data-registration-field="teamNumber"]');
+      const organizationField = form.querySelector('[data-registration-field="organization"]');
       const extrasField = form.querySelector('[data-registration-extras]');
       const teamNumberInput = form.querySelector('#teamNumber');
+      const organizationInput = form.querySelector('#organization');
       const awardsInput = form.querySelector('#awards');
       const yearsInput = form.querySelector('#yearsInProgram');
       const extraInputs = [awardsInput, yearsInput].filter(Boolean);
       const locationFields = form.querySelector('[data-team-location-fields]');
-      const countryInput = form.querySelector('#country');
 
       function syncMode() {
         const selected = modeInputs.find(input => input.checked);
         const isNew = selected && selected.value === 'new';
         const programValue = String(form.querySelector('#program')?.value || '').trim();
         const showExtras = !isNew && (programValue === 'FLL Challenge' || programValue === 'FLL Explore');
-        const isApiVerifiedProgram = programValue === 'FTC' || programValue === 'FRC';
-        const hideLocation = !isNew && isApiVerifiedProgram;
 
         if (teamNumberField) teamNumberField.classList.toggle('registration-hidden', isNew);
         if (teamNumberInput) {
@@ -139,13 +132,19 @@
           if (isNew) teamNumberInput.value = '';
         }
 
-        if (locationFields) locationFields.classList.toggle('registration-hidden', hideLocation);
+        if (organizationField) organizationField.classList.toggle('registration-hidden', isNew);
+        if (organizationInput) {
+          organizationInput.required = !isNew;
+          organizationInput.disabled = isNew;
+          if (isNew) organizationInput.value = '';
+        }
+
+        if (locationFields) locationFields.classList.remove('registration-hidden');
         ['city', 'state', 'country'].forEach((fieldName) => {
           const input = form.querySelector(`#${fieldName}`);
           if (!input) return;
-          input.disabled = hideLocation;
-          input.required = !hideLocation && (fieldName === 'country' ? (isNew || !isApiVerifiedProgram) : false);
-          if (hideLocation) input.value = '';
+          input.disabled = false;
+          input.required = fieldName === 'city' || fieldName === 'country';
         });
 
         if (extrasField) extrasField.classList.toggle('registration-hidden', !showExtras);
@@ -153,17 +152,6 @@
           input.disabled = !showExtras;
         });
 
-        detailedLocationFields.forEach((field) => {
-          field.classList.toggle('registration-hidden', usesApiLocation);
-        });
-        detailedLocationInputs.forEach((input) => {
-          input.disabled = usesApiLocation;
-        });
-        if (addressInput) addressInput.required = usesApiLocation;
-        if (countryInput) countryInput.required = !usesApiLocation;
-        if (locationNote) {
-          locationNote.textContent = 'For privacy, the exact team address is hidden. Students see a 1,000-meter circle centered on an offset map location.';
-        }
       }
 
       modeInputs.forEach(input => input.addEventListener('change', syncMode));

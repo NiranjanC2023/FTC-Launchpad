@@ -4,21 +4,29 @@ var express = require("express");
 var path = require("path");
 var fs = require("fs");
 var zlib = require("zlib");
+var crypto = require("crypto");
 var mongoose = require("mongoose");
 var bodyParser = require("body-parser");
 var cookieParser = require("cookie-parser");
 var compression = require("compression");
 var passport = require("passport");
 var session = require("express-session");
+var MongoStore = require("connect-mongo").MongoStore;
+var rateLimit = require("express-rate-limit").rateLimit;
 var flash = require("connect-flash");
 var ejs = require("ejs");
 var params = require("./params/params");
 var setUpPassport = require("./setuppassport");
+var Team = require("./models/team");
 //var routes = require("./routes");
 
 var app = express();
 
 const ASSETS_ROOT = path.join(__dirname, "assets");
+const HOME_STYLESHEET_PATH = path.join(ASSETS_ROOT, "css", "home.min.css");
+const HOME_STYLESHEET = fs.existsSync(HOME_STYLESHEET_PATH)
+    ? fs.readFileSync(HOME_STYLESHEET_PATH, "utf8")
+    : "";
 const GZIP_CONTENT_TYPES = {
     ".css": "text/css; charset=utf-8",
     ".html": "text/html; charset=utf-8",
@@ -29,9 +37,9 @@ const GZIP_CONTENT_TYPES = {
     ".xml": "application/xml; charset=utf-8"
 };
 
-const MAIN_CSS_VERSION = "30";
-const MAIN_JS_VERSION = "40";
-const HOME_JS_VERSION = "12";
+const MAIN_CSS_VERSION = "32";
+const MAIN_JS_VERSION = "41";
+const HOME_JS_VERSION = "13";
 const BOOTSTRAP_STYLESHEET = '<link rel="stylesheet" href="/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6">';
 const EXTERNAL_ASSET_REPLACEMENTS = [
     [
@@ -120,8 +128,54 @@ app.set("port", process.env.PORT || 3000);
 app.set("host", process.env.HOST || "0.0.0.0");
 app.set("view cache", process.env.NODE_ENV === "production");
 app.disable("x-powered-by");
+if (process.env.NODE_ENV === "production") app.set("trust proxy", 1);
 
 app.use(compression());
+
+app.use(function setSecurityHeaders(req, res, next) {
+    const nonce = crypto.randomBytes(16).toString("base64");
+    res.locals.cspNonce = nonce;
+    res.set({
+        "Content-Security-Policy": [
+            "default-src 'self'",
+            `script-src 'self' 'nonce-${nonce}'`,
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com",
+            "font-src 'self' data:",
+            "connect-src 'self' https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'none'"
+        ].join("; "),
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "X-Frame-Options": "DENY",
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
+    });
+    next();
+});
+
+app.use(function denyServerFiles(req, res, next) {
+    let requestPath;
+    try {
+        requestPath = decodeURIComponent(req.path).toLowerCase();
+    } catch (error) {
+        return res.status(400).send("Bad request");
+    }
+
+    const blocked = [
+        /^\/(?:\.env|\.git)(?:\/|$)/,
+        /^\/(?:app\.js|package(?:-lock)?\.json|server[^/]*\.log)$/,
+        /^\/(?:lib|models|params|routes|scripts|tests|views)(?:\/|$)/
+    ];
+    if (blocked.some(pattern => pattern.test(requestPath))) {
+        return res.status(404).type("text/plain").send("Not found");
+    }
+    next();
+});
 
 // Static files - serve FIRST before setting up routes/views
 app.use("/assets", servePrecompressedAsset);
@@ -149,6 +203,9 @@ app.engine("ejs", function(filePath, data, callback) {
         if (err) return callback(err);
 
         if (typeof html === 'string') {
+            if (data && data.cspNonce) {
+                html = html.replace(/<script(?![^>]*\bnonce=)([^>]*)>/gi, `<script nonce="${data.cspNonce}"$1>`);
+            }
             EXTERNAL_ASSET_REPLACEMENTS.forEach(function(replacement) {
                 html = html.split(replacement[0]).join(replacement[1]);
             });
@@ -156,23 +213,33 @@ app.engine("ejs", function(filePath, data, callback) {
             html = html
                 .replace(/\s*<link[^>]+rel=["']preconnect["'][^>]+fonts\.googleapis\.com[^>]*>/gi, '')
                 .replace(/\s*<link[^>]+rel=["']preconnect["'][^>]+fonts\.gstatic\.com[^>]*>/gi, '')
+                .replace(/\s*<link[^>]+href=["']\/assets\/vendor\/inter\/inter\.css(?:\?v=\d+)?["'][^>]*>/gi, '')
+                .replace(/\s*<link[^>]+href=["']\/assets\/css\/icons\.min\.css(?:\?v=\d+)?["'][^>]*>/gi, '')
                 .replace(/\/assets\/css\/main\.css(?:\?v=\d+)?/g, `/assets/css/main.min.css?v=${MAIN_CSS_VERSION}`)
                 .replace(/\/assets\/js\/main\.js(?:\?v=\d+)?/g, `/assets/js/main.min.js?v=${MAIN_JS_VERSION}`)
                 .replace(/\/assets\/js\/first-start\.js(?:\?v=\d+)?/g, `/assets/js/first-start.min.js?v=${HOME_JS_VERSION}`);
 
-            html = html
-                .replace(/<link href="(\/assets\/vendor\/inter\/inter\.css\?v=20)" rel="stylesheet">/gi, '<link rel="preload" as="style" href="$1" onload="this.onload=null;this.rel=\'stylesheet\'"><noscript><link rel="stylesheet" href="$1"></noscript>')
-                .replace(/<link rel="stylesheet" href="(\/assets\/css\/icons\.min\.css\?v=1)">/gi, '<link rel="preload" as="style" href="$1" onload="this.onload=null;this.rel=\'stylesheet\'"><noscript><link rel="stylesheet" href="$1"></noscript>');
+            if (/\bhome-page\b/.test(html)) {
+                html = html
+                    .replace(/\/assets\/css\/main\.min\.css(?:\?v=\d+)?/g, '/assets/css/home.min.css?v=1')
+                    .replace(/\s*<link[^>]+href=["']\/assets\/css\/first-start\.css(?:\?v=\d+)?["'][^>]*>/gi, '');
+                if (HOME_STYLESHEET) {
+                    html = html.replace(
+                        /<link[^>]+href=["']\/assets\/css\/home\.min\.css(?:\?v=\d+)?["'][^>]*>/i,
+                        `<style data-home-styles="3">${HOME_STYLESHEET}</style>`
+                    );
+                }
+            }
 
-            const needsFullClientBundle = /\bhome-page\b/.test(html) || /\bid=["']teamsContainer["']/.test(html);
+            const needsFullClientBundle = /\bid=["']teamsContainer["']/.test(html);
             if (!needsFullClientBundle) {
                 html = html.replace(
                     /\/assets\/js\/main(?:\.min)?\.js(?:\?v=\d+)?/g,
-                    '/assets/js/site-shell.min.js?v=1'
+                    '/assets/js/site-shell.min.js?v=3'
                 );
             }
 
-            if (!html.includes('/assets/vendor/bootstrap/bootstrap.min.css')) {
+            if (!html.includes('/assets/vendor/bootstrap/bootstrap.min.css') && !/\bhome-page\b/.test(html)) {
                 html = html.replace(
                     /(<link[^>]+href=["']\/assets\/css\/main(?:\.min)?\.css[^>]*>)/i,
                     `${BOOTSTRAP_STYLESHEET}\n$1`
@@ -205,20 +272,93 @@ mongoose.connect(params.DATABASECONNECTION, {
     serverSelectionTimeoutMS: 5000
 }).then(() => {
     console.log(`MongoDB connected to database: ${mongoose.connection.name}`);
+    return Team.syncIndexes().then(() => {
+        console.log('Team indexes synchronized.');
+    });
 }).catch(err => {
     console.log("MongoDB connection failed:", err.message);
 });
 
 setUpPassport();
 
-app.use(bodyParser.urlencoded({extended:false, limit:'10mb'}));
-app.use(express.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({extended:false, limit:'512kb'}));
+app.use(express.json({ limit: '512kb' }));
 app.use(cookieParser());
+const isProduction = process.env.NODE_ENV === "production";
+const sessionSecret = process.env.SESSION_SECRET || (!isProduction ? crypto.randomBytes(32).toString("hex") : "");
+if (!sessionSecret) {
+    throw new Error("SESSION_SECRET must be set in production.");
+}
 app.use(session({
-    secret: process.env.SESSION_SECRET || "doemlfgddfsoi!gjdsf5684561dsf",
+    name: "firststart.sid",
+    secret: sessionSecret,
+    store: MongoStore.create({
+        mongoUrl: params.DATABASECONNECTION,
+        dbName: params.DATABASENAME,
+        collectionName: "sessions",
+        ttl: 60 * 60 * 24 * 30,
+        autoRemove: "native"
+    }),
     resave:false,
-    saveUninitialized:false
+    saveUninitialized:false,
+    cookie: {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: "lax",
+        maxAge: null
+    }
 }));
+
+app.use(function blockCrossSiteWrites(req, res, next) {
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+
+    const fetchSite = String(req.get("Sec-Fetch-Site") || "").toLowerCase();
+    if (fetchSite === "cross-site") {
+        return res.status(403).json({ ok: false, error: "Cross-site request blocked." });
+    }
+
+    const origin = req.get("Origin");
+    if (origin) {
+        try {
+            if (new URL(origin).host !== req.get("host")) {
+                return res.status(403).json({ ok: false, error: "Cross-site request blocked." });
+            }
+        } catch (error) {
+            return res.status(403).json({ ok: false, error: "Invalid request origin." });
+        }
+    }
+    next();
+});
+
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 300,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { ok: false, error: "Too many requests. Please try again later." }
+});
+const authenticationLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { ok: false, error: "Too many attempts. Please wait and try again." }
+});
+const geocodingLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { ok: false, error: "Too many location searches. Please wait and try again." }
+});
+app.use("/api", apiLimiter);
+app.use(["/api/users/login", "/api/users/signup", "/login", "/signup", "/forgot-password", "/reset-password"], authenticationLimiter);
+app.use(["/api/geocode-zip", "/api/geocode-location"], geocodingLimiter);
+app.use("/api", function preventPrivateApiCaching(req, res, next) {
+    res.set("Cache-Control", "no-store");
+    res.set("Pragma", "no-cache");
+    next();
+});
 
 app.use(function exposeAuthenticationState(req, res, next) {
     res.locals.isAuthenticated = Boolean(req.session && req.session.userId);

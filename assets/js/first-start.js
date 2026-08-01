@@ -1,9 +1,8 @@
 document.addEventListener('DOMContentLoaded', function(){
-  if (typeof Splide !== 'undefined') {
-    const carouselRoot = document.querySelector('#fs-carousel-home');
-    const sourceSlides = carouselRoot
-      ? Array.from(carouselRoot.querySelectorAll('.splide__list > .splide__slide'))
-      : [];
+  const carouselRoot = document.querySelector('#fs-carousel-home');
+  if (carouselRoot) {
+    const track = carouselRoot.querySelector('.splide__list');
+    const sourceSlides = Array.from(carouselRoot.querySelectorAll('.splide__list > .splide__slide'));
     const hydrateImage = (image) => {
       if (!image || !image.dataset.carouselSrc) return;
       if (image.dataset.carouselSrcset) {
@@ -17,63 +16,52 @@ document.addEventListener('DOMContentLoaded', function(){
       if (!slide) return;
       hydrateImage(slide.querySelector('img[data-carousel-src]'));
     };
-    const hydrateSourceIndex = (index) => {
-      if (!sourceSlides.length) return;
-      const normalizedIndex = ((index % sourceSlides.length) + sourceSlides.length) % sourceSlides.length;
-      hydrateSlide(sourceSlides[normalizedIndex]);
-    };
-    let preloadTimer = null;
-    const queueNextSlide = (index) => {
-      if (preloadTimer) clearTimeout(preloadTimer);
-      preloadTimer = setTimeout(() => hydrateSourceIndex(index + 1), 1200);
-    };
-    const hydrateActiveSlide = () => {
-      if (!carouselRoot) return;
-      carouselRoot
-        .querySelectorAll('.splide__slide.is-active img[data-carousel-src], .splide__slide.is-visible img[data-carousel-src]')
-        .forEach(hydrateImage);
-    };
-
-    const carousel = new Splide('#fs-carousel-home', {
-      type: 'loop',
-      perPage: 1,
-      autoplay: true,
-      interval: 3000,
-      speed: 700,
-      easing: 'cubic-bezier(.22, 1, .36, 1)',
-      pauseOnHover: true,
-      pauseOnFocus: true,
-      pagination: true,
-      arrows: true,
-      accessibility: true,
+    let activeIndex = 0;
+    let autoplayTimer = null;
+    const pagination = carouselRoot.querySelector('.home-carousel-pagination');
+    const dots = sourceSlides.map((slide, index) => {
+      slide.setAttribute('aria-hidden', index === 0 ? 'false' : 'true');
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = 'home-carousel-dot';
+      dot.setAttribute('aria-label', `Show image ${index + 1}`);
+      dot.addEventListener('click', () => showSlide(index, true));
+      pagination.appendChild(dot);
+      return dot;
     });
-
-    const normalizeCarouselAccessibility = () => {
-      carouselRoot.querySelectorAll('.splide__slide').forEach((slide) => {
-        // Splide uses tabpanel for paginated slides, but these elements remain list items.
-        slide.removeAttribute('role');
-        slide.removeAttribute('aria-roledescription');
+    const showSlide = (index, userInitiated = false) => {
+      if (!sourceSlides.length || !track) return;
+      activeIndex = ((index % sourceSlides.length) + sourceSlides.length) % sourceSlides.length;
+      hydrateSlide(sourceSlides[activeIndex]);
+      hydrateSlide(sourceSlides[(activeIndex + 1) % sourceSlides.length]);
+      track.style.transform = `translate3d(-${activeIndex * 100}%, 0, 0)`;
+      sourceSlides.forEach((slide, slideIndex) => slide.setAttribute('aria-hidden', slideIndex === activeIndex ? 'false' : 'true'));
+      dots.forEach((dot, dotIndex) => {
+        dot.classList.toggle('is-active', dotIndex === activeIndex);
+        dot.setAttribute('aria-current', dotIndex === activeIndex ? 'true' : 'false');
       });
+      if (userInitiated) restartAutoplay();
     };
-
-    carousel.on('mounted', () => {
-      normalizeCarouselAccessibility();
-      hydrateSourceIndex(carousel.index);
-      hydrateActiveSlide();
-      queueNextSlide(carousel.index);
-    });
-    carousel.on('updated', normalizeCarouselAccessibility);
-    carousel.on('move', (newIndex) => {
-      hydrateSourceIndex(newIndex);
-      const activeSlide = carousel.Components.Slides.getAt(newIndex);
-      hydrateSlide(activeSlide && activeSlide.slide);
-      queueNextSlide(newIndex);
-    });
-    carousel.on('active', (slide) => {
-      hydrateSlide(slide && slide.slide);
-      hydrateActiveSlide();
-    });
-    carousel.mount();
+    const stopAutoplay = () => {
+      if (autoplayTimer) window.clearInterval(autoplayTimer);
+      autoplayTimer = null;
+    };
+    const startAutoplay = () => {
+      stopAutoplay();
+      if (sourceSlides.length > 1 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        autoplayTimer = window.setInterval(() => showSlide(activeIndex + 1), 5000);
+      }
+    };
+    const restartAutoplay = () => startAutoplay();
+    carouselRoot.querySelector('.home-carousel-arrow-prev').addEventListener('click', () => showSlide(activeIndex - 1, true));
+    carouselRoot.querySelector('.home-carousel-arrow-next').addEventListener('click', () => showSlide(activeIndex + 1, true));
+    carouselRoot.addEventListener('mouseenter', stopAutoplay);
+    carouselRoot.addEventListener('mouseleave', startAutoplay);
+    carouselRoot.addEventListener('focusin', stopAutoplay);
+    carouselRoot.addEventListener('focusout', startAutoplay);
+    document.addEventListener('visibilitychange', () => document.hidden ? stopAutoplay() : startAutoplay());
+    showSlide(0);
+    startAutoplay();
   }
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

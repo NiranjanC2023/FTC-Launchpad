@@ -17,12 +17,13 @@
   "main": "app.js",
   "scripts": {
     "build:client": "node scripts/build-site-shell.js && node scripts/build-optimized-assets.js && node scripts/build-gzip-assets.js",
+    "privacy:purge-location": "node scripts/purge-precise-location.js",
     "prestart": "npm run build:client",
     "start": "node app.js",
     "predev": "npm run build:client",
     "dev": "nodemon app.js",
     "pretest": "npm run build:client",
-    "test": "node --check app.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js"
+    "test": "node --check app.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js && node tests/team-verification.test.js && node tests/privacy-location.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -30,11 +31,13 @@
     "clean-css": "^5.3.3",
     "compression": "^1.8.1",
     "connect-flash": "^0.1.1",
+    "connect-mongo": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "debug": "^4.4.3",
     "dotenv": "^16.6.1",
     "ejs": "^3.1.10",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.6.1",
     "express-session": "^1.18.1",
     "mongoose": "^8.10.1",
     "node.js": "^0.0.1-security",
@@ -44,6 +47,7 @@
     "terser": "^5.49.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "purgecss": "^8.0.0"
   }
 }

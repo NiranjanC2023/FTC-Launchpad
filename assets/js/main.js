@@ -1,6 +1,10 @@
 // Dark mode removed: ensure no `data-theme` attribute remains
 document.documentElement.removeAttribute('data-theme');
 
+const firstStartTrustedTypesPolicy = window.trustedTypes
+  ? window.trustedTypes.createPolicy('first-start', { createHTML: (value) => value })
+  : { createHTML: (value) => value };
+
 function escapeHTML(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({
     '&': '&amp;',
@@ -128,33 +132,38 @@ function initPageAnimations() {
 
 const STUDENT_KEY = 'studentInfo_v1';
 
+// Remove applicant PII copied into browser storage by older releases.
+try {
+  sessionStorage.removeItem(STUDENT_KEY);
+  localStorage.removeItem(STUDENT_KEY);
+} catch (e) {}
+
 function initJoinForm() {
   const form = document.getElementById('joinForm');
   if (!form) return;
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const data = {
-      name: form.querySelector('#name').value.trim(),
-      age: form.querySelector('#age').value.trim(),
-      experience: form.querySelector('#experience').value.trim(),
-      email: form.querySelector('#email').value.trim(),
-      phone: form.querySelector('#phone').value.trim(),
-      interests: form.querySelector('#interests').value.trim(),
-      timestamp: new Date().toISOString()
-    };
-
-    // Save to database via API before redirecting
-    fetch('/api/signups', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    .then(() => {
-      sessionStorage.setItem(STUDENT_KEY, JSON.stringify(data));
+    try {
+      const response = await fetch('/api/signups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        redirectToAuthGate('/join-form', 'Join a Team');
+        return;
+      }
+      if (!response.ok) {
+        alert(payload.error || 'Unable to save your profile right now.');
+        return;
+      }
       window.location.href = '/teams-nearby';
-    })
-    .catch(err => console.error('Failed to save to database:', err));
+    } catch (err) {
+      console.error('Failed to save to database:', err);
+      alert('Unable to save your profile right now.');
+    }
   });
 }
 
@@ -207,6 +216,17 @@ function isTeamRecruiting(team) {
   }
 
   return true;
+}
+
+function initDeclarativeActions() {
+  document.querySelectorAll('[data-copy-code]').forEach((button) => {
+    button.addEventListener('click', () => copyCode(button));
+  });
+  document.querySelectorAll('[data-auto-submit]').forEach((field) => {
+    field.addEventListener('change', () => {
+      if (field.form) field.form.requestSubmit();
+    });
+  });
 }
 
 // A small list of sample teams retained for legacy integrations.
@@ -306,7 +326,7 @@ function renderTeams(teams, userCoords) {
     : teams;
 
   // clear list
-  list.innerHTML = '';
+  list.replaceChildren();
   window._teamMarkers = {};
   window._userLocationMarker = null;
   window._infoWindowTimer = null;
@@ -343,12 +363,12 @@ function renderTeams(teams, userCoords) {
       ];
   const searchWrap = document.createElement('div');
   searchWrap.className = 'teams-search';
-  searchWrap.innerHTML = `
+  searchWrap.innerHTML = firstStartTrustedTypesPolicy.createHTML(`
     <label for="teamsSearch">Search teams</label>
     <div class="teams-search-row">
       <div class="teams-search-field">
         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-        <input id="teamsSearch" type="search" placeholder="Search by team or contact" autocomplete="off" />
+        <input id="teamsSearch" type="search" placeholder="Search by team or location" autocomplete="off" />
         <div class="teams-filter-menu">
           <button type="button" class="teams-filter-button" aria-haspopup="true" aria-expanded="false" aria-controls="teamsProgramDropdown">
             <i class="fa-solid fa-filter" aria-hidden="true"></i>
@@ -394,7 +414,7 @@ function renderTeams(teams, userCoords) {
       </div>
       <span class="teams-search-count" aria-live="polite"></span>
     </div>
-  `;
+  `);
 
   const teamsListContainer = document.createElement('div');
   teamsListContainer.className = 'teams-list-container';
@@ -773,7 +793,7 @@ function getTeamRecruitingLabel(team) {
     const teamNumber = isNewTeam
       ? 'New Team'
       : (team.teamNumber ? `${programLabel} ${team.teamNumber}` : `${programLabel} team`);
-    const contact = String(team.contact || 'Contact unavailable');
+    const contact = 'Apply securely through FIRST Start';
     const location = String(team.location || '').trim();
     const regionLabel = String(team.competitionRegionLabel || team.regionLabel || '').trim();
     const notes = String(team.notes || '').trim();
@@ -804,7 +824,7 @@ function getTeamRecruitingLabel(team) {
     card.dataset.regionLabel = regionLabel;
     card.dataset.distanceKm = Number.isFinite(dist) ? String(dist) : '';
     card.dataset.search = `${teamName} ${teamNumber} ${contact} ${location} ${regionLabel} ${notes} ${awards} ${awardHistory.join(' ')} ${advancementLevels.join(' ')} ${advancementHistory.join(' ')}`.toLowerCase();
-    card.innerHTML = `
+    card.innerHTML = firstStartTrustedTypesPolicy.createHTML(`
       <div class="team-card-head">
         <div class="team-card-heading">
           <h3 class="team-card-title">${escapeHTML(teamName)}</h3>
@@ -866,7 +886,7 @@ function getTeamRecruitingLabel(team) {
           <button class="btn btn-primary send-btn">${isRecruiting ? 'Send My Info' : 'Not Recruiting'}</button>
         </div>
       </div>
-    `;
+    `);
     window._teamCards[teamName] = card;
 
     const sendBtn = card.querySelector('.send-btn');
@@ -1090,7 +1110,7 @@ function getTeamRecruitingLabel(team) {
           <p style="margin: 0 0 12px 0; font-size: 0.95em; font-weight: 700; color: #0056b3;">Approximate ${escapeHTML(radiusMeters)}-meter area</p>
           <div style="margin-bottom: 12px;">
             <p style="margin: 0; font-size: 0.9em; font-weight: 800; color: #555; text-transform: uppercase;">Contact</p>
-            <p style="margin: 0; font-size: 1em; font-weight: 600; color: #222;">${escapeHTML(team.contact || 'Unavailable')}</p>
+            <p style="margin: 0; font-size: 1em; font-weight: 600; color: #222;">Apply securely through FIRST Start</p>
           </div>
           ${distanceData ? `<p style="margin: 0 0 15px 0; font-size: 1em; font-weight: 800; color: #d32f2f;">${distanceData.label} away</p>` : ''}
           <button class="popup-send-btn btn btn-primary" style="width: 100%; font-weight: 800; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none;" data-team="${escapeHTML(teamName)}">Send My Info</button>
@@ -1217,38 +1237,11 @@ async function sendToTeam(team) {
     return;
   }
 
-  let raw = sessionStorage.getItem(STUDENT_KEY);
-  if (!raw && window.__USER__) {
-    const user = window.__USER__;
-    raw = JSON.stringify({
-      name: String(user.name || '').trim(),
-      age: String(user.age || '').trim(),
-      experience: String(user.experience || '').trim(),
-      email: String(user.email || '').trim(),
-      phone: String(user.phone || '').trim(),
-      interests: String(user.interests || '').trim(),
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  if (!raw) {
-    alert('No student info found. Please fill the signup form first.');
-    window.location.href = '/join-form';
-    return;
-  }
-
-  const info = JSON.parse(raw);
   try {
     const response = await fetch('/api/signups', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: info.name,
-        age: info.age,
-        experience: info.experience,
-        email: info.email,
-        phone: info.phone,
-        interests: info.interests,
         teamId: team && (team.id || team._id)
       })
     });
@@ -1259,7 +1252,6 @@ async function sendToTeam(team) {
       return;
     }
 
-    sessionStorage.setItem(STUDENT_KEY, JSON.stringify(info));
     alert(`Your info was sent to ${team.name || 'the team'}.`);
   } catch (err) {
     alert('Unable to save your application right now.');
@@ -1389,21 +1381,9 @@ function initTeamsPage() {
       });
   }
 
-  // Try to get a more accurate list based on user's location, but don't block the UI.
-  if (!initialQuery && navigator.geolocation) {
-    const geoOptions = { maximumAge: 60000, timeout: 2000, enableHighAccuracy: false };
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      renderTeams(teams, userCoords);
-      updateLocationStatus(userCoords, 'Showing nearby teams');
-    }, () => {
-      status.textContent = 'Using nearby teams (location unavailable)';
-      setZipMessage('Enter a city, county, state, country, or ZIP code to sort teams by distance without sharing your location.');
-    }, geoOptions);
-  } else {
-    if (!initialQuery) {
-      status.textContent = 'Geolocation not supported — showing nearby teams';
-    }
+  if (!initialQuery) {
+    status.textContent = 'Showing recruiting teams';
+    setZipMessage('Enter a city, county, state, country, or ZIP code to sort by approximate distance.');
   }
 }
 
@@ -1496,7 +1476,7 @@ function renderHomeFeaturedTeams(teams) {
     return leftDistance - rightDistance;
   });
 
-  grid.innerHTML = orderedTeams.map((team, index) => {
+  grid.innerHTML = firstStartTrustedTypesPolicy.createHTML(orderedTeams.map((team, index) => {
     const accent = getTeamAccent(team, index);
     const location = [team.city, team.state, team.country].filter(Boolean).join(', ') || 'Location not listed';
     const distance = Number.isFinite(team.distance) ? formatDistance(team.distance, distanceUnitPreference).label : null;
@@ -1539,47 +1519,12 @@ function renderHomeFeaturedTeams(teams) {
         </div>
       </article>
     `;
-  }).join('');
+  }).join(''));
 }
 
 function initHomeFeaturedTeams() {
-  if (!document.body.classList.contains('home-page')) return;
-  const grid = document.getElementById('homeFeaturedTeams');
-  if (!grid || !navigator.geolocation) return;
-
-  const geoOptions = { maximumAge: 60000, timeout: 3000, enableHighAccuracy: false };
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    try {
-      const response = await fetch('/api/teams', { credentials: 'same-origin' });
-      if (!response.ok) return;
-      const payload = await response.json();
-      const allTeams = Array.isArray(payload.teams)
-        ? payload.teams.map(team => ({
-          ...team,
-          lat: Number(team.lat),
-          lon: Number(team.lon)
-        }))
-        : [];
-      const userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      const recruitingTeams = allTeams.filter(team => team && Number.isFinite(team.lat) && Number.isFinite(team.lon) && isTeamRecruiting(team));
-      const nearestTeams = recruitingTeams
-        .map(team => ({
-          ...team,
-          distance: haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon)
-        }))
-        .filter(team => Number.isFinite(team.distance))
-        .sort((a, b) => a.distance - b.distance)
-        .slice(0, 3);
-
-      if (nearestTeams.length) {
-        renderHomeFeaturedTeams(nearestTeams);
-      }
-    } catch (err) {
-      console.error('Failed to load nearby homepage teams:', err);
-    }
-  }, () => {
-    // Keep the server-rendered fallback if location is unavailable.
-  }, geoOptions);
+  // Featured teams stay server-rendered. Users can search by city or ZIP;
+  // precise browser location is never requested automatically.
 }
 
 // Signup page: toggle between seeker (join/make) and manager flows
@@ -1626,6 +1571,7 @@ function initSignupForm() {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
+  initDeclarativeActions();
   initPageAnimations();
   loadSharedFooter();
   loadSiteShells();
@@ -1642,7 +1588,7 @@ function loadSharedFooter() {
     .then(r => r.text())
     .then(html => {
       const footerTemplate = document.createElement('template');
-      footerTemplate.innerHTML = html.trim();
+      footerTemplate.innerHTML = firstStartTrustedTypesPolicy.createHTML(html.trim());
       const footer = footerTemplate.content.firstElementChild;
       if (footer) document.body.appendChild(footer);
       const yearEl = document.getElementById('site-year');
@@ -1655,7 +1601,7 @@ function loadSharedFooter() {
 // the fetch remains as a fallback for standalone/static documents.
 function loadSiteShells() {
   // Keep a local fallback for pages that are not rendered through Express.
-  if (!document.querySelector('link[href*="bootstrap.min.css"]')) {
+  if (!document.body.classList.contains('home-page') && !document.querySelector('link[href*="bootstrap.min.css"]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = '/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6';
@@ -1670,10 +1616,10 @@ function loadSiteShells() {
       .then(html => {
         const header = document.querySelector('header');
         if (header) {
-          header.innerHTML = html;
+          header.innerHTML = firstStartTrustedTypesPolicy.createHTML(html);
         } else {
           const h = document.createElement('div');
-          h.innerHTML = html;
+          h.innerHTML = firstStartTrustedTypesPolicy.createHTML(html);
           document.body.insertBefore(h, document.body.firstChild);
         }
       });
@@ -1802,7 +1748,7 @@ function loadSiteShells() {
             if (!inboxList || !inboxEmpty || !inboxTitle) return;
 
             if (!notifications.length) {
-              inboxList.innerHTML = '';
+              inboxList.replaceChildren();
               inboxEmpty.hidden = false;
               inboxTitle.textContent = 'Inbox';
               updateInboxControls();
@@ -1811,7 +1757,7 @@ function loadSiteShells() {
 
             inboxEmpty.hidden = true;
             inboxTitle.textContent = unreadCount > 0 ? 'New notifications' : 'Notifications';
-            inboxList.innerHTML = notifications.map((notification) => {
+            inboxList.innerHTML = firstStartTrustedTypesPolicy.createHTML(notifications.map((notification) => {
               const link = notification.link || '/account';
               const title = escapeHTML(notification.title || 'Notification');
               const body = escapeHTML(notification.body || '');
@@ -1824,7 +1770,7 @@ function loadSiteShells() {
                   ${meta ? `<span class="inbox-dropdown-item-meta">${escapeHTML(meta)}</span>` : ''}
                 </a>
               `;
-            }).join('');
+            }).join(''));
             updateInboxControls();
           }
 
@@ -1846,7 +1792,7 @@ function loadSiteShells() {
                 .join('') || 'U'
               : 'U';
             if (user.profilePicture) {
-              initialsEl.innerHTML = `<img src="${escapeHTML(user.profilePicture)}" alt="Profile picture">`;
+              initialsEl.innerHTML = firstStartTrustedTypesPolicy.createHTML(`<img src="${escapeHTML(user.profilePicture)}" alt="Profile picture">`);
             } else {
               initialsEl.textContent = initials;
             }
@@ -1869,7 +1815,7 @@ function loadSiteShells() {
               signOutLink.textContent = 'Sign Out';
             }
             if (statsLink) {
-              const canViewStats = Boolean(user.canViewStats || String(user.email || '').toLowerCase() === 'evergreentechatrons.contact@gmail.com');
+              const canViewStats = Boolean(user.canViewStats);
               statsLink.style.display = canViewStats ? '' : 'none';
               if (canViewStats) {
                 statsLink.setAttribute('href', '/stats');
@@ -1987,7 +1933,7 @@ function loadSiteShells() {
               navItem.style.display = (user && user.hasTeam) ? '' : 'none';
               if (user) a.setAttribute('href', target);
             } else if (target === '/stats') {
-              const canViewStats = Boolean(user && (user.canViewStats || String(user.email || '').toLowerCase() === 'evergreentechatrons.contact@gmail.com'));
+              const canViewStats = Boolean(user && user.canViewStats);
               navItem.style.display = canViewStats ? '' : 'none';
               if (canViewStats) a.setAttribute('href', target);
             } else if (target === '/my-applications' || target === '/join-form') {

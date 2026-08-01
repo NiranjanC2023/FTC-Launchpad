@@ -535,7 +535,7 @@
                 <% if (managedTeamOptions.length > 1) { %>
                     <form class="team-switcher" method="get" action="/manage-team">
                         <label class="sr-only" for="teamSelector">Select a team</label>
-                        <select id="teamSelector" name="team" class="form-control" onchange="this.form.submit()">
+                        <select id="teamSelector" name="team" class="form-control" data-auto-submit>
                             <% managedTeamOptions.forEach(function(option) { %>
                                 <option value="<%= option._id %>" <%= team && String(team._id) === String(option._id) ? 'selected' : '' %>><%= option.name %> - <%= option.isNewTeam ? 'New Team' : ('Team #' + option.teamNumber) %></option>
                             <% }); %>

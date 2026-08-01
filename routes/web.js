@@ -17,18 +17,14 @@ const crypto = require('crypto');
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
 
 function signIn(req, user) {
-    req.session.userId = user._id.toString();
-    if (typeof req.session.save !== 'function') {
-        return Promise.resolve();
-    }
-
     return new Promise((resolve, reject) => {
-        req.session.save((err) => {
-            if (err) {
-                reject(err);
-            } else {
+        req.session.regenerate((regenerateError) => {
+            if (regenerateError) return reject(regenerateError);
+            req.session.userId = user._id.toString();
+            req.session.save((saveError) => {
+                if (saveError) return reject(saveError);
                 resolve();
-            }
+            });
         });
     });
 }
@@ -497,22 +493,15 @@ function toNumber(value) {
     return Number.isFinite(number) ? number : null;
 }
 
-function privacyOffsetCoords(lat, lon, seedParts) {
-    const source = seedParts.filter(Boolean).join('|') || `${lat},${lon}`;
-    let hash = 0;
+function parsePositiveTeamNumber(value) {
+    const number = toNumber(value);
+    return Number.isInteger(number) && number > 0 ? number : null;
+}
 
-    for (let index = 0; index < source.length; index++) {
-        hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
-    }
-
-    const angle = (Math.abs(hash) % 360) * Math.PI / 180;
-    const distanceMeters = 250 + (Math.abs(hash >> 8) % 151);
-    const latOffset = distanceMeters * Math.cos(angle) / 111320;
-    const lonOffset = distanceMeters * Math.sin(angle) / (111320 * Math.cos(lat * Math.PI / 180));
-
+function publicAreaCoords(lat, lon) {
     return {
-        lat: lat + latOffset,
-        lon: lon + lonOffset
+        lat: Math.round(lat * 10) / 10,
+        lon: Math.round(lon * 10) / 10
     };
 }
 
@@ -543,16 +532,11 @@ var sortHistoryEntriesMostRecent = function(entries) {
 function mapTeam(team) {
     const location = team.city
         ? [team.city, team.state, team.country].filter(Boolean).join(', ')
-        : [team.address, team.state, team.country].filter(Boolean).join(', ');
+        : [team.state, team.country].filter(Boolean).join(', ');
     const lat = Number(team.lat);
     const lon = Number(team.lon);
     const displayCoords = Number.isFinite(lat) && Number.isFinite(lon)
-        ? privacyOffsetCoords(lat, lon, [
-            String(team._id || ''),
-            team.program,
-            String(team.teamNumber || ''),
-            team.name
-        ])
+        ? publicAreaCoords(lat, lon)
         : { lat: null, lon: null };
 
     return {
@@ -560,7 +544,6 @@ function mapTeam(team) {
         program: team.program || 'FTC',
         teamNumber: team.teamNumber,
         name: team.name,
-        contact: team.contact,
         lat: displayCoords.lat,
         lon: displayCoords.lon,
         isNewTeam: Boolean(team.isNewTeam),
@@ -572,7 +555,7 @@ function mapTeam(team) {
         advancementHistory: sortHistoryEntriesMostRecent(team.advancementHistory || []),
         recruiting: isRecruitingTeam(team),
         verified: team.verified,
-        radiusMeters: 1000,
+        radiusMeters: 10000,
         location
     };
 }
@@ -840,21 +823,50 @@ function formatTeamTenureLabel(team) {
 
 function normalizeTeamName(value) {
     return String(value || '')
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
         .replace(/&/g, ' and ')
         .replace(/[^a-z0-9]+/g, ' ')
         .replace(/\s+/g, ' ')
+        .replace(/^the\s+/, '')
         .trim();
+}
+
+const REGION_ALIASES = new Map(
+    ('AL:alabama,AK:alaska,AZ:arizona,AR:arkansas,CA:california,CO:colorado,CT:connecticut,DE:delaware,FL:florida,GA:georgia,HI:hawaii,ID:idaho,IL:illinois,IN:indiana,IA:iowa,KS:kansas,KY:kentucky,LA:louisiana,ME:maine,MD:maryland,MA:massachusetts,MI:michigan,MN:minnesota,MS:mississippi,MO:missouri,MT:montana,NE:nebraska,NV:nevada,NH:new hampshire,NJ:new jersey,NM:new mexico,NY:new york,NC:north carolina,ND:north dakota,OH:ohio,OK:oklahoma,OR:oregon,PA:pennsylvania,RI:rhode island,SC:south carolina,SD:south dakota,TN:tennessee,TX:texas,UT:utah,VT:vermont,VA:virginia,WA:washington,WV:west virginia,WI:wisconsin,WY:wyoming,DC:district of columbia,AB:alberta,BC:british columbia,MB:manitoba,NB:new brunswick,NL:newfoundland and labrador,NS:nova scotia,NT:northwest territories,NU:nunavut,ON:ontario,PE:prince edward island,QC:quebec,SK:saskatchewan,YT:yukon')
+        .split(',')
+        .flatMap((entry) => {
+            const [abbreviation, name] = entry.split(':');
+            return [[abbreviation.toLowerCase(), name], [name, name]];
+        })
+);
+
+function normalizeRegion(value) {
+    const normalized = normalizeTeamName(value);
+    return REGION_ALIASES.get(normalized) || normalized;
+}
+
+function normalizeCountry(value) {
+    const normalized = normalizeTeamName(value);
+    const aliases = {
+        us: 'united states',
+        usa: 'united states',
+        'united states of america': 'united states',
+        uk: 'united kingdom',
+        'great britain': 'united kingdom'
+    };
+    return aliases[normalized] || normalized;
 }
 
 function getTeamNameFromApiProfile(profile) {
     if (!profile) return '';
     return String(
-        profile.name
-        || profile.nickname
+        profile.nickname
+        || profile.team_nickname
+        || profile.name
         || profile.team_name
         || profile.teamName
-        || profile.team_nickname
         || profile.schoolName
         || ''
     ).trim();
@@ -1173,6 +1185,14 @@ async function enrichTeamWithApi(team) {
 
 async function verifyTeamWithApi(teamNumber, program, submittedName = '') {
     const normalizedProgram = normalizeProgram(program);
+    const normalizedTeamNumber = parsePositiveTeamNumber(teamNumber);
+    if (!normalizedTeamNumber) {
+        return {
+            ok: false,
+            configured: true,
+            error: 'Enter a valid team number greater than zero.'
+        };
+    }
     if (normalizedProgram === 'FRC' && !isConfiguredCredential(BLUE_ALLIANCE_AUTH_KEY)) {
         return {
             ok: false,
@@ -1181,23 +1201,24 @@ async function verifyTeamWithApi(teamNumber, program, submittedName = '') {
         };
     }
 
-    const details = await fetchTeamDetailsViaApi(normalizedProgram, teamNumber).catch(() => null);
+    if (normalizedProgram !== 'FTC' && normalizedProgram !== 'FRC') {
+        return {
+            ok: false,
+            configured: false,
+            error: `Automatic official-record verification is not available for ${PROGRAM_LABELS[normalizedProgram]}. Only verified FTC and FRC teams can register right now.`
+        };
+    }
+
+    const details = await fetchTeamDetailsViaApi(normalizedProgram, normalizedTeamNumber).catch(() => null);
     if (!details || !details.profile) {
         return {
             ok: false,
             configured: true,
-            error: `Team ${teamNumber} was not found in ${PROGRAM_LABELS[normalizedProgram]} on the selected team API.`
+            error: `Team ${normalizedTeamNumber} was not found in ${PROGRAM_LABELS[normalizedProgram]}. Check the program and team number, then try again.`
         };
     }
 
     const officialName = getTeamNameFromApiProfile(details.profile);
-    if (submittedName && officialName && !compareTeamNameToNumber(submittedName, officialName)) {
-        return {
-            ok: false,
-            configured: true,
-            error: `Team number ${teamNumber} belongs to "${officialName}", not "${String(submittedName || '').trim()}". Please use the matching team name before verifying.`
-        };
-    }
 
     return {
         ok: true,
@@ -1205,8 +1226,55 @@ async function verifyTeamWithApi(teamNumber, program, submittedName = '') {
         team: details.profile,
         program: normalizedProgram,
         officialName,
+        nameMatched: !submittedName || !officialName || compareTeamNameToNumber(submittedName, officialName),
+        details,
         source: normalizedProgram === 'FRC' ? 'Blue Alliance' : 'FTC Scout'
     };
+}
+
+function getTeamOrganizationFromApiProfile(profile) {
+    if (!profile) return '';
+    return String(
+        profile.schoolName
+        || profile.school_name
+        || profile.organization
+        || profile.orgName
+        || ''
+    ).trim();
+}
+
+function verifySubmittedTeamDetails(verification, submitted) {
+    const profile = verification && verification.details ? verification.details.profile : verification && verification.team;
+    const location = extractTeamLocation(verification && verification.details ? verification.details : profile);
+    const official = {
+        name: getTeamNameFromApiProfile(profile),
+        organization: getTeamOrganizationFromApiProfile(profile),
+        city: location.city,
+        state: location.state,
+        country: location.country
+    };
+    const provided = {
+        name: String(submitted && submitted.name || '').trim(),
+        organization: String(submitted && submitted.organization || '').trim(),
+        city: String(submitted && submitted.city || '').trim(),
+        state: String(submitted && submitted.state || '').trim(),
+        country: String(submitted && submitted.country || '').trim()
+    };
+    const mismatches = [];
+
+    if (!official.name || !compareTeamNameToNumber(provided.name, official.name)) mismatches.push('team name');
+    if (!official.organization || normalizeTeamName(provided.organization) !== normalizeTeamName(official.organization)) mismatches.push('school/organization');
+    if (!official.city || normalizeTeamName(provided.city) !== normalizeTeamName(official.city)) mismatches.push('city');
+    if (official.state && normalizeRegion(provided.state) !== normalizeRegion(official.state)) mismatches.push('state/province');
+    if (!official.country || normalizeCountry(provided.country) !== normalizeCountry(official.country)) mismatches.push('country');
+
+    return { ok: mismatches.length === 0, mismatches, official };
+}
+
+function buildTeamRegistrationAddress(values, city, state, country) {
+    const submittedAddress = String(values && values.address || '').trim();
+    if (submittedAddress) return submittedAddress;
+    return [city, state, country].map(value => String(value || '').trim()).filter(Boolean).join(', ');
 }
 
 function compareTeamNameToNumber(submittedName, officialName) {
@@ -1261,6 +1329,7 @@ router.get("/", function(req, res){
             const files = fs.readdirSync(dir)
                 .filter(f => /\.(png|jpe?g|webp|gif)$/i.test(f))
                 .filter(f => !/@2x\.[^.]+$/i.test(f))
+                .filter(f => !/\.w\d+\.webp$/i.test(f))
                 .filter(f => f !== '54352814752_6bf43c5dde_c.jpg')
                 .sort();
 
@@ -1280,9 +1349,15 @@ router.get("/", function(req, res){
                 const base = f.slice(0, -ext.length);
                 const hiRes = base + '@2x' + ext;
                 const hiResPath = path.join(dir, hiRes);
-                const src = '/assets/img/carousel/' + encodeURIComponent(f);
+                const src = '/assets/img/carousel/' + encodeURIComponent(f) + '?v=2';
                 let srcset = null;
-                if (fs.existsSync(hiResPath)) {
+                const responsiveSources = [480, 640, 768, 960, 1280]
+                    .map(width => ({ width, fileName: `${base}.w${width}.webp` }))
+                    .filter(item => fs.existsSync(path.join(dir, item.fileName)))
+                    .map(item => `/assets/img/carousel/${encodeURIComponent(item.fileName)}?v=2 ${item.width}w`);
+                if (responsiveSources.length) {
+                    srcset = responsiveSources.join(', ');
+                } else if (fs.existsSync(hiResPath)) {
                     const hi = '/assets/img/carousel/' + encodeURIComponent(hiRes);
                     srcset = `${src} 1x, ${hi} 2x`;
                 }
@@ -1296,7 +1371,7 @@ router.get("/", function(req, res){
     Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
         .sort({ updatedAt: -1, teamNumber: 1 })
         .limit(300)
-        .select('program teamNumber isNewTeam name city state country address notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified updatedAt')
+        .select('program teamNumber isNewTeam name city state country notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified updatedAt')
         .lean()
         .exec()
         .then((teams) => {
@@ -1310,7 +1385,7 @@ router.get("/", function(req, res){
                     program: team.program || 'FTC',
                     teamNumber: team.teamNumber,
                     name: team.name,
-                    location: [team.city, team.state, team.country].filter(Boolean).join(', ') || team.address || 'Location not listed',
+                    location: [team.city, team.state, team.country].filter(Boolean).join(', ') || 'Location not listed',
                     description: team.notes || (team.isNewTeam
                         ? 'A new team forming and looking for students nearby.'
                         : 'View this recruiting team and see what they are looking for in students.'),
@@ -1381,7 +1456,7 @@ router.get("/join-team", function(req, res){
     res.render("pages/join-team");
 });
 
-router.get("/join-form", async function(req, res){
+router.get("/join-form", ensureAuthenticated, async function(req, res){
     try {
         if (!isDatabaseConnected() || !req.session.userId) {
             return res.render("pages/join-form", { values: {} });
@@ -1630,7 +1705,7 @@ router.get("/teams-nearby", async function(req, res){
         const teams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
             .sort({ recruiting: -1, teamNumber: 1 })
             .limit(300)
-            .select('program teamNumber isNewTeam name contact city state country address lat lon notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified')
+            .select('program teamNumber isNewTeam name city state country lat lon notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified')
             .lean()
             .exec();
         const normalizedTeams = teams.map((team) => ({
@@ -1662,9 +1737,15 @@ router.get("/teams-nearby", async function(req, res){
     }
 });
 
-router.get('/team-register', requireAccountForTeamRegister, function(req, res) {
-    const registrationMode = req.query.mode === 'new' || req.query.registrationMode === 'new' ? 'new' : 'existing';
-    res.render('pages/team-register', { error: null, message: null, values: { registrationMode } });
+router.get('/team-register', requireAccountForTeamRegister, async function(req, res) {
+    const registrationMode = 'existing';
+    const user = await User.findById(req.session.userId).select('email').lean().exec().catch(() => null);
+    if (!user) return res.redirect('/login');
+    res.render('pages/team-register', {
+        error: null,
+        message: null,
+        values: { registrationMode, contact: normalizeEmail(user.email) }
+    });
 });
 
 router.post('/team-register', requireAccountForTeamRegister, async function(req, res) {
@@ -1675,11 +1756,46 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             return res.render('pages/team-register', { error: databaseErrorMessage(), message: null, values });
         }
 
+        const registrationUser = await User.findById(req.session.userId).select('email').lean().exec();
+        if (!registrationUser || !registrationUser.email) return res.redirect('/login');
+
         const program = normalizeProgram(values.program);
         const registrationMode = String(values.registrationMode || 'existing').toLowerCase() === 'new' ? 'new' : 'existing';
         const isNewTeam = registrationMode === 'new';
-        const contact = normalizeEmail(values.contact);
-        const teamNumber = isNewTeam ? null : toNumber(values.teamNumber);
+        const accountEmail = normalizeEmail(registrationUser.email);
+        const submittedContact = normalizeEmail(values.contact);
+        const contact = accountEmail;
+        values.contact = accountEmail;
+        const teamNumber = isNewTeam ? null : parsePositiveTeamNumber(values.teamNumber);
+
+        if (isNewTeam) {
+            values.registrationMode = 'existing';
+            return res.render('pages/team-register', {
+                error: 'Only teams with an official FIRST team record can register. Enter the official team number and matching organization and location details.',
+                message: null,
+                values
+            });
+        }
+
+        if (!submittedContact || submittedContact !== accountEmail) {
+            return res.render('pages/team-register', {
+                error: 'The team contact email must match the email on your signed-in manager account.',
+                message: null,
+                values
+            });
+        }
+
+        if (!values.name || !values.city || !values.country || (!isNewTeam && (!teamNumber || !values.organization))) {
+            return res.render('pages/team-register', {
+                error: !isNewTeam && !teamNumber
+                    ? 'Enter a valid team number greater than zero.'
+                    : isNewTeam
+                        ? 'Team name, city, country, and the signed-in contact email are required.'
+                        : 'Team number, team name, school/organization, city, country, and the signed-in contact email are required.',
+                message: null,
+                values
+            });
+        }
 
         let verification = { ok: true, team: null, source: 'Self-reported' };
         if (!isNewTeam) {
@@ -1687,10 +1803,21 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             if (!verification.ok) {
                 return res.render('pages/team-register', { error: verification.error, message: null, values });
             }
+            const detailVerification = verifySubmittedTeamDetails(verification, values);
+            if (!detailVerification.ok) {
+                const officialLocation = [detailVerification.official.city, detailVerification.official.state, detailVerification.official.country].filter(Boolean).join(', ');
+                return res.render('pages/team-register', {
+                    error: `The submitted ${detailVerification.mismatches.join(', ')} did not match the official team record. Official record: ${detailVerification.official.name || 'name unavailable'} — ${detailVerification.official.organization || 'organization unavailable'} — ${officialLocation || 'location unavailable'}.`,
+                    message: null,
+                    values
+                });
+            }
         }
 
         const official = verification.team;
-        const apiTeamDetails = !isNewTeam && shouldUseTeamApi(program, teamNumber) ? await fetchTeamDetailsViaApi(program, teamNumber).catch(() => null) : null;
+        const apiTeamDetails = !isNewTeam && shouldUseTeamApi(program, teamNumber)
+            ? (verification.details || await fetchTeamDetailsViaApi(program, teamNumber).catch(() => null))
+            : null;
         const apiLocation = !isNewTeam ? extractTeamLocation(apiTeamDetails || verification.team || verification) : {};
         const resolvedCity = isNewTeam ? String(values.city || '').trim() : String(apiLocation.city || values.city || '').trim();
         const resolvedState = isNewTeam ? String(values.state || '').trim() : String(apiLocation.state || values.state || '').trim();
@@ -1709,12 +1836,18 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
 
         const officialName = isNewTeam
             ? String(values.name || '').trim()
-            : (verification.officialName || extractTeamDisplayName(official) || official.team_nickname || official.team_name_calc || official.team_name || values.name);
+            : (verification.officialName
+                || extractTeamDisplayName(official)
+                || (official && (official.team_nickname || official.team_name_calc || official.team_name))
+                || values.name);
+        const officialOrganization = isNewTeam
+            ? String(values.organization || '').trim()
+            : getTeamOrganizationFromApiProfile(apiTeamDetails && apiTeamDetails.profile ? apiTeamDetails.profile : official);
         const recruiting = values.recruiting === 'on';
         const allowFllExtras = program === 'FLL Challenge' || program === 'FLL Explore';
         const canUseTeamApiAwards = program === 'FTC' || program === 'FRC' || allowFllExtras;
         const geocodeValues = {
-            ...values,
+            address: '',
             city: resolvedCity,
             state: resolvedState,
             country: resolvedCountry
@@ -1737,6 +1870,22 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             });
         }
 
+        const existingTeam = !isNewTeam
+            ? await Team.findOne({ teamNumber, program }).select('contact managers').lean().exec()
+            : null;
+        if (existingTeam) {
+            const ownsByEmail = normalizeEmail(existingTeam.contact) === accountEmail;
+            const ownsByManager = Array.isArray(existingTeam.managers)
+                && existingTeam.managers.some(managerId => String(managerId) === String(req.session.userId));
+            if (!ownsByEmail && !ownsByManager) {
+                return res.render('pages/team-register', {
+                    error: 'This official team is already registered. An existing team manager must invite you or transfer ownership.',
+                    message: null,
+                    values
+                });
+            }
+        }
+
         const teamFilter = isNewTeam
             ? { program, contact, name: officialName }
             : { teamNumber, program };
@@ -1746,13 +1895,14 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             ...(isNewTeam ? {} : { teamNumber }),
             isNewTeam,
             name: officialName,
+            organization: officialOrganization,
             contact,
-            address: values.address || values.city,
+            address: [resolvedCity, resolvedState, resolvedCountry].filter(Boolean).join(', '),
             city: resolvedCity,
             state: resolvedState,
             country: resolvedCountry || (isNewTeam ? 'USA' : ''),
-            lat: coords.lat,
-            lon: coords.lon,
+            lat: Math.round(coords.lat * 10) / 10,
+            lon: Math.round(coords.lon * 10) / 10,
             notes: values.notes,
             awards: canUseTeamApiAwards
                 ? (apiTeamDetails && apiTeamDetails.awards ? apiTeamDetails.awards : values.awards)
@@ -1802,7 +1952,7 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         });
     } catch (err) {
         console.error('Team registration failed:', err);
-        res.render('pages/team-register', { error: err.message, message: null, values });
+        res.render('pages/team-register', { error: 'Unable to verify and save the team right now.', message: null, values });
     }
 });
 
@@ -3264,6 +3414,7 @@ router.post('/signup', async function(req, res){
         const requiredFields = { name, normalizedEmail, password };
         const hasMissingRequiredField = Object.values(requiredFields).some(value => !String(value ?? '').trim());
         if (hasMissingRequiredField) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body, inviteToken: inviteToken || null, nextPath });
+        if (String(password).length < 8) return res.render(`pages/signup-${mode}`, { error: 'Password must be at least 8 characters.', values: req.body, inviteToken: inviteToken || null, nextPath });
 
         const trimmedAge = String(age || '').trim();
         const numericAge = trimmedAge ? Number(trimmedAge) : null;
@@ -3302,7 +3453,7 @@ router.post('/signup', async function(req, res){
     } catch (err) {
         console.error('Signup failed:', err);
         const renderMode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
-        res.render(`pages/signup-${renderMode}`, { error: err.message, values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
+        res.render(`pages/signup-${renderMode}`, { error: 'Unable to create the account right now.', values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
     }
 });
 
@@ -3690,8 +3841,8 @@ router.post('/login', async function(req, res){
         if (!user) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
         const ok = await user.validatePassword(password);
         if (!ok) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
-        applyRememberMe(req, remember);
         await signIn(req, user);
+        applyRememberMe(req, remember);
         const contactTeams = await attachContactTeamsToUser(user);
         if (contactTeams.length) {
             req.session.activeTeamId = String(contactTeams[0]._id);
@@ -3706,12 +3857,16 @@ router.post('/login', async function(req, res){
         if (contactTeams.length) return res.redirect('/my-team');
         res.redirect(await getPostLoginRedirect(user));
     } catch (err) {
-        res.render('pages/login', { error: err.message, notice: null, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null, nextPath: sanitizeNextPath(req.body && req.body.next, '') });
+        console.error('Login failed:', err);
+        res.render('pages/login', { error: 'Unable to sign in right now.', notice: null, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null, nextPath: sanitizeNextPath(req.body && req.body.next, '') });
     }
 });
 
 router.get('/logout', function(req, res){
-    req.session.destroy(() => res.redirect('/'));
+    req.session.destroy(() => {
+        res.clearCookie('firststart.sid');
+        res.redirect('/');
+    });
 });
 
 module.exports = router;
@@ -3719,5 +3874,13 @@ module.exports.__test = {
     compareTeamNameToNumber,
     attachContactTeamsToUser,
     getTeamNameFromApiProfile,
-    normalizeTeamName
+    getTeamOrganizationFromApiProfile,
+    normalizeTeamName,
+    normalizeRegion,
+    normalizeCountry,
+    parsePositiveTeamNumber,
+    buildTeamRegistrationAddress,
+    extractTeamLocation,
+    verifySubmittedTeamDetails,
+    verifyTeamWithApi
 };

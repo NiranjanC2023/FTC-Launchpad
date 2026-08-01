@@ -3,6 +3,10 @@
 // Dark mode removed: ensure no `data-theme` attribute remains
 document.documentElement.removeAttribute('data-theme');
 
+const firstStartTrustedTypesPolicy = window.trustedTypes
+  ? window.trustedTypes.createPolicy('first-start', { createHTML: (value) => value })
+  : { createHTML: (value) => value };
+
 function escapeHTML(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({
     '&': '&amp;',
@@ -130,33 +134,38 @@ function initPageAnimations() {
 
 const STUDENT_KEY = 'studentInfo_v1';
 
+// Remove applicant PII copied into browser storage by older releases.
+try {
+  sessionStorage.removeItem(STUDENT_KEY);
+  localStorage.removeItem(STUDENT_KEY);
+} catch (e) {}
+
 function initJoinForm() {
   const form = document.getElementById('joinForm');
   if (!form) return;
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const data = {
-      name: form.querySelector('#name').value.trim(),
-      age: form.querySelector('#age').value.trim(),
-      experience: form.querySelector('#experience').value.trim(),
-      email: form.querySelector('#email').value.trim(),
-      phone: form.querySelector('#phone').value.trim(),
-      interests: form.querySelector('#interests').value.trim(),
-      timestamp: new Date().toISOString()
-    };
-
-    // Save to database via API before redirecting
-    fetch('/api/signups', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    .then(() => {
-      sessionStorage.setItem(STUDENT_KEY, JSON.stringify(data));
+    try {
+      const response = await fetch('/api/signups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        redirectToAuthGate('/join-form', 'Join a Team');
+        return;
+      }
+      if (!response.ok) {
+        alert(payload.error || 'Unable to save your profile right now.');
+        return;
+      }
       window.location.href = '/teams-nearby';
-    })
-    .catch(err => console.error('Failed to save to database:', err));
+    } catch (err) {
+      console.error('Failed to save to database:', err);
+      alert('Unable to save your profile right now.');
+    }
   });
 }
 
@@ -211,6 +220,17 @@ function isTeamRecruiting(team) {
   return true;
 }
 
+function initDeclarativeActions() {
+  document.querySelectorAll('[data-copy-code]').forEach((button) => {
+    button.addEventListener('click', () => copyCode(button));
+  });
+  document.querySelectorAll('[data-auto-submit]').forEach((field) => {
+    field.addEventListener('change', () => {
+      if (field.form) field.form.requestSubmit();
+    });
+  });
+}
+
 // Signup page: toggle between seeker (join/make) and manager flows
 function initSignupForm() {
   const form = document.getElementById('signupForm');
@@ -254,6 +274,7 @@ function initSignupForm() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initDeclarativeActions();
   initPageAnimations();
   loadSharedFooter();
   loadSiteShells();
@@ -268,7 +289,7 @@ function loadSharedFooter() {
     .then(r => r.text())
     .then(html => {
       const footerTemplate = document.createElement('template');
-      footerTemplate.innerHTML = html.trim();
+      footerTemplate.innerHTML = firstStartTrustedTypesPolicy.createHTML(html.trim());
       const footer = footerTemplate.content.firstElementChild;
       if (footer) document.body.appendChild(footer);
       const yearEl = document.getElementById('site-year');
@@ -281,7 +302,7 @@ function loadSharedFooter() {
 // the fetch remains as a fallback for standalone/static documents.
 function loadSiteShells() {
   // Keep a local fallback for pages that are not rendered through Express.
-  if (!document.querySelector('link[href*="bootstrap.min.css"]')) {
+  if (!document.body.classList.contains('home-page') && !document.querySelector('link[href*="bootstrap.min.css"]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = '/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6';
@@ -296,10 +317,10 @@ function loadSiteShells() {
       .then(html => {
         const header = document.querySelector('header');
         if (header) {
-          header.innerHTML = html;
+          header.innerHTML = firstStartTrustedTypesPolicy.createHTML(html);
         } else {
           const h = document.createElement('div');
-          h.innerHTML = html;
+          h.innerHTML = firstStartTrustedTypesPolicy.createHTML(html);
           document.body.insertBefore(h, document.body.firstChild);
         }
       });
@@ -428,7 +449,7 @@ function loadSiteShells() {
             if (!inboxList || !inboxEmpty || !inboxTitle) return;
 
             if (!notifications.length) {
-              inboxList.innerHTML = '';
+              inboxList.replaceChildren();
               inboxEmpty.hidden = false;
               inboxTitle.textContent = 'Inbox';
               updateInboxControls();
@@ -437,7 +458,7 @@ function loadSiteShells() {
 
             inboxEmpty.hidden = true;
             inboxTitle.textContent = unreadCount > 0 ? 'New notifications' : 'Notifications';
-            inboxList.innerHTML = notifications.map((notification) => {
+            inboxList.innerHTML = firstStartTrustedTypesPolicy.createHTML(notifications.map((notification) => {
               const link = notification.link || '/account';
               const title = escapeHTML(notification.title || 'Notification');
               const body = escapeHTML(notification.body || '');
@@ -450,7 +471,7 @@ function loadSiteShells() {
                   ${meta ? `<span class="inbox-dropdown-item-meta">${escapeHTML(meta)}</span>` : ''}
                 </a>
               `;
-            }).join('');
+            }).join(''));
             updateInboxControls();
           }
 
@@ -472,7 +493,7 @@ function loadSiteShells() {
                 .join('') || 'U'
               : 'U';
             if (user.profilePicture) {
-              initialsEl.innerHTML = `<img src="${escapeHTML(user.profilePicture)}" alt="Profile picture">`;
+              initialsEl.innerHTML = firstStartTrustedTypesPolicy.createHTML(`<img src="${escapeHTML(user.profilePicture)}" alt="Profile picture">`);
             } else {
               initialsEl.textContent = initials;
             }
@@ -495,7 +516,7 @@ function loadSiteShells() {
               signOutLink.textContent = 'Sign Out';
             }
             if (statsLink) {
-              const canViewStats = Boolean(user.canViewStats || String(user.email || '').toLowerCase() === 'evergreentechatrons.contact@gmail.com');
+              const canViewStats = Boolean(user.canViewStats);
               statsLink.style.display = canViewStats ? '' : 'none';
               if (canViewStats) {
                 statsLink.setAttribute('href', '/stats');
@@ -613,7 +634,7 @@ function loadSiteShells() {
               navItem.style.display = (user && user.hasTeam) ? '' : 'none';
               if (user) a.setAttribute('href', target);
             } else if (target === '/stats') {
-              const canViewStats = Boolean(user && (user.canViewStats || String(user.email || '').toLowerCase() === 'evergreentechatrons.contact@gmail.com'));
+              const canViewStats = Boolean(user && user.canViewStats);
               navItem.style.display = canViewStats ? '' : 'none';
               if (canViewStats) a.setAttribute('href', target);
             } else if (target === '/my-applications' || target === '/join-form') {
