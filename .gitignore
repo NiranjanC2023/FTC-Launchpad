@@ -2,7 +2,3 @@
 node_modules/
 npm-debug.log*
 .cache/
-*.gz
-*.min.css
-*.min.js
-*.webp
