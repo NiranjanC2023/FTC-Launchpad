@@ -17,7 +17,7 @@
 
   <% if (typeof carouselImages !== 'undefined' && carouselImages.length) { %>
 
-  <link rel="preload" as="image" href="<%= carouselImages[0].src %>"<% if (carouselImages[0].srcset) { %> imagesrcset="<%= carouselImages[0].srcset %>"<% } %> fetchpriority="high">
+  <link rel="preload" as="image" href="<%= carouselImages[0].src %>"<% if (carouselImages[0].srcset) { %> imagesrcset="<%= carouselImages[0].srcset %>" imagesizes="(max-width: 1480px) 100vw, 50vw"<% } %> fetchpriority="high">
 
   <% } %>
 
@@ -187,7 +187,7 @@
 
                         <img
                           <% if (idx === 0) { %>src="<%= item.src %>"<% } else { %>data-carousel-src="<%= item.src %>"<% } %>
-                          <% if (item.srcset && idx === 0) { %>srcset="<%= item.srcset %>"<% } else if (item.srcset) { %>data-carousel-srcset="<%= item.srcset %>"<% } %>
+                          <% if (item.srcset && idx === 0) { %>srcset="<%= item.srcset %>" sizes="(max-width: 1480px) 100vw, 50vw"<% } else if (item.srcset) { %>data-carousel-srcset="<%= item.srcset %>"<% } %>
                           alt="Robotics team image <%= idx + 1 %>"
                           <%= idx === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy" fetchpriority="low"' %>
                           decoding="async">
@@ -260,7 +260,10 @@
 
         <div class="home-why-image">
 
-          <img src="/assets/img/why-join-first.png" alt="Students collaborating on an engineering project" loading="lazy" decoding="async">
+          <picture>
+            <source srcset="/assets/img/why-join-first.webp" type="image/webp">
+            <img src="/assets/img/why-join-first.png" alt="Students collaborating on an engineering project" loading="lazy" decoding="async">
+          </picture>
 
         </div>
 
@@ -424,17 +427,11 @@
 
           <% const teamAccentPalette = ['#0f766e', '#2563eb', '#7c3aed', '#be123c', '#c2410c', '#047857', '#4338ca', '#b45309', '#0e7490', '#a21caf', '#15803d', '#1d4ed8']; %>
           <% function getFeaturedTeamAccent(team, index) {
-            if (team && team.color) return team.color;
-            const source = String([team && team.name, team && (team.teamNumber || team.number), team && (team.program || team.league)].filter(Boolean).join('|') || index);
-            let hash = 0;
-            for (let i = 0; i < source.length; i += 1) {
-              hash = ((hash << 5) - hash) + source.charCodeAt(i);
-              hash |= 0;
-            }
-            return teamAccentPalette[Math.abs(hash) % teamAccentPalette.length];
+            return teamAccentPalette[index % teamAccentPalette.length];
           } %>
           <% featuredTeams.forEach(function(team, index){ %>
             <% const teamAccent = getFeaturedTeamAccent(team, index); %>
+            <% const displayTeamNumber = team.teamNumber || team.number; %>
 
             <article class="team-card" style="--team-accent: <%= teamAccent %>; --team-card-index: <%= index %>">
 
@@ -446,7 +443,7 @@
 
                   <div class="team-card-brand">
                     <div class="team-logo-badge" style="border-color: <%= teamAccent %>33; background-color: <%= teamAccent %>12; color: <%= teamAccent %>"><%= team.logo || team.name.split(/\s+/).slice(0,2).map(function(word){ return word.charAt(0); }).join('') %></div>
-                    <div class="team-number" style="border-color: <%= teamAccent %>33; background-color: <%= teamAccent %>15; color: <%= teamAccent %>">#<%= team.number %></div>
+                    <div class="team-number" style="border-color: <%= teamAccent %>33; background-color: <%= teamAccent %>15; color: <%= teamAccent %>"><%= displayTeamNumber ? '#' + displayTeamNumber : (team.isNewTeam ? 'New Team' : 'Team') %></div>
                   </div>
 
                   <span class="league-pill"><%= team.league %></span>

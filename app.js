@@ -3,6 +3,7 @@ require("dotenv").config();
 var express = require("express");
 var path = require("path");
 var fs = require("fs");
+var zlib = require("zlib");
 var mongoose = require("mongoose");
 var bodyParser = require("body-parser");
 var cookieParser = require("cookie-parser");
@@ -17,9 +18,20 @@ var setUpPassport = require("./setuppassport");
 
 var app = express();
 
-const MAIN_CSS_VERSION = "29";
-const MAIN_JS_VERSION = "38";
-const HOME_JS_VERSION = "11";
+const ASSETS_ROOT = path.join(__dirname, "assets");
+const GZIP_CONTENT_TYPES = {
+    ".css": "text/css; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".txt": "text/plain; charset=utf-8",
+    ".xml": "application/xml; charset=utf-8"
+};
+
+const MAIN_CSS_VERSION = "30";
+const MAIN_JS_VERSION = "40";
+const HOME_JS_VERSION = "12";
 const BOOTSTRAP_STYLESHEET = '<link rel="stylesheet" href="/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6">';
 const EXTERNAL_ASSET_REPLACEMENTS = [
     [
@@ -32,11 +44,11 @@ const EXTERNAL_ASSET_REPLACEMENTS = [
     ],
     [
         "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css",
-        "/assets/vendor/fontawesome/6.4.0/css/all.min.css?v=6.4.0"
+        "/assets/css/icons.min.css?v=1"
     ],
     [
         "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css",
-        "/assets/vendor/fontawesome/6.5.2/css/all.min.css?v=6.5.2"
+        "/assets/css/icons.min.css?v=1"
     ],
     [
         "https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.3/dist/css/splide.min.css",
@@ -64,6 +76,46 @@ function formatAwardHistoryDisplayEntry(entry) {
     });
 }
 
+function acceptsGzip(req) {
+    return req.acceptsEncodings("gzip") === "gzip";
+}
+
+function servePrecompressedAsset(req, res, next) {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    if (!acceptsGzip(req)) return next();
+
+    const extension = path.extname(req.path).toLowerCase();
+    const contentType = GZIP_CONTENT_TYPES[extension];
+    if (!contentType) return next();
+
+    let decodedPath;
+    try {
+        decodedPath = decodeURIComponent(req.path);
+    } catch (error) {
+        return next();
+    }
+
+    const assetPath = path.resolve(ASSETS_ROOT, "." + decodedPath);
+    const relativePath = path.relative(ASSETS_ROOT, assetPath);
+    if (relativePath.startsWith(".." + path.sep) || path.isAbsolute(relativePath)) return next();
+
+    const gzipPath = assetPath + ".gz";
+    fs.stat(gzipPath, function(error, stats) {
+        if (error || !stats.isFile()) return next();
+
+        res.set("Content-Encoding", "gzip");
+        res.set("Content-Type", contentType);
+        res.set("Vary", "Accept-Encoding");
+        res.sendFile(gzipPath, {
+            acceptRanges: false,
+            immutable: true,
+            maxAge: "1y"
+        }, function(sendError) {
+            if (sendError) next(sendError);
+        });
+    });
+}
+
 app.set("port", process.env.PORT || 3000);
 app.set("host", process.env.HOST || "0.0.0.0");
 app.set("view cache", process.env.NODE_ENV === "production");
@@ -72,7 +124,8 @@ app.disable("x-powered-by");
 app.use(compression());
 
 // Static files - serve FIRST before setting up routes/views
-app.use("/assets", express.static(path.join(__dirname, "assets"), {
+app.use("/assets", servePrecompressedAsset);
+app.use("/assets", express.static(ASSETS_ROOT, {
     maxAge: "1y",
     immutable: true,
     etag: true,
@@ -103,21 +156,25 @@ app.engine("ejs", function(filePath, data, callback) {
             html = html
                 .replace(/\s*<link[^>]+rel=["']preconnect["'][^>]+fonts\.googleapis\.com[^>]*>/gi, '')
                 .replace(/\s*<link[^>]+rel=["']preconnect["'][^>]+fonts\.gstatic\.com[^>]*>/gi, '')
-                .replace(/\/assets\/css\/main\.css(?:\?v=\d+)?/g, `/assets/css/main.css?v=${MAIN_CSS_VERSION}`)
-                .replace(/\/assets\/js\/main\.js(?:\?v=\d+)?/g, `/assets/js/main.js?v=${MAIN_JS_VERSION}`)
-                .replace(/\/assets\/js\/first-start\.js(?:\?v=\d+)?/g, `/assets/js/first-start.js?v=${HOME_JS_VERSION}`);
+                .replace(/\/assets\/css\/main\.css(?:\?v=\d+)?/g, `/assets/css/main.min.css?v=${MAIN_CSS_VERSION}`)
+                .replace(/\/assets\/js\/main\.js(?:\?v=\d+)?/g, `/assets/js/main.min.js?v=${MAIN_JS_VERSION}`)
+                .replace(/\/assets\/js\/first-start\.js(?:\?v=\d+)?/g, `/assets/js/first-start.min.js?v=${HOME_JS_VERSION}`);
+
+            html = html
+                .replace(/<link href="(\/assets\/vendor\/inter\/inter\.css\?v=20)" rel="stylesheet">/gi, '<link rel="preload" as="style" href="$1" onload="this.onload=null;this.rel=\'stylesheet\'"><noscript><link rel="stylesheet" href="$1"></noscript>')
+                .replace(/<link rel="stylesheet" href="(\/assets\/css\/icons\.min\.css\?v=1)">/gi, '<link rel="preload" as="style" href="$1" onload="this.onload=null;this.rel=\'stylesheet\'"><noscript><link rel="stylesheet" href="$1"></noscript>');
 
             const needsFullClientBundle = /\bhome-page\b/.test(html) || /\bid=["']teamsContainer["']/.test(html);
             if (!needsFullClientBundle) {
                 html = html.replace(
-                    /\/assets\/js\/main\.js(?:\?v=\d+)?/g,
-                    '/assets/js/site-shell.js?v=1'
+                    /\/assets\/js\/main(?:\.min)?\.js(?:\?v=\d+)?/g,
+                    '/assets/js/site-shell.min.js?v=1'
                 );
             }
 
             if (!html.includes('/assets/vendor/bootstrap/bootstrap.min.css')) {
                 html = html.replace(
-                    /(<link[^>]+href=["']\/assets\/css\/main\.css[^>]*>)/i,
+                    /(<link[^>]+href=["']\/assets\/css\/main(?:\.min)?\.css[^>]*>)/i,
                     `${BOOTSTRAP_STYLESHEET}\n$1`
                 );
             }

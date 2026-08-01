@@ -69,7 +69,7 @@
         }
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(6, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 16px;
             margin-bottom: 24px;
         }
@@ -202,6 +202,7 @@
         .stacked-bar .bar-users { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
         .stacked-bar .bar-teams { background: linear-gradient(90deg, #16a34a, #22c55e); }
         .stacked-bar .bar-students { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .stacked-bar .bar-traffic { background: linear-gradient(90deg, #0f766e, #14b8a6); }
         .breakdown-item {
             display: grid;
             gap: 8px;
@@ -327,7 +328,7 @@
             <div>
                 <p class="stats-eyebrow">Support only</p>
                 <h1>Website Stats</h1>
-                <p>Live analytics for users, teams, student activity, manager invites, and notifications across FTC Starter Hub.</p>
+                <p>Live analytics for users, teams, student activity, website traffic, manager invites, and notifications across FTC Starter Hub.</p>
                 <div class="stats-subtle">Signed in as <%= user && user.email ? user.email : 'unknown account' %></div>
             </div>
             <div>
@@ -341,10 +342,12 @@
 
         <% if (stats) { %>
             <% const maxMonthly = stats.monthlyRegistrations.reduce((max, item) => Math.max(max, item.total), 0) || 1; %>
+            <% const maxTrafficMonthly = stats.monthlyTraffic.reduce((max, item) => Math.max(max, item.count), 0) || 1; %>
             <% const maxLocation = stats.topLocations.reduce((max, item) => Math.max(max, item.count), 0) || 1; %>
+            <% const maxTrafficPages = stats.topTrafficPages.reduce((max, item) => Math.max(max, item.count), 0) || 1; %>
             <section class="stats-grid">
                 <% stats.summary.forEach((item, index) => { %>
-                    <% const icons = ['fa-users', 'fa-people-group', 'fa-user-graduate', 'fa-envelope-open-text', 'fa-circle-check', 'fa-bell']; %>
+                    <% const icons = ['fa-users', 'fa-people-group', 'fa-user-graduate', 'fa-envelope-open-text', 'fa-circle-check', 'fa-bell', 'fa-chart-line']; %>
                     <article class="metric-card">
                         <div class="metric-label">
                             <i class="fa-solid <%= icons[index] || 'fa-chart-simple' %>"></i>
@@ -401,6 +404,31 @@
                     <section class="stats-panel">
                         <div class="stats-panel-head">
                             <div>
+                                <h2>Website Traffic</h2>
+                                <p>Page visits captured across the site over the last 12 months.</p>
+                            </div>
+                        </div>
+                        <div class="stats-panel-body">
+                            <div class="stacked-list">
+                                <% stats.monthlyTraffic.forEach((item) => { %>
+                                    <% const width = Math.max(4, Math.round((item.count / maxTrafficMonthly) * 100)); %>
+                                    <div class="stacked-item">
+                                        <div class="stacked-item-head">
+                                            <strong><%= item.label %></strong>
+                                            <span><%= item.count %> visits</span>
+                                        </div>
+                                        <div class="stacked-bar" aria-label="<%= item.label %> website traffic">
+                                            <span class="bar-traffic" style="width: <%= item.count ? width : 0 %>%;"></span>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="stats-panel">
+                        <div class="stats-panel-head">
+                            <div>
                                 <h2>Top Team Locations</h2>
                                 <p>Where the registered teams on the site are concentrated.</p>
                             </div>
@@ -423,6 +451,35 @@
                                 </div>
                             <% } else { %>
                                 <p class="muted-empty">No team locations are available yet.</p>
+                            <% } %>
+                        </div>
+                    </section>
+
+                    <section class="stats-panel">
+                        <div class="stats-panel-head">
+                            <div>
+                                <h2>Top Pages</h2>
+                                <p>Most visited routes in the last 12 months.</p>
+                            </div>
+                        </div>
+                        <div class="stats-panel-body">
+                            <% if (stats.topTrafficPages.length) { %>
+                                <div class="bar-list">
+                                    <% stats.topTrafficPages.slice(0, 8).forEach((item) => { %>
+                                        <% const width = Math.max(8, Math.round((item.count / maxTrafficPages) * 100)); %>
+                                        <div class="breakdown-item">
+                                            <div class="breakdown-head">
+                                                <strong><%= item.label %></strong>
+                                                <span><%= item.count %></span>
+                                            </div>
+                                            <div class="bar-track">
+                                                <div class="bar-fill" style="width: <%= width %>%;"></div>
+                                            </div>
+                                        </div>
+                                    <% }) %>
+                                </div>
+                            <% } else { %>
+                                <p class="muted-empty">No traffic has been recorded yet.</p>
                             <% } %>
                         </div>
                     </section>

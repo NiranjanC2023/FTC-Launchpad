@@ -196,7 +196,20 @@ function initAuthGatedActions() {
   });
 }
 
-// A small list of sample teams (name, lat, lon, contact)
+function isTeamRecruiting(team) {
+  const value = team && typeof team === 'object' ? team.recruiting : undefined;
+  if (value === false || value === 0) return false;
+
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) return true;
+  if (['false', '0', 'off', 'no', 'n', 'inactive', 'not recruiting'].includes(normalized)) {
+    return false;
+  }
+
+  return true;
+}
+
+// A small list of sample teams retained for legacy integrations.
 const SAMPLE_TEAMS = [
   { name: 'Rookie Robotics', lat: 40.7128, lon: -74.0060, contact: 'rookierobotics@example.com' },
   { name: 'Northside FTC', lat: 40.730610, lon: -73.935242, contact: 'northsideftc@example.com' },
@@ -278,6 +291,19 @@ function createUserLocationMarker(map, userCoords, bounds) {
 function renderTeams(teams, userCoords) {
   const list = document.getElementById('teamsList');
   if (!list) return;
+
+  const hasUserCoords = userCoords
+    && Number.isFinite(Number(userCoords.lat))
+    && Number.isFinite(Number(userCoords.lon));
+  const orderedTeams = hasUserCoords
+    ? teams.slice().sort((left, right) => {
+      const leftDistance = haversineDistance(userCoords.lat, userCoords.lon, Number(left.lat), Number(left.lon));
+      const rightDistance = haversineDistance(userCoords.lat, userCoords.lon, Number(right.lat), Number(right.lon));
+      if (!Number.isFinite(leftDistance)) return 1;
+      if (!Number.isFinite(rightDistance)) return -1;
+      return leftDistance - rightDistance;
+    })
+    : teams;
 
   // clear list
   list.innerHTML = '';
@@ -418,19 +444,6 @@ function normalizeAdvancementLevel(level) {
     if (value.startsWith('world') || value.includes('first championship') || value.includes('firstchampionship') || value.includes('world championship')) return 'Worlds';
     if (value.includes('championship')) return 'Regional';
   return level;
-}
-
-function isTeamRecruiting(team) {
-  const value = team && typeof team === 'object' ? team.recruiting : undefined;
-  if (value === false || value === 0) return false;
-
-  const normalized = String(value ?? '').trim().toLowerCase();
-  if (!normalized) return true;
-  if (['false', '0', 'off', 'no', 'n', 'inactive', 'not recruiting'].includes(normalized)) {
-    return false;
-  }
-
-  return true;
 }
 
 function getTeamRecruitingLabel(team) {
@@ -748,8 +761,11 @@ function getTeamRecruitingLabel(team) {
     `;
   }
 
-  teams.forEach(team => {
-    const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
+  orderedTeams.forEach(team => {
+    const teamLat = Number(team.lat);
+    const teamLon = Number(team.lon);
+    const hasCoordinates = Number.isFinite(teamLat) && Number.isFinite(teamLon);
+    const dist = userCoords && hasCoordinates ? haversineDistance(userCoords.lat, userCoords.lon, teamLat, teamLon) : null;
     const teamName = String(team.name || 'Unnamed team');
     const programLabel = String(team.program || 'FTC');
     const isNewTeam = Boolean(team.isNewTeam);
@@ -964,8 +980,11 @@ function getTeamRecruitingLabel(team) {
       return;
     }
 
-    if (window._teamsMapInstance && window._teamsMapInstance.remove) {
-      window._teamsMapInstance.remove();
+    if (window._teamsMapInstance) {
+      // Stop any fitBounds transition before replacing the map after geolocation.
+      if (window._teamsMapInstance.stop) window._teamsMapInstance.stop();
+      if (window._teamsMapInstance.remove) window._teamsMapInstance.remove();
+      window._teamsMapInstance = null;
     }
 
     const map = L.map('teamsMap', {
@@ -1048,14 +1067,16 @@ function getTeamRecruitingLabel(team) {
     window._userLocationMarker = createUserLocationMarker(map, userCoords, bounds);
 
     teams.forEach(team => {
-      if (typeof team.lat !== 'number' || typeof team.lon !== 'number') return;
+      const teamLat = Number(team.lat);
+      const teamLon = Number(team.lon);
+      if (!Number.isFinite(teamLat) || !Number.isFinite(teamLon)) return;
       if (team.registered === false) return;
 
       const teamName = String(team.name || 'Unnamed team');
       const programLabel = String(team.program || 'FTC');
       const isNewTeam = Boolean(team.isNewTeam);
       const isRecruiting = isTeamRecruiting(team);
-      const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon) : null;
+      const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, teamLat, teamLon) : null;
       const distanceData = Number.isFinite(dist) ? formatDistance(dist, distanceUnitPreference) : null;
       const location = String(team.location || '').trim();
       const radiusMeters = Number(team.radiusMeters) || 1000;
@@ -1076,7 +1097,7 @@ function getTeamRecruitingLabel(team) {
         </div>
       `;
 
-      const marker = L.circle([team.lat, team.lon], {
+      const marker = L.circle([teamLat, teamLon], {
         radius: radiusMeters,
         color: isRecruiting ? '#0056b3' : '#4b5563',
         weight: 2,
@@ -1085,9 +1106,9 @@ function getTeamRecruitingLabel(team) {
         fillOpacity: isRecruiting ? 0.18 : 0.34,
         bubblingMouseEvents: false
       }).addTo(map);
-      const privacyBlurLayer = new PrivacyBlurCircle([team.lat, team.lon], radiusMeters).addTo(map);
+      const privacyBlurLayer = new PrivacyBlurCircle([teamLat, teamLon], radiusMeters).addTo(map);
       privacyBlurLayers.push(privacyBlurLayer);
-      const notifier = L.marker([team.lat, team.lon], {
+      const notifier = L.marker([teamLat, teamLon], {
         interactive: true,
         keyboard: true,
         title: `${teamName} is in this area`,
@@ -1147,11 +1168,11 @@ function getTeamRecruitingLabel(team) {
     });
 
     if (userCoords && typeof userCoords.lat === 'number' && typeof userCoords.lon === 'number') {
-      map.setView([userCoords.lat, userCoords.lon], 12);
+      map.setView([userCoords.lat, userCoords.lon], 12, { animate: false });
     } else if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [24, 24] });
+      map.fitBounds(bounds, { padding: [24, 24], animate: false });
     } else if (window._userLocationMarker && userCoords) {
-      map.setView([userCoords.lat, userCoords.lon], 13);
+      map.setView([userCoords.lat, userCoords.lon], 13, { animate: false });
     }
     // Add tiles only after the final initial viewport is known. This avoids
     // downloading one tile set for the default view and another for fitBounds.
@@ -1253,13 +1274,25 @@ function initTeamsPage() {
   const container = document.getElementById('teamsContainer');
   if (!container) return;
 
-  const teams = Array.isArray(window.__TEAMS__) && window.__TEAMS__.length > 0 ? window.__TEAMS__ : SAMPLE_TEAMS;
+  const teams = Array.isArray(window.__TEAMS__)
+    ? window.__TEAMS__.map(team => ({
+      ...team,
+      lat: Number(team.lat),
+      lon: Number(team.lon)
+    }))
+    : [];
   const coords = window.__USER_COORDS__ || null;
   const status = document.getElementById('teamsStatus');
   const zipForm = document.getElementById('zipLocationForm');
   const zipInput = document.getElementById('zipLocationInput');
   const zipMessage = document.getElementById('zipLocationMessage');
   const initialQuery = String(new URLSearchParams(window.location.search).get('q') || '').trim();
+  if (!teams.length) {
+    status.textContent = 'Team listings are temporarily unavailable. Please try again shortly.';
+    renderTeams([], null);
+    return;
+  }
+
   status.textContent = 'Loading teams…';
 
   if (zipInput && initialQuery) {
@@ -1374,18 +1407,7 @@ function initTeamsPage() {
   }
 }
 
-function hashStringToHue(input) {
-  const text = String(input || '');
-  let hash = 0;
-  for (let i = 0; i < text.length; i += 1) {
-    hash = ((hash << 5) - hash) + text.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash) % 360;
-}
-
-function getTeamAccent(team) {
-  if (team && team.color) return String(team.color);
+function getTeamAccent(team, index = 0) {
   const palette = [
     '#0f766e',
     '#2563eb',
@@ -1400,8 +1422,7 @@ function getTeamAccent(team) {
     '#15803d',
     '#1d4ed8'
   ];
-  const seed = [team && team.name, team && team.teamNumber, team && team.program].filter(Boolean).join('|');
-  return palette[hashStringToHue(seed) % palette.length];
+  return palette[index % palette.length];
 }
 
 function getHomeTeamTitle(team) {
@@ -1464,8 +1485,19 @@ function renderHomeFeaturedTeams(teams) {
   if (!grid || !Array.isArray(teams) || !teams.length) return;
 
   const distanceUnitPreference = getDistanceUnitPreference();
-  grid.innerHTML = teams.map((team) => {
-    const accent = getTeamAccent(team);
+  const orderedTeams = teams.slice().sort((left, right) => {
+    const leftDistance = Number(left && left.distance);
+    const rightDistance = Number(right && right.distance);
+    const leftHasDistance = Number.isFinite(leftDistance);
+    const rightHasDistance = Number.isFinite(rightDistance);
+    if (!leftHasDistance && !rightHasDistance) return 0;
+    if (!leftHasDistance) return 1;
+    if (!rightHasDistance) return -1;
+    return leftDistance - rightDistance;
+  });
+
+  grid.innerHTML = orderedTeams.map((team, index) => {
+    const accent = getTeamAccent(team, index);
     const location = [team.city, team.state, team.country].filter(Boolean).join(', ') || 'Location not listed';
     const distance = Number.isFinite(team.distance) ? formatDistance(team.distance, distanceUnitPreference).label : null;
     const numberLabel = getHomeTeamTitle(team);
@@ -1521,14 +1553,21 @@ function initHomeFeaturedTeams() {
       const response = await fetch('/api/teams', { credentials: 'same-origin' });
       if (!response.ok) return;
       const payload = await response.json();
-      const allTeams = Array.isArray(payload.teams) ? payload.teams : [];
+      const allTeams = Array.isArray(payload.teams)
+        ? payload.teams.map(team => ({
+          ...team,
+          lat: Number(team.lat),
+          lon: Number(team.lon)
+        }))
+        : [];
       const userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      const recruitingTeams = allTeams.filter(team => team && typeof team.lat === 'number' && typeof team.lon === 'number' && isTeamRecruiting(team));
+      const recruitingTeams = allTeams.filter(team => team && Number.isFinite(team.lat) && Number.isFinite(team.lon) && isTeamRecruiting(team));
       const nearestTeams = recruitingTeams
         .map(team => ({
           ...team,
           distance: haversineDistance(userCoords.lat, userCoords.lon, team.lat, team.lon)
         }))
+        .filter(team => Number.isFinite(team.distance))
         .sort((a, b) => a.distance - b.distance)
         .slice(0, 3);
 

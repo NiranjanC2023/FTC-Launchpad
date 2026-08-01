@@ -7,8 +7,10 @@ const ManagerInvite = require('../models/managerInvite');
 const Student = require('../models/student');
 const { createNotification, normalizeEmail } = require('../lib/notifications');
 const Notification = require('../models/notification');
+const SiteVisit = require('../models/siteVisit');
 const { DEFAULT_FROM, sendTransactionalEmail, buildTransactionalEmailTemplate } = require('../lib/email');
 const { isRecruitingTeam } = require('../lib/team-status');
+const { isDatabaseConnected, waitForDatabase } = require('../lib/database');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -167,10 +169,6 @@ function applyRememberMe(req, remember) {
     }
 }
 
-function isDatabaseConnected() {
-    return mongoose.connection.readyState === 1;
-}
-
 function ensureAuthenticated(req, res, next) {
     if (req.session.userId) {
         return next();
@@ -221,6 +219,26 @@ function anonymousAllowedPath(pathname) {
         || publicResourcePaths.has(path)
         || path === '/auth-gate';
 }
+
+router.use(function trackSiteTraffic(req, res, next) {
+    if (req.method !== 'GET') return next();
+    if (req.path.startsWith('/api/')) return next();
+    if (req.path.startsWith('/assets/')) return next();
+    if (req.path === '/favicon.ico') return next();
+    if (!isDatabaseConnected()) return next();
+
+    const pathName = String(req.originalUrl || req.path || '/').split('?')[0] || '/';
+    SiteVisit.create({
+        path: pathName,
+        userId: req.session && req.session.userId ? req.session.userId : undefined,
+        referrer: String(req.get('referer') || '').trim() || undefined,
+        userAgent: String(req.get('user-agent') || '').trim() || undefined
+    }).catch(err => {
+        console.error('Failed to record site visit:', err);
+    });
+
+    next();
+});
 
 router.use(function(req, res, next) {
     if (req.session && req.session.userId) return next();
@@ -280,6 +298,22 @@ function getMonthLabel(key) {
     if (!Number.isFinite(year) || !Number.isFinite(month)) return key;
     const date = new Date(Date.UTC(year, month - 1, 1));
     return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
+function formatTrafficPath(pathname) {
+    const value = String(pathname || '').trim() || '/';
+    if (value === '/') return 'Home';
+    if (value === '/stats') return 'Website Stats';
+    if (value === '/account') return 'Account';
+    if (value === '/manage-team') return 'Manage Team';
+    if (value.startsWith('/resources/')) {
+        return value
+            .replace('/resources/', 'Resource: ')
+            .replace(/-/g, ' ')
+            .replace(/\b\w/g, letter => letter.toUpperCase());
+    }
+
+    return value.replace(/^\//, '').replace(/-/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
 function buildMonthWindow(totalMonths = 12) {
@@ -510,12 +544,16 @@ function mapTeam(team) {
     const location = team.city
         ? [team.city, team.state, team.country].filter(Boolean).join(', ')
         : [team.address, team.state, team.country].filter(Boolean).join(', ');
-    const displayCoords = privacyOffsetCoords(team.lat, team.lon, [
-        String(team._id || ''),
-        team.program,
-        String(team.teamNumber || ''),
-        team.name
-    ]);
+    const lat = Number(team.lat);
+    const lon = Number(team.lon);
+    const displayCoords = Number.isFinite(lat) && Number.isFinite(lon)
+        ? privacyOffsetCoords(lat, lon, [
+            String(team._id || ''),
+            team.program,
+            String(team.teamNumber || ''),
+            team.name
+        ])
+        : { lat: null, lon: null };
 
     return {
         id: team._id,
@@ -1588,7 +1626,7 @@ router.get("/team-org", function(req, res){
 
 router.get("/teams-nearby", async function(req, res){
     try {
-        if (!isDatabaseConnected()) return res.render("pages/teams-nearby", { teams: [] });
+        if (!(await waitForDatabase())) return res.render("pages/teams-nearby", { teams: [], databaseUnavailable: true });
         const teams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
             .sort({ recruiting: -1, teamNumber: 1 })
             .limit(300)
@@ -1779,11 +1817,20 @@ router.get('/stats', ensureAuthenticated, async function(req, res) {
         if (!isStatsAccessUser(user)) return res.redirect('/');
 
         const monthWindow = buildMonthWindow(12);
-        const [allUsers, allTeams, allStudents, allInvites, recentNotifications, notificationCount, unreadNotificationCount] = await Promise.all([
+        const trafficWindowStart = new Date(Date.UTC(
+            new Date().getUTCFullYear(),
+            new Date().getUTCMonth() - 11,
+            1
+        ));
+        const trafficRecentWindowStart = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30);
+        const [allUsers, allTeams, allStudents, allInvites, allVisits, totalTrafficVisits, recentTrafficVisits, recentNotifications, notificationCount, unreadNotificationCount] = await Promise.all([
             User.find({}).select('createdAt').lean().exec(),
             Team.find({}).select('program teamNumber name city state country recruiting verified isNewTeam createdAt updatedAt').lean().exec(),
             Student.find({}).select('applicationStatus applicationTeam sentApplications createdAt updatedAt').lean().exec(),
             ManagerInvite.find({}).select('acceptedAt expiresAt createdAt').lean().exec(),
+            SiteVisit.find({ createdAt: { $gte: trafficWindowStart } }).select('path createdAt').lean().exec(),
+            SiteVisit.countDocuments({}).exec(),
+            SiteVisit.countDocuments({ createdAt: { $gte: trafficRecentWindowStart } }).exec(),
             Notification.find({}).select('type title body link metadata recipientEmail readAt createdAt').sort({ createdAt: -1 }).limit(12).lean().exec(),
             Notification.countDocuments({}).exec(),
             Notification.countDocuments({
@@ -1797,12 +1844,14 @@ router.get('/stats', ensureAuthenticated, async function(req, res) {
         const usersMonthly = bucketByMonth(allUsers, item => item.createdAt, monthWindow);
         const teamsMonthly = bucketByMonth(allTeams, item => item.createdAt, monthWindow);
         const studentsMonthly = bucketByMonth(allStudents, item => item.createdAt, monthWindow);
+        const trafficMonthly = bucketByMonth(allVisits, item => item.createdAt, monthWindow);
         const monthlyMap = new Map(monthWindow.map(month => [month.key, {
             key: month.key,
             label: month.label,
             users: 0,
             teams: 0,
             students: 0,
+            traffic: 0,
             total: 0
         }]));
 
@@ -1818,10 +1867,19 @@ router.get('/stats', ensureAuthenticated, async function(req, res) {
             const entry = monthlyMap.get(item.key);
             if (entry) entry.students = item.count;
         });
+        trafficMonthly.forEach((item) => {
+            const entry = monthlyMap.get(item.key);
+            if (entry) entry.traffic = item.count;
+        });
 
         const monthlyRegistrations = Array.from(monthlyMap.values()).map((entry) => ({
             ...entry,
             total: entry.users + entry.teams + entry.students
+        }));
+        const monthlyTraffic = Array.from(monthlyMap.values()).map((entry) => ({
+            key: entry.key,
+            label: entry.label,
+            count: entry.traffic
         }));
 
         const teamProgramBreakdown = buildBreakdown(allTeams, team => normalizeProgram(team.program), ['FTC', 'FRC', 'FLL Challenge', 'FLL Explore']);
@@ -1847,6 +1905,7 @@ router.get('/stats', ensureAuthenticated, async function(req, res) {
         }, ['Pending', 'Accepted', 'Expired']);
 
         const topLocations = buildTopLocations(allTeams, 8);
+        const topTrafficPages = buildBreakdown(allVisits, visit => formatTrafficPath(visit.path), ['Home', 'Website Stats', 'Account', 'Manage Team']);
         const totalSentApplications = allStudents.reduce((sum, student) => sum + (Array.isArray(student.sentApplications) ? student.sentApplications.length : 0), 0);
         const teamLookup = new Map(allTeams.map(team => [String(team._id), `${team.program || 'FTC'} ${team.teamNumber || ''} ${team.name || ''}`.replace(/\s+/g, ' ').trim()]));
         const studentLookup = new Map(allStudents.map(student => [String(student._id), String(student.name || student.email || 'Student').trim()]));
@@ -1913,9 +1972,11 @@ router.get('/stats', ensureAuthenticated, async function(req, res) {
                 { label: 'Student profiles', value: allStudents.length, note: `${totalSentApplications} total team applications` },
                 { label: 'Manager invites', value: allInvites.length, note: `${inviteStatusBreakdown.find(item => item.label === 'Pending')?.count || 0} pending invites` },
                 { label: 'Verified teams', value: teamVerificationBreakdown.find(item => item.label === 'Verified')?.count || 0, note: `${teamTypeBreakdown.find(item => item.label === 'Existing team')?.count || 0} existing teams` },
-                { label: 'Notifications', value: notificationCount, note: `${unreadNotificationCount} unread` }
+                { label: 'Notifications', value: notificationCount, note: `${unreadNotificationCount} unread` },
+                { label: 'Website traffic', value: totalTrafficVisits, note: `${recentTrafficVisits} visits in the last 30 days` }
             ],
             monthlyRegistrations,
+            monthlyTraffic,
             teamProgramBreakdown,
             teamVerificationBreakdown,
             teamTypeBreakdown,
@@ -1924,6 +1985,7 @@ router.get('/stats', ensureAuthenticated, async function(req, res) {
             applicationStatusBreakdown,
             inviteStatusBreakdown,
             topLocations,
+            topTrafficPages,
             activityFeed,
             notificationCount,
             unreadNotificationCount,

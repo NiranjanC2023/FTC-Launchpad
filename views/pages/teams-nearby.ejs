@@ -28,7 +28,7 @@
         <a href="/my-applications" class="btn btn-secondary">View My Applications</a>
       </div>
       <h1>Teams Near You</h1>
-      <p id="teamsStatus" class="subtitle">Looking for teams...</p>
+      <p id="teamsStatus" class="subtitle"><%= typeof databaseUnavailable !== 'undefined' && databaseUnavailable ? 'Team listings are temporarily unavailable. Please try again shortly.' : 'Looking for teams...' %></p>
       <p class="teams-map-legend"><span class="teams-map-legend-dot" aria-hidden="true"></span> Blue circles represent recruiting teams. Grey circles mean not recruiting.</p>
       <form id="zipLocationForm" class="zip-location-form" novalidate>
         <label for="zipLocationInput">Search by city, county, state, country, or ZIP</label>

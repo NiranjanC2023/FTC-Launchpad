@@ -7,6 +7,7 @@ const User = require('../models/user');
 const { createNotification, listNotifications, countUnreadNotifications, markNotificationsRead, clearNotifications, serializeNotification, normalizeEmail } = require('../lib/notifications');
 const { DEFAULT_FROM, buildTransactionalEmailTemplate, sendTransactionalEmail } = require('../lib/email');
 const { isRecruitingTeam } = require('../lib/team-status');
+const { isDatabaseConnected, waitForDatabase } = require('../lib/database');
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
 
 function publicUser(user) {
@@ -30,10 +31,6 @@ function signIn(req, user) {
 function applyRememberMe(req, remember) {
 	if (!req.session) return;
 	req.session.cookie.maxAge = remember ? 1000 * 60 * 60 * 24 * 30 : null;
-}
-
-function isDatabaseConnected() {
-	return mongoose.connection.readyState === 1;
 }
 
 function requireDatabase(res) {
@@ -127,6 +124,11 @@ router.get('/geocode-location', async function(req, res) {
 // List teams
 router.get('/teams', async function(req, res) {
 	try {
+		if (!isDatabaseConnected() && !(await waitForDatabase())) {
+			requireDatabase(res);
+			return;
+		}
+
 		const teams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
 			.sort({ createdAt: -1 })
 			.limit(200)

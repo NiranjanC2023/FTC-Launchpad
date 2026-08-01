@@ -48,11 +48,21 @@ document.addEventListener('DOMContentLoaded', function(){
       accessibility: true,
     });
 
+    const normalizeCarouselAccessibility = () => {
+      carouselRoot.querySelectorAll('.splide__slide').forEach((slide) => {
+        // Splide uses tabpanel for paginated slides, but these elements remain list items.
+        slide.removeAttribute('role');
+        slide.removeAttribute('aria-roledescription');
+      });
+    };
+
     carousel.on('mounted', () => {
+      normalizeCarouselAccessibility();
       hydrateSourceIndex(carousel.index);
       hydrateActiveSlide();
       queueNextSlide(carousel.index);
     });
+    carousel.on('updated', normalizeCarouselAccessibility);
     carousel.on('move', (newIndex) => {
       hydrateSourceIndex(newIndex);
       const activeSlide = carousel.Components.Slides.getAt(newIndex);
@@ -116,10 +126,8 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 
   revealItems.forEach(element => {
-    const rect = element.getBoundingClientRect();
-    const isPartlyInInitialViewport = rect.top < window.innerHeight && rect.bottom > 0;
-    if (element.id === 'fs-carousel-home' && isPartlyInInitialViewport) {
-      requestAnimationFrame(() => element.classList.add('is-visible'));
+    if (element.id === 'fs-carousel-home') {
+      element.classList.add('is-visible');
       return;
     }
     observer.observe(element);

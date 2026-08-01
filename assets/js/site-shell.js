@@ -198,6 +198,19 @@ function initAuthGatedActions() {
   });
 }
 
+function isTeamRecruiting(team) {
+  const value = team && typeof team === 'object' ? team.recruiting : undefined;
+  if (value === false || value === 0) return false;
+
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) return true;
+  if (['false', '0', 'off', 'no', 'n', 'inactive', 'not recruiting'].includes(normalized)) {
+    return false;
+  }
+
+  return true;
+}
+
 // Signup page: toggle between seeker (join/make) and manager flows
 function initSignupForm() {
   const form = document.getElementById('signupForm');

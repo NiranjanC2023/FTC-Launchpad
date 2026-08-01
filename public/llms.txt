@@ -1,0 +1,28 @@
+# FTC Launchpad
+
+> FTC Launchpad helps students discover robotics teams, helps teams recruit members, and provides practical FIRST Tech Challenge resources.
+
+## Main Pages
+
+- [Home](https://findfirst.org/): Overview of the platform and featured teams.
+- [Start a Team](https://findfirst.org/start-team): Step-by-step guidance for organizing a new robotics team.
+- [Join a Team](https://findfirst.org/join-team): Guidance for students looking to find and join a team.
+- [Nearby Teams](https://findfirst.org/teams-nearby): Search for teams by location and program.
+- [Resources](https://findfirst.org/resources): Programming, build, CAD, outreach, funding, and team organization resources.
+
+## Resource Guides
+
+- [Programming](https://findfirst.org/programming): Programming concepts and FTC software guidance.
+- [Advanced Programming](https://findfirst.org/advanced-programming): More advanced programming topics.
+- [FTC SDK](https://findfirst.org/sdk): FTC SDK setup and usage information.
+- [Assembly](https://findfirst.org/assembly): Robot assembly guidance.
+- [Drivetrain](https://findfirst.org/drivetrain): Drivetrain design guidance.
+- [Mechanical Parts](https://findfirst.org/mechanical-parts): Mechanical component guidance.
+- [Controller Setup](https://findfirst.org/controller-setup): Controller configuration guidance.
+- [Funding](https://findfirst.org/funding): Funding and sponsorship guidance.
+- [Outreach](https://findfirst.org/outreach): Community outreach guidance.
+- [Team Organization](https://findfirst.org/team-org): Team structure and organization guidance.
+
+## Usage Notes
+
+FTC Launchpad is an independent community resource and is not officially affiliated with FIRST or FTC. Use the official FIRST resources and current game manuals for authoritative rules and requirements.

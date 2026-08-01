@@ -16,17 +16,18 @@
   "type": "commonjs",
   "main": "app.js",
   "scripts": {
-    "build:client": "node scripts/build-site-shell.js",
+    "build:client": "node scripts/build-site-shell.js && node scripts/build-optimized-assets.js && node scripts/build-gzip-assets.js",
     "prestart": "npm run build:client",
     "start": "node app.js",
     "predev": "npm run build:client",
     "dev": "nodemon app.js",
     "pretest": "npm run build:client",
-    "test": "node --check app.js"
+    "test": "node --check app.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.3",
+    "clean-css": "^5.3.3",
     "compression": "^1.8.1",
     "connect-flash": "^0.1.1",
     "cookie-parser": "^1.4.7",
@@ -38,7 +39,9 @@
     "mongoose": "^8.10.1",
     "node.js": "^0.0.1-security",
     "passport": "^0.7.0",
-    "playwright-core": "^1.61.1"
+    "playwright-core": "^1.61.1",
+    "sharp": "^0.35.3",
+    "terser": "^5.49.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

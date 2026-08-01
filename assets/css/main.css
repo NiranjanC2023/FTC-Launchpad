@@ -373,6 +373,22 @@ header .navbar {
   min-height: 72px;
 }
 
+.navbar-brand-logo {
+  display: block;
+  height: 48px;
+  width: auto;
+  max-width: min(320px, 52vw);
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 420px) {
+  .navbar-brand-logo {
+    height: 40px;
+    max-width: min(240px, 60vw);
+  }
+}
+
 .navbar-tools {
   display: flex;
   align-items: center;
