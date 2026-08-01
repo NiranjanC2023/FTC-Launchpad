@@ -120,7 +120,7 @@ async function inspectForm(page, route, width, label) {
     assert(mobile.headingSize >= 36 && mobile.headingSize <= 56, 'mobile heading size is outside the intended range');
     assert.strictEqual(compact.headingAlign, 'left', 'compact hero heading should remain left aligned');
     assert.strictEqual(desktop.headingAlign, 'left', 'desktop hero heading should be left aligned');
-    assert(desktop.headerHeight <= 72, 'desktop header is taller than intended');
+    assert(desktop.headerHeight >= 84 && desktop.headerHeight <= 90, 'desktop header does not match the original height');
     assert(desktop.brandSize <= 24, 'desktop brand text is larger than intended');
     assert(desktop.navSize <= 18, 'desktop navigation text is larger than intended');
     assert.strictEqual(mobile.searchDirection, 'column', 'mobile search form should stack');

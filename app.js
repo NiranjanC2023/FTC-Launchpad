@@ -153,7 +153,7 @@ app.use(function setSecurityHeaders(req, res, next) {
         "X-Frame-Options": "DENY",
         "X-Content-Type-Options": "nosniff",
         "Referrer-Policy": "strict-origin-when-cross-origin",
-        "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=(self)"
     });
     next();
 });
@@ -191,6 +191,11 @@ app.use(express.static(path.join(__dirname, "public"), {
     lastModified: true
 }));
 
+app.get("/favicon.ico", function(req, res) {
+    res.set("Cache-Control", "public, max-age=604800");
+    res.type("png").sendFile(path.join(ASSETS_ROOT, "img", "first-start-logo.png"));
+});
+
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 app.locals.formatAwardHistoryDisplayEntry = formatAwardHistoryDisplayEntry;
@@ -203,6 +208,9 @@ app.engine("ejs", function(filePath, data, callback) {
         if (err) return callback(err);
 
         if (typeof html === 'string') {
+            if (/<\/head>/i.test(html) && !/<link[^>]+rel=["'][^"']*icon/i.test(html)) {
+                html = html.replace(/<\/head>/i, '  <link rel="icon" href="/assets/img/first-start-logo.png?v=1" type="image/png">\n  <link rel="apple-touch-icon" href="/assets/img/first-start-logo.png?v=1">\n</head>');
+            }
             if (data && data.cspNonce) {
                 html = html.replace(/<script(?![^>]*\bnonce=)([^>]*)>/gi, `<script nonce="${data.cspNonce}"$1>`);
             }

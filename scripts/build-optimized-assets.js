@@ -107,7 +107,7 @@ async function optimizeImages() {
     const maxWidth = /@2x\./i.test(sourcePath) ? 1920 : 1280;
     const quality = path.basename(sourcePath, extension) === 'why-join-first'
       ? 90
-      : (sourcePath.includes(`${path.sep}carousel${path.sep}`) ? 88 : 84);
+      : (sourcePath.includes(`${path.sep}carousel${path.sep}`) ? 100 : 84);
     const output = await sharp(sourcePath)
       .resize({ width: maxWidth, withoutEnlargement: true })
       .webp({ quality, effort: 5 })
@@ -115,14 +115,25 @@ async function optimizeImages() {
     fs.writeFileSync(outputPath, output);
 
     if (isResponsiveContent && !/@2x\./i.test(sourcePath)) {
-      const widths = [480, 640, 768, 960, 1280].filter((width) => !metadata.width || width <= metadata.width);
+      const widths = [480, 640, 768, 960, 1280, 1600, 1920].filter((width) => !metadata.width || width <= metadata.width);
       await Promise.all(widths.map(async (width) => {
-        const variant = await sharp(sourcePath)
+        const webpVariant = await sharp(sourcePath)
           .resize({ width, withoutEnlargement: true })
           .webp({ quality, effort: 5 })
           .toBuffer();
-        fs.writeFileSync(`${outputBase}.w${width}.webp`, variant);
+        const avifVariant = await sharp(sourcePath)
+          .resize({ width, withoutEnlargement: true })
+          .avif({ quality: sourcePath.includes(`${path.sep}carousel${path.sep}`) ? 100 : 68, effort: 5, chromaSubsampling: '4:4:4' })
+          .toBuffer();
+        fs.writeFileSync(`${outputBase}.w${width}.webp`, webpVariant);
+        fs.writeFileSync(`${outputBase}.w${width}.avif`, avifVariant);
       }));
+
+      const avifOutput = await sharp(sourcePath)
+        .resize({ width: maxWidth, withoutEnlargement: true })
+        .avif({ quality: sourcePath.includes(`${path.sep}carousel${path.sep}`) ? 100 : 68, effort: 5, chromaSubsampling: '4:4:4' })
+        .toBuffer();
+      fs.writeFileSync(`${outputBase}.avif`, avifOutput);
     }
   }));
 
@@ -134,7 +145,7 @@ async function optimizeImages() {
   await Promise.all(standaloneWebpFiles.map(async (sourcePath) => {
     const metadata = await sharp(sourcePath).metadata();
     const outputBase = sourcePath.slice(0, -path.extname(sourcePath).length);
-    const widths = [480, 640, 768, 960, 1280].filter((width) => metadata.width && width < metadata.width);
+    const widths = [480, 640, 768, 960, 1280, 1600, 1920].filter((width) => metadata.width && width < metadata.width);
     await Promise.all(widths.map(async (width) => {
       const outputPath = `${outputBase}.w${width}.webp`;
       if (fs.existsSync(outputPath)) return;
@@ -142,6 +153,10 @@ async function optimizeImages() {
         .resize({ width, withoutEnlargement: true })
         .webp({ quality: 88, effort: 5 })
         .toFile(outputPath);
+      await sharp(sourcePath)
+        .resize({ width, withoutEnlargement: true })
+        .avif({ quality: 100, effort: 5, chromaSubsampling: '4:4:4' })
+        .toFile(`${outputBase}.w${width}.avif`);
     }));
   }));
 

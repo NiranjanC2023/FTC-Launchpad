@@ -1320,9 +1320,10 @@ function resolveBestCarouselImageFile(dir, fileName) {
 }
 
 // Home page
-router.get("/", function(req, res){
+router.get("/", async function(req, res){
     let carouselImages = [];
     let featuredTeams = [];
+    let recruitingTeams = [];
     try {
         const dir = path.join(__dirname, '..', 'assets', 'img', 'carousel');
         if (fs.existsSync(dir)) {
@@ -1351,7 +1352,8 @@ router.get("/", function(req, res){
                 const hiResPath = path.join(dir, hiRes);
                 const src = '/assets/img/carousel/' + encodeURIComponent(f) + '?v=2';
                 let srcset = null;
-                const responsiveSources = [480, 640, 768, 960, 1280]
+                let avifSrcset = null;
+                const responsiveSources = [480, 640, 768, 960, 1280, 1600, 1920]
                     .map(width => ({ width, fileName: `${base}.w${width}.webp` }))
                     .filter(item => fs.existsSync(path.join(dir, item.fileName)))
                     .map(item => `/assets/img/carousel/${encodeURIComponent(item.fileName)}?v=2 ${item.width}w`);
@@ -1361,30 +1363,41 @@ router.get("/", function(req, res){
                     const hi = '/assets/img/carousel/' + encodeURIComponent(hiRes);
                     srcset = `${src} 1x, ${hi} 2x`;
                 }
-                return { src, srcset };
+                const responsiveAvifSources = [480, 640, 768, 960, 1280, 1600, 1920]
+                    .map(width => ({ width, fileName: `${base}.w${width}.avif` }))
+                    .filter(item => fs.existsSync(path.join(dir, item.fileName)))
+                    .map(item => `/assets/img/carousel/${encodeURIComponent(item.fileName)}?v=3 ${item.width}w`);
+                if (responsiveAvifSources.length) {
+                    avifSrcset = responsiveAvifSources.join(', ');
+                }
+                return { src, srcset, avifSrcset };
             });
         }
     } catch (e) {
         carouselImages = [];
     }
 
-    Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
-        .sort({ updatedAt: -1, teamNumber: 1 })
-        .limit(300)
-        .select('program teamNumber isNewTeam name city state country notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified updatedAt')
-        .lean()
-        .exec()
-        .then((teams) => {
-            featuredTeams = (Array.isArray(teams) ? teams : [])
+    try {
+        const teams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
+            .sort({ updatedAt: -1, teamNumber: 1 })
+            .limit(300)
+            .select('program teamNumber isNewTeam name city state country lat lon notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified updatedAt')
+            .lean()
+            .exec();
+
+        recruitingTeams = (Array.isArray(teams) ? teams : [])
                 .map((team) => ({
                     ...team,
                     recruiting: isRecruitingTeam(team)
                 }))
                 .filter((team) => isRecruitingTeam(team))
                 .map((team) => ({
+                    id: String(team._id),
                     program: team.program || 'FTC',
+                    league: team.program || 'FTC',
                     teamNumber: team.teamNumber,
                     name: team.name,
+                    ...publicAreaCoords(Number(team.lat), Number(team.lon)),
                     location: [team.city, team.state, team.country].filter(Boolean).join(', ') || 'Location not listed',
                     description: team.notes || (team.isNewTeam
                         ? 'A new team forming and looking for students nearby.'
@@ -1398,15 +1411,18 @@ router.get("/", function(req, res){
                     recruiting: isRecruitingTeam(team),
                     verified: team.verified,
                     isNewTeam: Boolean(team.isNewTeam)
-                }))
-                .slice(0, 3);
-        })
-        .catch(() => {
-            featuredTeams = [];
-        })
-        .finally(() => {
-            res.render("index", { carouselImages: carouselImages, homeFeaturedTeams: featuredTeams });
-        });
+                }));
+        featuredTeams = recruitingTeams.slice(0, 3);
+    } catch (error) {
+        featuredTeams = [];
+        recruitingTeams = [];
+    }
+
+    res.render("index", {
+        carouselImages,
+        homeFeaturedTeams: featuredTeams,
+        homeRecruitingTeams: recruitingTeams
+    });
 });
 
 

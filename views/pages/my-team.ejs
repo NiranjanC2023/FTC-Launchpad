@@ -162,6 +162,7 @@
                             <span class="meta-pill"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> <%= [team.city, team.state].filter(Boolean).join(', ') || team.country || 'Location not listed' %></span>
                             <span class="meta-pill"><i class="fa-solid fa-users" aria-hidden="true"></i> <%= team.recruiting ? 'Recruiting' : 'Not recruiting' %></span>
                             <span class="meta-pill"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i> <%= currentTeamTenureLabel || 'Tenure not available' %></span>
+                            <span class="meta-pill"><i class="fa-solid fa-envelope" aria-hidden="true"></i> <%= team.contact || 'Contact not set' %></span>
                         </div>
                     <% } %>
                 </div>
@@ -198,7 +199,7 @@
                 </div>
                 <hr class="my-4">
                 <p><strong>Location:</strong> <%= team.city %>, <%= team.state %>, <%= team.country %></p>
-                <p><strong>Contact Info:</strong> <%= team.contact %></p>
+                <p><strong>Contact Info:</strong> <%= team.contact || 'Contact not set' %></p>
                 <p><strong>Years in Program:</strong> <%= team.yearsInProgram || 'Not listed yet.' %></p>
                 <p><strong>FTC Region:</strong> <%= team.competitionRegionLabel || 'Region not available.' %></p>
                 <p><strong>Awards:</strong> <%= team.awards || 'No awards listed.' %></p>

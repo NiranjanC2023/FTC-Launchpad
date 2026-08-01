@@ -13,12 +13,13 @@
   <meta name="description" content="Connects robotics teams with students seeking to join, fostering collaboration and innovation in robotics education and community engagement." />
 
   <meta name="robots" content="index, follow" />
-  <link rel="icon" href="/assets/img/first-logo.svg" type="image/svg+xml">
+  <link rel="icon" href="/assets/img/first-start-logo.png?v=1" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/img/first-start-logo.png?v=1">
 
 
   <% if (typeof carouselImages !== 'undefined' && carouselImages.length) { %>
 
-  <link rel="preload" as="image" href="<%= carouselImages[0].src %>"<% if (carouselImages[0].srcset) { %> imagesrcset="<%= carouselImages[0].srcset %>" imagesizes="(max-width: 700px) calc(100vw - 24px), (max-width: 1080px) calc(100vw - 48px), (max-width: 1800px) 52vw, 1020px"<% } %> fetchpriority="high">
+  <link rel="preload" as="image" href="<%= carouselImages[0].src %>"<% if (carouselImages[0].avifSrcset) { %> type="image/avif" imagesrcset="<%= carouselImages[0].avifSrcset %>"<% } else if (carouselImages[0].srcset) { %> imagesrcset="<%= carouselImages[0].srcset %>"<% } %> imagesizes="(max-width: 700px) calc(100vw - 24px), (max-width: 1080px) calc(100vw - 48px), (max-width: 1800px) 52vw, 1020px" fetchpriority="high">
 
   <% } %>
 
@@ -32,9 +33,22 @@
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 
-  <link rel="stylesheet" href="/assets/css/main.css?v=18">
+  <link rel="stylesheet" href="/assets/css/main.css?v=19">
 
-  <link rel="stylesheet" href="/assets/css/first-start.css?v=32">
+  <link rel="stylesheet" href="/assets/css/first-start.css?v=33">
+
+  <style>
+    .home-page header,
+    .home-page header .navbar,
+    .home-page header .navbar-default {
+      text-align: left !important;
+    }
+
+    .home-page .navbar-header .navbar-brand {
+      justify-content: flex-start !important;
+      margin-right: 0 !important;
+    }
+  </style>
 
 </head>
 
@@ -184,12 +198,16 @@
 
                       <li class="splide__slide">
 
-                        <img
-                          <% if (idx === 0) { %>src="<%= item.src %>"<% } else { %>data-carousel-src="<%= item.src %>"<% } %>
-                          <% if (item.srcset && idx === 0) { %>srcset="<%= item.srcset %>" sizes="(max-width: 700px) calc(100vw - 24px), (max-width: 1080px) calc(100vw - 48px), (max-width: 1800px) 52vw, 1020px"<% } else if (item.srcset) { %>data-carousel-srcset="<%= item.srcset %>" sizes="(max-width: 700px) calc(100vw - 24px), (max-width: 1080px) calc(100vw - 48px), (max-width: 1800px) 52vw, 1020px"<% } %>
-                          alt="Robotics team image <%= idx + 1 %>"
-                          <% if (idx === 0) { %>loading="eager" fetchpriority="high"<% } else { %>loading="lazy" fetchpriority="low"<% } %>
-                          decoding="async">
+                        <picture>
+                          <% if (item.avifSrcset) { %><source type="image/avif" <% if (idx === 0) { %>srcset="<%= item.avifSrcset %>"<% } else { %>data-carousel-srcset="<%= item.avifSrcset %>"<% } %> sizes="(max-width: 700px) calc(100vw - 24px), (max-width: 1080px) calc(100vw - 48px), (max-width: 1800px) 52vw, 1020px"><% } %>
+                          <img
+                            <% if (idx === 0) { %>src="<%= item.src %>"<% } else { %>data-carousel-src="<%= item.src %>"<% } %>
+                            <% if (item.srcset && idx === 0) { %>srcset="<%= item.srcset %>" sizes="(max-width: 700px) calc(100vw - 24px), (max-width: 1080px) calc(100vw - 48px), (max-width: 1800px) 52vw, 1020px"<% } else if (item.srcset) { %>data-carousel-srcset="<%= item.srcset %>" sizes="(max-width: 700px) calc(100vw - 24px), (max-width: 1080px) calc(100vw - 48px), (max-width: 1800px) 52vw, 1020px"<% } %>
+                            alt="Robotics team image <%= idx + 1 %>"
+                            width="1280" height="720"
+                            <% if (idx === 0) { %>loading="eager" fetchpriority="high"<% } else { %>loading="lazy" fetchpriority="low"<% } %>
+                            decoding="async">
+                        </picture>
 
                       </li>
 
@@ -211,8 +229,8 @@
 
               </div>
 
-              <button class="home-carousel-arrow home-carousel-arrow-prev" type="button" aria-label="Previous image">&#8249;</button>
-              <button class="home-carousel-arrow home-carousel-arrow-next" type="button" aria-label="Next image">&#8250;</button>
+              <button class="home-carousel-arrow home-carousel-arrow-prev" type="button" aria-label="Previous image"></button>
+              <button class="home-carousel-arrow home-carousel-arrow-next" type="button" aria-label="Next image"></button>
               <div class="home-carousel-pagination" aria-label="Choose carousel image"></div>
 
             </div>
@@ -264,6 +282,7 @@
         <div class="home-why-image">
 
           <picture>
+            <source srcset="/assets/img/why-join-first.w480.avif?v=4 480w, /assets/img/why-join-first.avif?v=4 533w" sizes="(max-width: 820px) calc(100vw - 32px), 533px" type="image/avif">
             <source srcset="/assets/img/why-join-first.w480.webp?v=3 480w, /assets/img/why-join-first.webp?v=3 533w" sizes="(max-width: 820px) calc(100vw - 32px), 533px" type="image/webp">
             <img src="/assets/img/why-join-first.png" alt="Students collaborating on an engineering project" loading="lazy" decoding="async" width="533" height="799">
           </picture>
@@ -414,6 +433,7 @@
             <p class="section-kicker">Featured Teams</p>
 
             <h2>Teams actively recruiting</h2>
+            <p class="section-subtext" id="homeProximityStatus" aria-live="polite">Finding recruiting teams nearest to you&hellip;</p>
 
 
           </div>
@@ -540,9 +560,11 @@
 
 
 
+  <script id="homeRecruitingTeamsData" type="application/json" nonce="<%= cspNonce %>"><%- JSON.stringify(typeof homeRecruitingTeams !== 'undefined' ? homeRecruitingTeams : []).replace(/</g, '\\u003c') %></script>
+
   <script src="/assets/js/main.js?v=37"></script>
 
-  <script src="/assets/js/first-start.js?v=9"></script>
+  <script src="/assets/js/first-start.js?v=10"></script>
 
 </body>
 

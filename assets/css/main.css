@@ -341,8 +341,8 @@ header .navbar {
 .navbar .container {
   width: 100% !important;
   max-width: none !important;
-  min-height: 64px;
-  padding: 0 40px;
+  min-height: 86px;
+  padding: 0 48px;
   margin: 0 !important;
   display: flex;
   align-items: center;
@@ -371,7 +371,7 @@ header .navbar {
   text-transform: none;
   display: flex;
   align-items: center;
-  min-height: 64px;
+  min-height: 86px;
 }
 
 .navbar-brand-logo {
@@ -532,10 +532,6 @@ html[data-auth-state="anonymous"] .nav-user-controls {
   .navbar .container {
     padding-left: 24px;
     padding-right: 24px;
-  }
-
-  .creator-badge {
-    display: none;
   }
 }
 

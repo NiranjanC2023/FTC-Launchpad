@@ -793,7 +793,6 @@ function getTeamRecruitingLabel(team) {
     const teamNumber = isNewTeam
       ? 'New Team'
       : (team.teamNumber ? `${programLabel} ${team.teamNumber}` : `${programLabel} team`);
-    const contact = 'Apply securely through FIRST Start';
     const location = String(team.location || '').trim();
     const regionLabel = String(team.competitionRegionLabel || team.regionLabel || '').trim();
     const notes = String(team.notes || '').trim();
@@ -823,7 +822,7 @@ function getTeamRecruitingLabel(team) {
     card.dataset.advancementLevels = advancementLevels.join('|');
     card.dataset.regionLabel = regionLabel;
     card.dataset.distanceKm = Number.isFinite(dist) ? String(dist) : '';
-    card.dataset.search = `${teamName} ${teamNumber} ${contact} ${location} ${regionLabel} ${notes} ${awards} ${awardHistory.join(' ')} ${advancementLevels.join(' ')} ${advancementHistory.join(' ')}`.toLowerCase();
+    card.dataset.search = `${teamName} ${teamNumber} ${location} ${regionLabel} ${notes} ${awards} ${awardHistory.join(' ')} ${advancementLevels.join(' ')} ${advancementHistory.join(' ')}`.toLowerCase();
     card.innerHTML = firstStartTrustedTypesPolicy.createHTML(`
       <div class="team-card-head">
         <div class="team-card-heading">
@@ -837,7 +836,7 @@ function getTeamRecruitingLabel(team) {
         </div>
       </div>
       <div class="team-details-content" style="margin-top: 12px; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 260ms ease, opacity 200ms ease;">
-        <p class="team-card-contact">${escapeHTML(contact)}</p>
+        <p class="team-card-contact">Apply securely through FIRST Start.</p>
         ${(location || regionLabel) ? `<p class="team-card-meta">${escapeHTML([location, regionLabel].filter(Boolean).join(' · '))}</p>` : ''}
         ${scoutingUrl ? `
           <p class="team-card-source">
