@@ -78,11 +78,27 @@ async function minifyScripts() {
 }
 
 async function optimizeImages() {
-  const imageFiles = walk(path.join(assetRoot, 'img')).filter((filePath) => {
+  const imageCandidates = walk(path.join(assetRoot, 'img')).filter((filePath) => {
     return /\.(jpe?g|png)$/i.test(filePath);
   });
 
-  await Promise.all(imageFiles.map(async (sourcePath) => {
+  // Some assets exist as both JPG and PNG. Choose the highest-resolution
+  // original once so parallel jobs never race to overwrite the same WebP.
+  const sourceDetails = await Promise.all(imageCandidates.map(async sourcePath => ({
+    sourcePath,
+    metadata: await sharp(sourcePath).metadata()
+  })));
+  const bestSourceByBase = new Map();
+  sourceDetails.forEach(detail => {
+    const extension = path.extname(detail.sourcePath);
+    const outputBase = detail.sourcePath.slice(0, -extension.length);
+    const area = Number(detail.metadata.width || 0) * Number(detail.metadata.height || 0);
+    const current = bestSourceByBase.get(outputBase);
+    if (!current || area > current.area) bestSourceByBase.set(outputBase, { ...detail, area });
+  });
+  const imageFiles = Array.from(bestSourceByBase.values());
+
+  await Promise.all(imageFiles.map(async ({ sourcePath, metadata }) => {
     const extension = path.extname(sourcePath);
     const outputBase = sourcePath.slice(0, -extension.length);
     const outputPath = outputBase + '.webp';
@@ -90,8 +106,8 @@ async function optimizeImages() {
       || path.basename(sourcePath, extension) === 'why-join-first';
     const maxWidth = /@2x\./i.test(sourcePath) ? 1920 : 1280;
     const quality = path.basename(sourcePath, extension) === 'why-join-first'
-      ? 36
-      : (sourcePath.includes(`${path.sep}carousel${path.sep}`) ? 38 : 72);
+      ? 90
+      : (sourcePath.includes(`${path.sep}carousel${path.sep}`) ? 88 : 84);
     const output = await sharp(sourcePath)
       .resize({ width: maxWidth, withoutEnlargement: true })
       .webp({ quality, effort: 5 })
@@ -99,7 +115,6 @@ async function optimizeImages() {
     fs.writeFileSync(outputPath, output);
 
     if (isResponsiveContent && !/@2x\./i.test(sourcePath)) {
-      const metadata = await sharp(sourcePath).metadata();
       const widths = [480, 640, 768, 960, 1280].filter((width) => !metadata.width || width <= metadata.width);
       await Promise.all(widths.map(async (width) => {
         const variant = await sharp(sourcePath)
@@ -107,8 +122,11 @@ async function optimizeImages() {
           .webp({ quality, effort: 5 })
           .toBuffer();
         fs.writeFileSync(`${outputBase}.w${width}.webp`, variant);
+      }));
+    }
   }));
 
+  // Generate variants for any WebP-only carousel assets.
   const carouselRoot = path.join(assetRoot, 'img', 'carousel');
   const standaloneWebpFiles = walk(carouselRoot).filter((filePath) => {
     return /\.webp$/i.test(filePath) && !/\.w\d+\.webp$/i.test(filePath) && !/@2x\.webp$/i.test(filePath);
@@ -122,11 +140,9 @@ async function optimizeImages() {
       if (fs.existsSync(outputPath)) return;
       await sharp(sourcePath)
         .resize({ width, withoutEnlargement: true })
-        .webp({ quality: 38, effort: 5 })
+        .webp({ quality: 88, effort: 5 })
         .toFile(outputPath);
     }));
-  }));
-}
   }));
 
   return imageFiles.length;

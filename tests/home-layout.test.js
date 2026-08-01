@@ -33,6 +33,8 @@ async function inspect(page, width, height, label) {
     const header = document.querySelector('header');
     const brand = document.querySelector('.navbar-brand');
     const navLink = document.querySelector('.navbar-nav > li > a');
+    const heroImage = document.querySelector('.home-carousel .splide__slide img');
+    const gridRect = grid.getBoundingClientRect();
     const styles = element => element ? getComputedStyle(element) : null;
     return {
       viewportWidth: window.innerWidth,
@@ -43,6 +45,10 @@ async function inspect(page, width, height, label) {
       descriptionSize: parseFloat(styles(description).fontSize),
       searchDirection: styles(search).flexDirection,
       gridWidth: grid.getBoundingClientRect().width,
+      gridLeft: gridRect.left,
+      gridRight: gridRect.right,
+      imageDisplayWidth: heroImage ? heroImage.getBoundingClientRect().width : 0,
+      imageNaturalWidth: heroImage ? heroImage.naturalWidth : 0,
       headerHeight: header.getBoundingClientRect().height,
       brandSize: parseFloat(styles(brand).fontSize),
       navSize: parseFloat(styles(navLink).fontSize)
@@ -107,12 +113,12 @@ async function inspectForm(page, route, width, label) {
 
     assert.strictEqual(desktop.gridColumns, 2, '1920px homepage should use two hero columns');
     assert.strictEqual(intermediate.gridColumns, 2, '1536px homepage should use two hero columns');
-    assert.strictEqual(compact.gridColumns, 1, '1195px homepage should use one hero column');
+    assert.strictEqual(compact.gridColumns, 2, '1195px homepage should preserve the original two-column hero');
     assert.strictEqual(mobile.gridColumns, 1, 'mobile homepage should use one hero column');
     assert(desktop.headingSize >= 60 && desktop.headingSize <= 72, 'desktop heading size is outside the intended range');
     assert(compact.headingSize >= 50 && compact.headingSize <= 70, 'compact heading size is outside the intended range');
     assert(mobile.headingSize >= 36 && mobile.headingSize <= 56, 'mobile heading size is outside the intended range');
-    assert.strictEqual(compact.headingAlign, 'center', 'compact hero heading should be centered');
+    assert.strictEqual(compact.headingAlign, 'left', 'compact hero heading should remain left aligned');
     assert.strictEqual(desktop.headingAlign, 'left', 'desktop hero heading should be left aligned');
     assert(desktop.headerHeight <= 72, 'desktop header is taller than intended');
     assert(desktop.brandSize <= 24, 'desktop brand text is larger than intended');
@@ -123,6 +129,9 @@ async function inspectForm(page, route, width, label) {
       assert.strictEqual(result.hiddenContentCount, 0, `${result.viewportWidth}px layout left a homepage section hidden after scrolling`);
       assert.strictEqual(result.clippedHeadingCount, 0, `${result.viewportWidth}px layout clips a heading`);
       assert.strictEqual(result.wrappedNavCount, 0, `${result.viewportWidth}px layout wraps or clips navigation text`);
+      assert(result.gridLeft >= (result.viewportWidth <= 640 ? 12 : 24), `${result.viewportWidth}px layout does not have enough left margin`);
+      assert(result.gridRight <= result.viewportWidth - (result.viewportWidth <= 640 ? 12 : 24) + 1, `${result.viewportWidth}px layout does not have enough right margin`);
+      assert(result.imageNaturalWidth >= result.imageDisplayWidth, `${result.viewportWidth}px hero image is being upscaled`);
     });
     Object.values(forms).forEach(result => {
       assert(result.documentWidth <= result.viewportWidth + 1, `${result.viewportWidth}px form layout has horizontal overflow`);

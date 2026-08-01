@@ -77,7 +77,6 @@ document.addEventListener('DOMContentLoaded', function(){
     ['.team-card', 'fs-reveal fs-reveal--up', 0, 90],
     ['.testimonial-card', 'fs-reveal fs-reveal--up', 0, 90],
     ['.home-cta-card', 'fs-reveal fs-reveal--scale', 0],
-    ['.home-footer', 'fs-reveal', 0],
   ];
   const revealItems = [];
 

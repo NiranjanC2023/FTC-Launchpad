@@ -18,7 +18,7 @@
 
   <% if (typeof carouselImages !== 'undefined' && carouselImages.length) { %>
 
-  <link rel="preload" as="image" href="<%= carouselImages[0].src %>"<% if (carouselImages[0].srcset) { %> imagesrcset="<%= carouselImages[0].srcset %>" imagesizes="(max-width: 700px) 100vw, (max-width: 1480px) 28vw, 20vw"<% } %> fetchpriority="high">
+  <link rel="preload" as="image" href="<%= carouselImages[0].src %>"<% if (carouselImages[0].srcset) { %> imagesrcset="<%= carouselImages[0].srcset %>" imagesizes="(max-width: 700px) calc(100vw - 24px), (max-width: 1080px) calc(100vw - 48px), (max-width: 1800px) 52vw, 1020px"<% } %> fetchpriority="high">
 
   <% } %>
 
@@ -186,7 +186,7 @@
 
                         <img
                           <% if (idx === 0) { %>src="<%= item.src %>"<% } else { %>data-carousel-src="<%= item.src %>"<% } %>
-                          <% if (item.srcset && idx === 0) { %>srcset="<%= item.srcset %>" sizes="(max-width: 700px) 100vw, (max-width: 1480px) 28vw, 20vw"<% } else if (item.srcset) { %>data-carousel-srcset="<%= item.srcset %>" sizes="(max-width: 700px) 100vw, (max-width: 1480px) 28vw, 20vw"<% } %>
+                          <% if (item.srcset && idx === 0) { %>srcset="<%= item.srcset %>" sizes="(max-width: 700px) calc(100vw - 24px), (max-width: 1080px) calc(100vw - 48px), (max-width: 1800px) 52vw, 1020px"<% } else if (item.srcset) { %>data-carousel-srcset="<%= item.srcset %>" sizes="(max-width: 700px) calc(100vw - 24px), (max-width: 1080px) calc(100vw - 48px), (max-width: 1800px) 52vw, 1020px"<% } %>
                           alt="Robotics team image <%= idx + 1 %>"
                           <% if (idx === 0) { %>loading="eager" fetchpriority="high"<% } else { %>loading="lazy" fetchpriority="low"<% } %>
                           decoding="async">
@@ -264,7 +264,7 @@
         <div class="home-why-image">
 
           <picture>
-            <source srcset="/assets/img/why-join-first.webp?v=2" type="image/webp">
+            <source srcset="/assets/img/why-join-first.w480.webp?v=3 480w, /assets/img/why-join-first.webp?v=3 533w" sizes="(max-width: 820px) calc(100vw - 32px), 533px" type="image/webp">
             <img src="/assets/img/why-join-first.png" alt="Students collaborating on an engineering project" loading="lazy" decoding="async" width="533" height="799">
           </picture>
 
