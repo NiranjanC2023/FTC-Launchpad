@@ -3418,8 +3418,8 @@ router.post('/signup', async function(req, res){
 
         const trimmedAge = String(age || '').trim();
         const numericAge = trimmedAge ? Number(trimmedAge) : null;
-        if (mode === 'seeker' && trimmedAge && (!Number.isFinite(numericAge) || numericAge < 6)) {
-            return res.render(`pages/signup-${mode}`, { error: 'Please enter a valid age.', values: req.body, inviteToken: inviteToken || null, nextPath });
+        if (mode === 'seeker' && (!trimmedAge || !Number.isInteger(numericAge) || numericAge < 3 || numericAge > 120)) {
+            return res.render(`pages/signup-${mode}`, { error: 'Age must be a whole number from 3 to 120.', values: req.body, inviteToken: inviteToken || null, nextPath });
         }
         const existing = await User.findOne({ email: normalizedEmail }).exec();
         if (existing) return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body, inviteToken: inviteToken || null, nextPath });
@@ -3546,6 +3546,17 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             });
         }
 
+        const numericAge = age ? Number(age) : undefined;
+        if (age && (!Number.isInteger(numericAge) || numericAge < 3 || numericAge > 120)) {
+            return res.render('pages/account-signup-info', {
+                error: 'Age must be a whole number from 3 to 120.',
+                success: null,
+                values: req.body || {},
+                backTarget,
+                backUrl
+            });
+        }
+
         const existingUser = await User.findOne({ email: normalizedEmail, _id: { $ne: req.session.userId } }).lean().exec();
         if (existingUser) {
             return res.render('pages/account-signup-info', {
@@ -3559,7 +3570,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
 
         const updatedUser = await User.findByIdAndUpdate(req.session.userId, {
             name,
-            age: age ? Number(age) : undefined,
+            age: numericAge,
             email: normalizedEmail,
             phone,
             interests,
@@ -3569,7 +3580,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
         const student = await Student.findOne({ email: normalizeEmail(currentUser.email) }).exec();
         if (student) {
             student.name = name;
-            student.age = age;
+            student.age = numericAge;
             student.experience = experience;
             student.interests = interests;
             student.phone = phone;

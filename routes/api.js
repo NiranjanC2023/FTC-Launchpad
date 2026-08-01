@@ -53,6 +53,16 @@ function parseCoordinate(value) {
 	return Number.isFinite(number) ? number : null;
 }
 
+function parseOptionalAge(value) {
+	const raw = String(value ?? '').trim();
+	if (!raw) return { value: undefined, valid: true };
+	const number = Number(raw);
+	return {
+		value: number,
+		valid: Number.isInteger(number) && number >= 3 && number <= 120
+	};
+}
+
 function internalError(res, err, context) {
 	console.error(context, err);
 	return res.status(500).json({ ok: false, error: 'The request could not be completed.' });
@@ -421,12 +431,14 @@ router.post('/users/signup', async function(req, res) {
 		const normalizedEmail = normalizeEmail(email);
 		if (!name || !normalizedEmail || !password) return res.status(400).json({ ok: false, error: 'name/email/password required' });
 		if (String(password).length < 8) return res.status(400).json({ ok: false, error: 'password must be at least 8 characters' });
+		const parsedAge = parseOptionalAge(age);
+		if (!parsedAge.valid) return res.status(400).json({ ok: false, error: 'age must be a whole number from 3 to 120' });
 		const existing = await User.findOne({ email: normalizedEmail }).exec();
 		if (existing) return res.status(400).json({ ok: false, error: 'email already registered' });
 		const user = new User({
 			name: name.trim(),
 			email: normalizedEmail,
-			age: age ? Number(age) : undefined,
+			age: parsedAge.value,
 			phone,
 			profilePicture,
 			interests,
