@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const StudentSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  age: { type: Number, min: 3, max: 120 },
+  age: { type: Number, min: 3, max: 18 },
   experience: { type: String },
   email: { type: String },
   phone: { type: String },

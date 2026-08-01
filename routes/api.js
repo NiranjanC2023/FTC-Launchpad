@@ -59,7 +59,7 @@ function parseOptionalAge(value) {
 	const number = Number(raw);
 	return {
 		value: number,
-		valid: Number.isInteger(number) && number >= 3 && number <= 120
+		valid: Number.isInteger(number) && number >= 3 && number <= 18
 	};
 }
 
@@ -432,7 +432,7 @@ router.post('/users/signup', async function(req, res) {
 		if (!name || !normalizedEmail || !password) return res.status(400).json({ ok: false, error: 'name/email/password required' });
 		if (String(password).length < 8) return res.status(400).json({ ok: false, error: 'password must be at least 8 characters' });
 		const parsedAge = parseOptionalAge(age);
-		if (!parsedAge.valid) return res.status(400).json({ ok: false, error: 'age must be a whole number from 3 to 120' });
+		if (!parsedAge.valid) return res.status(400).json({ ok: false, error: 'age must be a whole number from 3 to 18' });
 		const existing = await User.findOne({ email: normalizedEmail }).exec();
 		if (existing) return res.status(400).json({ ok: false, error: 'email already registered' });
 		const user = new User({

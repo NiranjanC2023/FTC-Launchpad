@@ -3418,8 +3418,8 @@ router.post('/signup', async function(req, res){
 
         const trimmedAge = String(age || '').trim();
         const numericAge = trimmedAge ? Number(trimmedAge) : null;
-        if (mode === 'seeker' && (!trimmedAge || !Number.isInteger(numericAge) || numericAge < 3 || numericAge > 120)) {
-            return res.render(`pages/signup-${mode}`, { error: 'Age must be a whole number from 3 to 120.', values: req.body, inviteToken: inviteToken || null, nextPath });
+        if (mode === 'seeker' && (!trimmedAge || !Number.isInteger(numericAge) || numericAge < 3 || numericAge > 18)) {
+            return res.render(`pages/signup-${mode}`, { error: 'Age must be a whole number from 3 to 18.', values: req.body, inviteToken: inviteToken || null, nextPath });
         }
         const existing = await User.findOne({ email: normalizedEmail }).exec();
         if (existing) return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body, inviteToken: inviteToken || null, nextPath });
@@ -3547,9 +3547,9 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
         }
 
         const numericAge = age ? Number(age) : undefined;
-        if (age && (!Number.isInteger(numericAge) || numericAge < 3 || numericAge > 120)) {
+        if (age && (!Number.isInteger(numericAge) || numericAge < 3 || numericAge > 18)) {
             return res.render('pages/account-signup-info', {
-                error: 'Age must be a whole number from 3 to 120.',
+                error: 'Age must be a whole number from 3 to 18.',
                 success: null,
                 values: req.body || {},
                 backTarget,
