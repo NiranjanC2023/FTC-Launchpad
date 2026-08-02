@@ -236,6 +236,10 @@ app.engine("ejs", function(filePath, data, callback) {
                         /<link[^>]+href=["']\/assets\/css\/home\.min\.css(?:\?v=\d+)?["'][^>]*>/i,
                         `<style data-home-styles="3">${HOME_STYLESHEET}</style>`
                     );
+                    html = html.replace(
+                        /(<style data-home-styles="3">[\s\S]*?<\/style>)/i,
+                        `$1<style data-home-header-tweak="1">@media (max-width: 1120px) {.home-page .creator-badge { display: none !important; }}</style>`
+                    );
                 }
             }
 

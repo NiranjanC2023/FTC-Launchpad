@@ -605,13 +605,13 @@ html[data-auth-state="anonymous"] .nav-user-controls {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 12px;
+  padding: 8px 14px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
   color: var(--navbar-text);
   font: inherit;
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 600;
   line-height: 1.3;
   cursor: pointer;
@@ -626,27 +626,27 @@ html[data-auth-state="anonymous"] .nav-user-controls {
 }
 
 .inbox-icon {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.16);
   color: #ffffff;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   flex: 0 0 auto;
 }
 
 .inbox-icon svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   fill: currentColor;
   display: block;
 }
 
 .inbox-label {
-  font-size: 0.95rem;
+  font-size: 1rem;
   line-height: 1;
 }
 
@@ -655,13 +655,13 @@ html[data-auth-state="anonymous"] .nav-user-controls {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
+  min-width: 20px;
   min-height: 18px;
-  padding: 0 6px;
+  padding: 0 5px;
   border-radius: 999px;
   background: #ffdf73;
   color: #5c4100;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 800;
   line-height: 1;
 }
@@ -779,13 +779,13 @@ html[data-auth-state="anonymous"] .nav-user-controls {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 12px;
+  padding: 8px 14px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
   color: var(--navbar-text);
   font: inherit;
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 600;
   line-height: 1.3;
   cursor: pointer;
@@ -800,15 +800,15 @@ html[data-auth-state="anonymous"] .nav-user-controls {
 }
 
 .account-avatar {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #dff6e8, #8be0ae);
   color: #0f5b34;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.02em;
   flex: 0 0 auto;
@@ -823,12 +823,12 @@ html[data-auth-state="anonymous"] .nav-user-controls {
 }
 
 .account-label {
-  font-size: 0.95rem;
+  font-size: 1rem;
   line-height: 1;
 }
 
 .account-caret {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   opacity: 0.9;
 }
 
@@ -3989,6 +3989,7 @@ textarea.form-control {
 
   .navbar .container {
     align-items: flex-start;
+    gap: 8px;
   }
 
   .navbar-header {
@@ -4023,8 +4024,7 @@ textarea.form-control {
   }
 
   .creator-badge {
-    order: 1;
-    margin: 0 0 0 10px;
+    display: none !important;
   }
 
   .navbar-tools {
@@ -4248,13 +4248,16 @@ header > .theme-toggle {
   }
 
   .navbar .container {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
   }
 
   .navbar-header {
-    width: 100%;
+    width: auto;
     margin: 0;
+    flex: 1 1 auto;
   }
 
   .navbar-header .navbar-brand {
@@ -4263,6 +4266,7 @@ header > .theme-toggle {
 
   .navbar-collapse {
     width: 100%;
+    order: 3;
     align-items: stretch;
     text-align: left;
   }
@@ -4275,7 +4279,7 @@ header > .theme-toggle {
   .navbar-nav.navbar-right,
   .navbar-tools,
   .nav-user-controls {
-    width: 100%;
+    width: auto;
   }
 
   .navbar-nav > li > a {
@@ -4287,6 +4291,110 @@ header > .theme-toggle {
   .nav-user-controls {
     justify-content: flex-start;
     align-items: stretch;
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 1440px) and (min-width: 1121px) {
+  .navbar .container {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 10px;
+    min-height: 72px;
+  }
+
+  .navbar-header {
+    width: auto;
+    justify-content: flex-start;
+    margin-right: 0;
+    flex: 0 0 auto;
+  }
+
+  .creator-badge {
+    display: none !important;
+  }
+
+  .navbar-collapse {
+    width: auto;
+    order: 2;
+    align-items: stretch;
+    justify-content: center;
+    text-align: left;
+    margin-top: 0;
+    flex: 1 1 auto;
+  }
+
+  .navbar-tools,
+  .nav-user-controls {
+    width: auto;
+    margin-left: auto;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+  }
+
+  .navbar-nav,
+  .navbar-nav.navbar-right {
+    width: auto;
+  }
+
+  .navbar-header .navbar-brand {
+    min-height: 72px;
+  }
+}
+
+@media (max-width: 700px) {
+  .navbar-collapse {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .navbar-nav {
+    gap: 6px;
+  }
+
+  .navbar-nav > li > a {
+    padding: 7px 10px;
+    font-size: 0.95rem;
+  }
+
+  .nav-user-controls {
+    gap: 8px;
+  }
+
+  .inbox-toggle,
+  .account-toggle {
+    padding: 6px 10px;
+    gap: 6px;
+    border-radius: 999px;
+  }
+
+  .inbox-icon,
+  .account-avatar {
+    width: 22px;
+    height: 22px;
+  }
+
+  .inbox-icon svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .inbox-label,
+  .account-label {
+    font-size: 0.9rem;
+  }
+
+  .inbox-badge {
+    min-width: 20px;
+    min-height: 18px;
+    padding: 0 5px;
+    font-size: 0.75rem;
+  }
+
+  .account-caret {
+    font-size: 0.75rem;
   }
 }
 
@@ -4655,7 +4763,7 @@ footer p,
   }
 
   .creator-badge {
-    display: none;
+    display: none !important;
   }
 
   .navbar-toggle {

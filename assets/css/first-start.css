@@ -1711,14 +1711,58 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .home-hero-grid { gap: 34px; }
-  .home-hero-visual { min-height: 480px; }
-  .home-hero-mini { grid-template-columns: 1fr; }
+  .home-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+  .home-hero-copy h1 {
+    font-size: clamp(2.5rem, 6vw, 3.4rem);
+    line-height: 0.98;
+    text-align: center;
+  }
+  .home-hero-copy {
+    max-width: none;
+    width: 100%;
+    justify-self: stretch;
+    text-align: center;
+  }
+  .hero-description {
+    max-width: 760px;
+    margin: 18px auto 0;
+    text-align: center;
+  }
+  .home-search {
+    max-width: 760px;
+    margin: 20px auto 0;
+  }
+  .hero-actions {
+    margin-top: 18px;
+    justify-content: center;
+  }
+  .home-hero-mini {
+    grid-template-columns: 1fr;
+    margin-top: 18px;
+    max-width: 760px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .home-hero-visual {
+    min-height: 360px;
+    padding-top: 0;
+    justify-content: center;
+  }
+  .hero-image-card { width: min(100%, 1020px); }
+  .floating-card {
+    width: 170px;
+    padding: 13px;
+  }
+  .floating-card strong { font-size: 24px; }
+  .floating-card p { font-size: 12px; }
   .home-why-image { width: 100%; justify-self: stretch; }
   .home-why-copy { justify-self: stretch; }
 }
 
-@media (max-width: 1280px) and (min-width: 821px) {
+@media (max-width: 1440px) and (min-width: 1121px) {
   .home-main .container,
   .home-hero-grid,
   .home-cta .container {
@@ -1726,14 +1770,72 @@
   }
 
   .home-hero-grid {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-    gap: 32px;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .home-hero-copy {
+    max-width: none;
+    width: 100%;
+    justify-self: stretch;
+    text-align: center;
+  }
+
+  .home-hero-copy h1 {
+    width: min(100%, 920px);
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+    font-size: clamp(2.6rem, 4.4vw, 3.8rem);
+    line-height: 0.96;
   }
 
   .home-hero-copy h1 .hero-tagline {
     max-width: 100%;
     font-size: 0.76em;
     white-space: normal;
+  }
+
+  .hero-description {
+    width: min(100%, 760px);
+    margin: 18px auto 0;
+    text-align: center;
+  }
+
+  .home-search,
+  .hero-actions,
+  .home-hero-mini {
+    width: min(100%, 760px);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hero-actions {
+    justify-content: center;
+  }
+
+  .home-hero-mini {
+    grid-template-columns: 1fr;
+    margin-top: 18px;
+  }
+
+  .home-hero-visual {
+    min-height: 360px;
+    justify-content: center;
+    padding-top: 0;
+  }
+
+  .hero-image-card {
+    width: min(100%, 1020px);
+  }
+
+  .floating-card-top {
+    right: 12px;
+  }
+
+  .floating-card-bottom {
+    left: 12px;
   }
 }
 
@@ -1777,7 +1879,7 @@
 
   .home-hero { padding-top: 20px; }
   .home-hero-grid { padding-top: 20px; }
-  .home-hero-visual { min-height: 420px; }
+  .home-hero-visual { min-height: 360px; }
   .floating-card-top { right: 0; }
   .floating-card-bottom { left: 0; }
   .home-footer-bottom .container { flex-direction: column; }
@@ -1897,11 +1999,11 @@
   }
 
   .home-hero {
-    padding: 18px 0 34px;
+    padding: 16px 0 28px;
   }
 
   .home-hero-grid {
-    gap: 22px;
+    gap: 18px;
     padding-top: 12px;
   }
 
@@ -1925,7 +2027,7 @@
     position: static;
     width: auto;
     min-width: 0;
-    padding: 12px 10px;
+    padding: 10px 10px;
     border-radius: 15px;
     text-align: center;
   }
@@ -1957,9 +2059,9 @@
   }
   .home-hero-visual {
     order: 2;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     min-height: auto;
     margin-top: 10px;
     padding-top: 0;
@@ -1972,7 +2074,7 @@
   }
   .home-hero-mini { grid-template-columns: 1fr; }
   .home-mini-card {
-    padding: 16px 16px 14px;
+    padding: 14px 14px 12px;
   }
   .home-mini-card span {
     width: 28px;
@@ -1984,7 +2086,7 @@
     font-size: 16px;
   }
   .home-mini-card p {
-    font-size: 13px;
+    font-size: 12px;
     line-height: 1.55;
   }
   .step-row {
