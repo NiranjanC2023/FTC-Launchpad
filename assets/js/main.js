@@ -801,6 +801,7 @@ function getTeamRecruitingLabel(team) {
     const yearsInProgram = Number(team.yearsInProgram);
     const advancementLevels = Array.isArray(team.advancementLevels) ? team.advancementLevels.map(normalizeAdvancementLevel).filter(Boolean) : [];
     const advancementHistory = Array.isArray(team.advancementHistory) ? team.advancementHistory.filter(Boolean) : [];
+    const teamContact = String(team.contact || '').trim();
     const scoutingUrl = getTeamScoutingUrl(team);
     const scoutingLabel = programLabel === 'FTC' ? 'View on FTC Scout' : 'View on The Blue Alliance';
     const advancementEntries = advancementHistory.length
@@ -836,7 +837,7 @@ function getTeamRecruitingLabel(team) {
         </div>
       </div>
       <div class="team-details-content" style="margin-top: 12px; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 260ms ease, opacity 200ms ease;">
-        <p class="team-card-contact">Apply securely through FIRST Start.</p>
+        ${teamContact ? `<p class="team-card-contact">Contact <a href="mailto:${escapeHTML(teamContact)}">${escapeHTML(teamContact)}</a></p>` : '<p class="team-card-contact">Contact not set.</p>'}
         ${(location || regionLabel) ? `<p class="team-card-meta">${escapeHTML([location, regionLabel].filter(Boolean).join(' · '))}</p>` : ''}
         ${scoutingUrl ? `
           <p class="team-card-source">

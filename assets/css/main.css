@@ -604,14 +604,16 @@ html[data-auth-state="anonymous"] .nav-user-controls {
 .inbox-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 7px 12px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
   color: var(--navbar-text);
   font: inherit;
-  font-weight: 700;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.3;
   cursor: pointer;
   transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
@@ -624,27 +626,27 @@ html[data-auth-state="anonymous"] .nav-user-controls {
 }
 
 .inbox-icon {
-  width: 34px;
-  height: 34px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.16);
   color: #ffffff;
-  font-size: 1rem;
+  font-size: 0.82rem;
   flex: 0 0 auto;
 }
 
 .inbox-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   fill: currentColor;
   display: block;
 }
 
 .inbox-label {
-  font-size: 1.3rem;
+  font-size: 0.95rem;
   line-height: 1;
 }
 
@@ -653,13 +655,13 @@ html[data-auth-state="anonymous"] .nav-user-controls {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
-  min-height: 22px;
-  padding: 0 8px;
+  min-width: 22px;
+  min-height: 18px;
+  padding: 0 6px;
   border-radius: 999px;
   background: #ffdf73;
   color: #5c4100;
-  font-size: 1rem;
+  font-size: 0.8rem;
   font-weight: 800;
   line-height: 1;
 }
@@ -776,14 +778,16 @@ html[data-auth-state="anonymous"] .nav-user-controls {
 .account-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 7px 12px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
   color: var(--navbar-text);
   font: inherit;
-  font-weight: 700;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.3;
   cursor: pointer;
   transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
@@ -796,15 +800,15 @@ html[data-auth-state="anonymous"] .nav-user-controls {
 }
 
 .account-avatar {
-  width: 34px;
-  height: 34px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #dff6e8, #8be0ae);
   color: #0f5b34;
-  font-size: 1.05rem;
+  font-size: 0.82rem;
   font-weight: 800;
   letter-spacing: 0.02em;
   flex: 0 0 auto;
@@ -819,12 +823,12 @@ html[data-auth-state="anonymous"] .nav-user-controls {
 }
 
 .account-label {
-  font-size: 1.3rem;
+  font-size: 0.95rem;
   line-height: 1;
 }
 
 .account-caret {
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   opacity: 0.9;
 }
 

@@ -18,6 +18,20 @@ async function run() {
     helpers.buildTeamRegistrationAddress({ address: 'Community Center' }, 'San Jose', 'CA', 'USA'),
     'Community Center'
   );
+  assert.strictEqual(
+    helpers.locationMatchesOfficialRecord(
+      { city: 'San Jose', state: 'CA', country: 'USA' },
+      { city: 'San Jose', state: 'CA', country: 'USA' }
+    ),
+    true
+  );
+  assert.strictEqual(
+    helpers.locationMatchesOfficialRecord(
+      { city: 'Oakland', state: 'CA', country: 'USA' },
+      { city: 'San Jose', state: 'CA', country: 'USA' }
+    ),
+    false
+  );
 
   const invalid = await helpers.verifyTeamWithApi('', 'FTC', 'Example');
   assert.strictEqual(invalid.ok, false);
@@ -61,7 +75,6 @@ async function run() {
     });
     const matchingDetails = helpers.verifySubmittedTeamDetails(verified, {
       name: 'The Official Team Name',
-      organization: 'Community',
       city: 'San José',
       state: 'California',
       country: 'United States of America'
@@ -70,7 +83,6 @@ async function run() {
 
     const mismatchedDetails = helpers.verifySubmittedTeamDetails(verified, {
       name: 'Official Team Name',
-      organization: 'Community',
       city: 'Los Angeles',
       state: 'CA',
       country: 'USA'

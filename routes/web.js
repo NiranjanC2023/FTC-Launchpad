@@ -15,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
+const LOCALHOST_HOST_PATTERN = /^(localhost|127(?:\.\d{1,3}){3}|\[?::1\]?)(?::\d+)?$/i;
 
 function signIn(req, user) {
     return new Promise((resolve, reject) => {
@@ -140,6 +141,10 @@ function getAppBaseUrl(req) {
     return String(process.env.APP_URL || process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
 }
 
+function isLocalhostHost(hostname) {
+    return LOCALHOST_HOST_PATTERN.test(String(hostname || '').trim());
+}
+
 async function acceptInviteToken(token, user) {
     if (!token || !user) return null;
     const invite = await ManagerInvite.findOne({ token }).exec();
@@ -221,11 +226,13 @@ router.use(function trackSiteTraffic(req, res, next) {
     if (req.path.startsWith('/api/')) return next();
     if (req.path.startsWith('/assets/')) return next();
     if (req.path === '/favicon.ico') return next();
+    if (isLocalhostHost(req.hostname || req.get('host'))) return next();
     if (!isDatabaseConnected()) return next();
 
     const pathName = String(req.originalUrl || req.path || '/').split('?')[0] || '/';
     SiteVisit.create({
         path: pathName,
+        host: String(req.hostname || req.get('host') || '').trim() || undefined,
         userId: req.session && req.session.userId ? req.session.userId : undefined,
         referrer: String(req.get('referer') || '').trim() || undefined,
         userAgent: String(req.get('user-agent') || '').trim() || undefined
@@ -544,6 +551,7 @@ function mapTeam(team) {
         program: team.program || 'FTC',
         teamNumber: team.teamNumber,
         name: team.name,
+        contact: team.contact,
         lat: displayCoords.lat,
         lon: displayCoords.lon,
         isNewTeam: Boolean(team.isNewTeam),
@@ -602,7 +610,19 @@ async function geocodeAddress(values) {
             const lon = toNumber(first.lon);
             if (lat === null || lon === null) continue;
 
-            return { lat, lon };
+            const address = first.address && typeof first.address === 'object' ? first.address : {};
+            const city = String(
+                address.city
+                || address.town
+                || address.village
+                || address.hamlet
+                || address.municipality
+                || ''
+            ).trim();
+            const state = String(address.state || address.province || '').trim();
+            const country = String(address.country || '').trim();
+
+            return { lat, lon, city, state, country, displayName: String(first.display_name || '').trim() };
         } catch (err) {
             continue;
         }
@@ -1248,14 +1268,12 @@ function verifySubmittedTeamDetails(verification, submitted) {
     const location = extractTeamLocation(verification && verification.details ? verification.details : profile);
     const official = {
         name: getTeamNameFromApiProfile(profile),
-        organization: getTeamOrganizationFromApiProfile(profile),
         city: location.city,
         state: location.state,
         country: location.country
     };
     const provided = {
         name: String(submitted && submitted.name || '').trim(),
-        organization: String(submitted && submitted.organization || '').trim(),
         city: String(submitted && submitted.city || '').trim(),
         state: String(submitted && submitted.state || '').trim(),
         country: String(submitted && submitted.country || '').trim()
@@ -1263,7 +1281,6 @@ function verifySubmittedTeamDetails(verification, submitted) {
     const mismatches = [];
 
     if (!official.name || !compareTeamNameToNumber(provided.name, official.name)) mismatches.push('team name');
-    if (!official.organization || normalizeTeamName(provided.organization) !== normalizeTeamName(official.organization)) mismatches.push('school/organization');
     if (!official.city || normalizeTeamName(provided.city) !== normalizeTeamName(official.city)) mismatches.push('city');
     if (official.state && normalizeRegion(provided.state) !== normalizeRegion(official.state)) mismatches.push('state/province');
     if (!official.country || normalizeCountry(provided.country) !== normalizeCountry(official.country)) mismatches.push('country');
@@ -1297,6 +1314,20 @@ function extractTeamLocation(details) {
         state: String(location.state || profile && profile.state || profile && profile.state_prov || '').trim(),
         country: String(location.country || profile && profile.country || '').trim()
     };
+}
+
+function locationMatchesOfficialRecord(geocodedLocation, officialLocation) {
+    const geocodedCity = normalizeTeamName(geocodedLocation && geocodedLocation.city || '');
+    const officialCity = normalizeTeamName(officialLocation && officialLocation.city || '');
+    const geocodedState = normalizeRegion(geocodedLocation && geocodedLocation.state || '');
+    const officialState = normalizeRegion(officialLocation && officialLocation.state || '');
+    const geocodedCountry = normalizeCountry(geocodedLocation && geocodedLocation.country || '');
+    const officialCountry = normalizeCountry(officialLocation && officialLocation.country || '');
+
+    if (!geocodedCity || !officialCity || geocodedCity !== officialCity) return false;
+    if (officialState && (!geocodedState || geocodedState !== officialState)) return false;
+    if (officialCountry && (!geocodedCountry || geocodedCountry !== officialCountry)) return false;
+    return true;
 }
 
 function resolveBestCarouselImageFile(dir, fileName) {
@@ -1721,7 +1752,7 @@ router.get("/teams-nearby", async function(req, res){
         const teams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
             .sort({ recruiting: -1, teamNumber: 1 })
             .limit(300)
-            .select('program teamNumber isNewTeam name city state country lat lon notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified')
+            .select('program teamNumber isNewTeam name city state country lat lon notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified contact')
             .lean()
             .exec();
         const normalizedTeams = teams.map((team) => ({
@@ -1754,7 +1785,7 @@ router.get("/teams-nearby", async function(req, res){
 });
 
 router.get('/team-register', requireAccountForTeamRegister, async function(req, res) {
-    const registrationMode = 'existing';
+    const registrationMode = String(req.query.mode || '').toLowerCase() === 'new' ? 'new' : 'existing';
     const user = await User.findById(req.session.userId).select('email').lean().exec().catch(() => null);
     if (!user) return res.redirect('/login');
     res.render('pages/team-register', {
@@ -1778,107 +1809,105 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         const program = normalizeProgram(values.program);
         const registrationMode = String(values.registrationMode || 'existing').toLowerCase() === 'new' ? 'new' : 'existing';
         const isNewTeam = registrationMode === 'new';
-        const accountEmail = normalizeEmail(registrationUser.email);
-        const submittedContact = normalizeEmail(values.contact);
-        const contact = accountEmail;
-        values.contact = accountEmail;
+        const isFllProgram = program === 'FLL Challenge' || program === 'FLL Explore';
+        const isOfficialTeam = !isNewTeam && !isFllProgram;
+        const contact = normalizeEmail(values.contact);
+        values.contact = contact;
         const teamNumber = isNewTeam ? null : parsePositiveTeamNumber(values.teamNumber);
 
-        if (isNewTeam) {
-            values.registrationMode = 'existing';
+        if (!contact) {
             return res.render('pages/team-register', {
-                error: 'Only teams with an official FIRST team record can register. Enter the official team number and matching organization and location details.',
+                error: 'Enter a valid contact email.',
                 message: null,
                 values
             });
         }
 
-        if (!submittedContact || submittedContact !== accountEmail) {
-            return res.render('pages/team-register', {
-                error: 'The team contact email must match the email on your signed-in manager account.',
-                message: null,
-                values
-            });
-        }
-
-        if (!values.name || !values.city || !values.country || (!isNewTeam && (!teamNumber || !values.organization))) {
+        if (!values.name || !values.address || (!isNewTeam && !teamNumber) || (!isOfficialTeam && (!values.city || !values.country))) {
             return res.render('pages/team-register', {
                 error: !isNewTeam && !teamNumber
                     ? 'Enter a valid team number greater than zero.'
                     : isNewTeam
-                        ? 'Team name, city, country, and the signed-in contact email are required.'
-                        : 'Team number, team name, school/organization, city, country, and the signed-in contact email are required.',
+                        ? 'Team name, city, country, and contact email are required.'
+                        : isOfficialTeam
+                            ? 'Team number, team name, address, and contact email are required.'
+                            : 'Team name, city, country, and contact email are required.',
                 message: null,
                 values
             });
         }
 
         let verification = { ok: true, team: null, source: 'Self-reported' };
-        if (!isNewTeam) {
+        if (isOfficialTeam) {
             verification = await verifyTeamWithApi(teamNumber, program, values.name);
             if (!verification.ok) {
                 return res.render('pages/team-register', { error: verification.error, message: null, values });
             }
-            const detailVerification = verifySubmittedTeamDetails(verification, values);
-            if (!detailVerification.ok) {
-                const officialLocation = [detailVerification.official.city, detailVerification.official.state, detailVerification.official.country].filter(Boolean).join(', ');
-                return res.render('pages/team-register', {
-                    error: `The submitted ${detailVerification.mismatches.join(', ')} did not match the official team record. Official record: ${detailVerification.official.name || 'name unavailable'} — ${detailVerification.official.organization || 'organization unavailable'} — ${officialLocation || 'location unavailable'}.`,
-                    message: null,
-                    values
-                });
-            }
         }
 
         const official = verification.team;
-        const apiTeamDetails = !isNewTeam && shouldUseTeamApi(program, teamNumber)
+        const officialLocation = isOfficialTeam ? extractTeamLocation(verification.details || verification.team || verification) : {};
+        const apiTeamDetails = isOfficialTeam && shouldUseTeamApi(program, teamNumber)
             ? (verification.details || await fetchTeamDetailsViaApi(program, teamNumber).catch(() => null))
             : null;
-        const apiLocation = !isNewTeam ? extractTeamLocation(apiTeamDetails || verification.team || verification) : {};
-        const resolvedCity = isNewTeam ? String(values.city || '').trim() : String(apiLocation.city || values.city || '').trim();
-        const resolvedState = isNewTeam ? String(values.state || '').trim() : String(apiLocation.state || values.state || '').trim();
-        const resolvedCountry = isNewTeam ? String(values.country || '').trim() : String(apiLocation.country || values.country || '').trim();
-        const hasLocation = Boolean([values.address, resolvedCity, resolvedState, resolvedCountry].some(value => (value || '').trim()));
+        const geocodedAddress = await geocodeAddress(isOfficialTeam ? { address: values.address } : {
+            address: values.address,
+            city: String(values.city || '').trim(),
+            state: String(values.state || '').trim(),
+            country: String(values.country || '').trim()
+        });
+        if (!geocodedAddress) {
+            return res.render('pages/team-register', {
+                error: isOfficialTeam
+                    ? 'We could not verify that address. Please enter the team address in the official city and try again.'
+                    : 'Could not find that location on the map. Try adding the city, state, and country, or use a more specific address.',
+                message: null,
+                values
+            });
+        }
+
+        if (isOfficialTeam && !locationMatchesOfficialRecord(geocodedAddress, officialLocation)) {
+            const officialCity = officialLocation.city || 'the official city';
+            const officialState = officialLocation.state ? `, ${officialLocation.state}` : '';
+            const officialCountry = officialLocation.country ? `, ${officialLocation.country}` : '';
+            return res.render('pages/team-register', {
+                error: `That address does not match the official record. Use an address in ${officialCity}${officialState}${officialCountry}.`,
+                message: null,
+                values
+            });
+        }
+
+        const coords = geocodedAddress;
+        const resolvedCity = isOfficialTeam ? String(officialLocation.city || geocodedAddress.city || '').trim() : String(values.city || '').trim();
+        const resolvedState = isOfficialTeam ? String(officialLocation.state || geocodedAddress.state || '').trim() : String(values.state || '').trim();
+        const resolvedCountry = isOfficialTeam ? String(officialLocation.country || geocodedAddress.country || '').trim() : String(values.country || '').trim();
+        const hasLocation = Boolean(values.address && (isOfficialTeam ? geocodedAddress : [resolvedCity, resolvedState, resolvedCountry].some(value => (value || '').trim())));
 
         if ((!isNewTeam && !teamNumber) || !values.name || !contact || !hasLocation || (isNewTeam && !values.country)) {
             return res.render('pages/team-register', {
                 error: isNewTeam
                     ? 'Program, team name, contact email, address, and country are required for a new team.'
-                    : 'Program, team number, team name, contact email, and address or team location are required.',
+                    : isOfficialTeam
+                        ? 'Program, team number, team name, contact email, and address are required.'
+                        : 'Program, team number, team name, contact email, and address or team location are required.',
                 message: null,
                 values
             });
         }
 
-        const officialName = isNewTeam
+        const officialName = isNewTeam || isFllProgram
             ? String(values.name || '').trim()
             : (verification.officialName
                 || extractTeamDisplayName(official)
                 || (official && (official.team_nickname || official.team_name_calc || official.team_name))
                 || values.name);
-        const officialOrganization = isNewTeam
-            ? String(values.organization || '').trim()
-            : getTeamOrganizationFromApiProfile(apiTeamDetails && apiTeamDetails.profile ? apiTeamDetails.profile : official);
+        const officialOrganization = isOfficialTeam
+            ? getTeamOrganizationFromApiProfile(apiTeamDetails && apiTeamDetails.profile ? apiTeamDetails.profile : official)
+            : '';
         const recruiting = values.recruiting === 'on';
         const allowFllExtras = program === 'FLL Challenge' || program === 'FLL Explore';
         const canUseTeamApiAwards = program === 'FTC' || program === 'FRC' || allowFllExtras;
-        const geocodeValues = {
-            address: '',
-            city: resolvedCity,
-            state: resolvedState,
-            country: resolvedCountry
-        };
-        const coords = await geocodeAddress(geocodeValues);
-
-        if (!coords) {
-            return res.render('pages/team-register', {
-                error: 'Could not find that location on the map. Try adding the city, state, and country, or use a more specific address.',
-                message: null,
-                values
-            });
-        }
-
-        if (!isNewTeam && !resolvedCountry) {
+        if (isOfficialTeam && !resolvedCountry) {
             return res.render('pages/team-register', {
                 error: 'We could not determine the team country from the API. Please enter it manually and try again.',
                 message: null,
@@ -1886,7 +1915,7 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             });
         }
 
-        const existingTeam = !isNewTeam
+        const existingTeam = isOfficialTeam
             ? await Team.findOne({ teamNumber, program }).select('contact managers').lean().exec()
             : null;
         if (existingTeam) {
@@ -1913,7 +1942,7 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             name: officialName,
             organization: officialOrganization,
             contact,
-            address: [resolvedCity, resolvedState, resolvedCountry].filter(Boolean).join(', '),
+            address: values.address.trim(),
             city: resolvedCity,
             state: resolvedState,
             country: resolvedCountry || (isNewTeam ? 'USA' : ''),
@@ -1932,7 +1961,11 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             recruiting,
             verified: !isNewTeam,
             verifiedAt: isNewTeam ? null : new Date(),
-            verificationSource: isNewTeam ? 'Self-reported new team' : `${verification.source || (program === 'FRC' ? 'Blue Alliance' : 'FTC Scout')} lookup`,
+            verificationSource: isNewTeam
+                ? 'Self-reported new team'
+                : isFllProgram
+                    ? 'Self-reported FIRST LEGO League team'
+                    : `${verification.source || (program === 'FRC' ? 'Blue Alliance' : 'FTC Scout')} lookup`,
             updatedAt: new Date()
         };
 
@@ -3908,6 +3941,7 @@ module.exports.__test = {
     parsePositiveTeamNumber,
     buildTeamRegistrationAddress,
     extractTeamLocation,
+    locationMatchesOfficialRecord,
     verifySubmittedTeamDetails,
     verifyTeamWithApi
 };

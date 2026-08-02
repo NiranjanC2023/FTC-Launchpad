@@ -23,7 +23,7 @@
     "predev": "npm run build:client",
     "dev": "nodemon app.js",
     "pretest": "npm run build:client",
-    "test": "node --check app.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js && node tests/team-verification.test.js && node tests/privacy-location.test.js && node tests/age-validation.test.js"
+    "test": "node --check app.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js && node tests/team-verification.test.js && node tests/privacy-location.test.js && node tests/stats-localhost.test.js && node tests/age-validation.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

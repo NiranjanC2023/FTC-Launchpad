@@ -19,7 +19,7 @@ assert.match(client, /sessionStorage\.removeItem\(STUDENT_KEY\)/);
 assert.match(client, /localStorage\.removeItem\(STUDENT_KEY\)/);
 assert.doesNotMatch(api, /privacyOffsetCoords/);
 assert.match(api, /Math\.round\(lat \* 10\) \/ 10/);
-assert.match(web, /address: \[resolvedCity, resolvedState, resolvedCountry\]/);
+assert.match(web, /address: values\.address\.trim\(\)/);
 assert.match(web, /lat: Math\.round\(coords\.lat \* 10\) \/ 10/);
 
 console.log('location privacy checks passed');

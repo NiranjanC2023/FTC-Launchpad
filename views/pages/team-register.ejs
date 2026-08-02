@@ -15,7 +15,7 @@
     <div class="container">
       <a href="/" class="btn btn-secondary back-button">&larr; Back Home</a>
       <h1>Register Your Team</h1>
-      <p class="subtitle">Verified FIRST teams can choose whether they appear for students looking nearby.</p>
+      <p class="subtitle">Verified FIRST teams can choose whether they appear for students looking nearby, FLL teams can register too, and new teams can create a listing while they are getting organized.</p>
 
       <% if (error) { %>
         <div class="alert alert-danger"><%= error %></div>
@@ -29,16 +29,27 @@
         <% const selectedProgram = values.program || 'FTC'; %>
         <% const showRegistrationExtras = selectedMode !== 'new' && (selectedProgram === 'FLL Challenge' || selectedProgram === 'FLL Explore'); %>
 
-        <input type="hidden" name="registrationMode" value="existing" />
         <div class="registration-choice form-grid-full">
-          <p class="registration-choice-question">Official FIRST team verification required</p>
-          <p class="registration-choice-note">The team number, name, school or organization, city, state or province, and country must match the official FIRST record. Unregistered teams cannot create a listing.</p>
+          <p class="registration-choice-question">Choose how you want to register</p>
+          <div class="registration-choice-options" role="radiogroup" aria-label="Registration mode">
+            <label class="choice-pill">
+              <input type="radio" name="registrationMode" value="existing" <%= selectedMode === 'new' ? '' : 'checked' %> />
+              <span>Official FIRST team</span>
+            </label>
+            <label class="choice-pill">
+              <input type="radio" name="registrationMode" value="new" <%= selectedMode === 'new' ? 'checked' : '' %> />
+              <span>New team</span>
+            </label>
+          </div>
+          <p class="registration-choice-note">Use official team verification for an existing FIRST record, or choose new team if you are starting a team that has not been registered yet.</p>
         </div>
 
         <label for="program">FIRST program</label>
         <select id="program" name="program" required>
           <option value="FTC" <%= selectedProgram === 'FTC' ? 'selected' : '' %>>FIRST Tech Challenge</option>
           <option value="FRC" <%= selectedProgram === 'FRC' ? 'selected' : '' %>>FIRST Robotics Competition</option>
+          <option value="FLL Challenge" <%= selectedProgram === 'FLL Challenge' ? 'selected' : '' %>>FIRST LEGO League Challenge</option>
+          <option value="FLL Explore" <%= selectedProgram === 'FLL Explore' ? 'selected' : '' %>>FIRST LEGO League Explore</option>
         </select>
 
         <div class="registration-field-inline form-grid-full <%= selectedMode === 'new' ? 'registration-hidden' : '' %>" data-registration-field="teamNumber">
@@ -49,22 +60,19 @@
         <label for="name">Team name</label>
         <input id="name" name="name" required value="<%= values.name || '' %>" />
 
-        <div class="registration-field-inline form-grid-full <%= selectedMode === 'new' ? 'registration-hidden' : '' %>" data-registration-field="organization">
-          <label for="organization">School or organization</label>
-          <input id="organization" name="organization" <%= selectedMode === 'new' ? '' : 'required' %> value="<%= values.organization || '' %>" placeholder="Must match the official FIRST team record" />
-        </div>
-
         <label for="contact">Contact email</label>
-        <input id="contact" name="contact" type="email" required readonly value="<%= values.contact || '' %>" />
-        <small class="text-muted form-note form-grid-full">For account security, this must match the signed-in manager account.</small>
+        <input id="contact" name="contact" type="email" required value="<%= values.contact || '' %>" />
 
         <label for="address">Address</label>
         <input id="address" name="address" placeholder="Street address, meeting area, or landmark" value="<%= values.address || '' %>" />
-        <small class="text-muted form-note form-grid-full">For team privacy, the map marker is offset from the exact address and shown inside a 1000 meter bubble.</small>
+        <% if (!(selectedMode !== 'new' && (selectedProgram === 'FTC' || selectedProgram === 'FRC'))) { %>
+          <small class="text-muted form-note form-grid-full">For team privacy, the map marker is offset from the exact address and shown inside a 1000 meter bubble.</small>
+        <% } %>
 
-        <div class="registration-location-grid form-grid-full" data-team-location-fields>
+        <% const showLocationFields = selectedMode === 'new' || selectedProgram === 'FLL Challenge' || selectedProgram === 'FLL Explore'; %>
+        <div class="registration-location-grid form-grid-full <%= showLocationFields ? '' : 'registration-hidden' %>" data-team-location-fields>
           <label for="city">City</label>
-          <input id="city" name="city" required value="<%= values.city || '' %>" placeholder="Must match the official record for existing teams" />
+          <input id="city" name="city" required value="<%= values.city || '' %>" />
 
           <label for="state">State</label>
           <input id="state" name="state" value="<%= values.state || '' %>" />
@@ -110,10 +118,8 @@
       if (!form) return;
       const modeInputs = Array.from(form.querySelectorAll('input[name="registrationMode"]'));
       const teamNumberField = form.querySelector('[data-registration-field="teamNumber"]');
-      const organizationField = form.querySelector('[data-registration-field="organization"]');
       const extrasField = form.querySelector('[data-registration-extras]');
       const teamNumberInput = form.querySelector('#teamNumber');
-      const organizationInput = form.querySelector('#organization');
       const awardsInput = form.querySelector('#awards');
       const yearsInput = form.querySelector('#yearsInProgram');
       const extraInputs = [awardsInput, yearsInput].filter(Boolean);
@@ -123,7 +129,9 @@
         const selected = modeInputs.find(input => input.checked);
         const isNew = selected && selected.value === 'new';
         const programValue = String(form.querySelector('#program')?.value || '').trim();
+        const isOfficial = !isNew && (programValue === 'FTC' || programValue === 'FRC');
         const showExtras = !isNew && (programValue === 'FLL Challenge' || programValue === 'FLL Explore');
+        const showLocation = !isOfficial;
 
         if (teamNumberField) teamNumberField.classList.toggle('registration-hidden', isNew);
         if (teamNumberInput) {
@@ -132,19 +140,13 @@
           if (isNew) teamNumberInput.value = '';
         }
 
-        if (organizationField) organizationField.classList.toggle('registration-hidden', isNew);
-        if (organizationInput) {
-          organizationInput.required = !isNew;
-          organizationInput.disabled = isNew;
-          if (isNew) organizationInput.value = '';
-        }
-
-        if (locationFields) locationFields.classList.remove('registration-hidden');
+        if (locationFields) locationFields.classList.toggle('registration-hidden', !showLocation);
         ['city', 'state', 'country'].forEach((fieldName) => {
           const input = form.querySelector(`#${fieldName}`);
           if (!input) return;
-          input.disabled = false;
-          input.required = fieldName === 'city' || fieldName === 'country';
+          input.disabled = !showLocation;
+          input.required = showLocation && (fieldName === 'city' || fieldName === 'country');
+          if (!showLocation) input.value = '';
         });
 
         if (extrasField) extrasField.classList.toggle('registration-hidden', !showExtras);

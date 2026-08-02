@@ -104,10 +104,15 @@ async function optimizeImages() {
     const outputPath = outputBase + '.webp';
     const isResponsiveContent = sourcePath.includes(`${path.sep}carousel${path.sep}`)
       || path.basename(sourcePath, extension) === 'why-join-first';
+    const isPrimaryHomepageCarouselImage = path.basename(sourcePath, extension) === 'IMG_1014_frame_0_01_2f';
     const maxWidth = /@2x\./i.test(sourcePath) ? 1920 : 1280;
+    const isCarouselImage = sourcePath.includes(`${path.sep}carousel${path.sep}`);
     const quality = path.basename(sourcePath, extension) === 'why-join-first'
       ? 90
-      : (sourcePath.includes(`${path.sep}carousel${path.sep}`) ? 100 : 84);
+      : (isPrimaryHomepageCarouselImage ? 92 : (isCarouselImage ? 82 : 84));
+    const avifQuality = path.basename(sourcePath, extension) === 'why-join-first'
+      ? 68
+      : (isPrimaryHomepageCarouselImage ? 92 : (isCarouselImage ? 82 : 68));
     const output = await sharp(sourcePath)
       .resize({ width: maxWidth, withoutEnlargement: true })
       .webp({ quality, effort: 5 })
@@ -121,9 +126,9 @@ async function optimizeImages() {
           .resize({ width, withoutEnlargement: true })
           .webp({ quality, effort: 5 })
           .toBuffer();
-        const avifVariant = await sharp(sourcePath)
+      const avifVariant = await sharp(sourcePath)
           .resize({ width, withoutEnlargement: true })
-          .avif({ quality: sourcePath.includes(`${path.sep}carousel${path.sep}`) ? 100 : 68, effort: 5, chromaSubsampling: '4:4:4' })
+          .avif({ quality: avifQuality, effort: 5, chromaSubsampling: '4:4:4' })
           .toBuffer();
         fs.writeFileSync(`${outputBase}.w${width}.webp`, webpVariant);
         fs.writeFileSync(`${outputBase}.w${width}.avif`, avifVariant);
@@ -131,7 +136,7 @@ async function optimizeImages() {
 
       const avifOutput = await sharp(sourcePath)
         .resize({ width: maxWidth, withoutEnlargement: true })
-        .avif({ quality: sourcePath.includes(`${path.sep}carousel${path.sep}`) ? 100 : 68, effort: 5, chromaSubsampling: '4:4:4' })
+        .avif({ quality: avifQuality, effort: 5, chromaSubsampling: '4:4:4' })
         .toBuffer();
       fs.writeFileSync(`${outputBase}.avif`, avifOutput);
     }
