@@ -16,6 +16,11 @@ const path = require('path');
 const crypto = require('crypto');
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
 const LOCALHOST_HOST_PATTERN = /^(localhost|127(?:\.\d{1,3}){3}|\[?::1\]?)(?::\d+)?$/i;
+const USERCENTRICS_PRIVACY_POLICY_ID = 'fb54bbd7-7e7d-41ed-ae56-bfeb13277b45';
+const USERCENTRICS_PRIVACY_POLICY_URL = 'https://policygenerator.usercentrics.eu/api/embedding';
+const USERCENTRICS_PRIVACY_POLICY_CACHE_TTL_MS = 60 * 60 * 1000;
+let cachedPrivacyPolicyHtml = null;
+let cachedPrivacyPolicyFetchedAt = 0;
 
 function signIn(req, user) {
     return new Promise((resolve, reject) => {
@@ -27,6 +32,98 @@ function signIn(req, user) {
                 resolve();
             });
         });
+    });
+}
+
+const SIGNUP_VERIFICATION_TTL_MS = 10 * 60 * 1000;
+
+function normalizeVerificationCode(value) {
+    return String(value || '').replace(/\s+/g, '').trim();
+}
+
+function generateSignupVerificationCode() {
+    return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function hashSignupVerificationCode(code, salt) {
+    return crypto.createHash('sha256').update(`${salt}:${code}`).digest('hex');
+}
+
+function buildSignupFormUrl(mode, body = {}) {
+    const query = new URLSearchParams();
+    if (body.inviteToken) query.set('inviteToken', String(body.inviteToken));
+    if (body.next) query.set('next', String(body.next));
+    return `/signup/${mode === 'manager' ? 'manager' : 'seeker'}${query.toString() ? `?${query.toString()}` : ''}`;
+}
+
+function getPendingSignupVerification(req) {
+    return req.session ? req.session.pendingSignupVerification || null : null;
+}
+
+function clearPendingSignupVerification(req) {
+    if (req.session) {
+        delete req.session.pendingSignupVerification;
+    }
+}
+
+async function fetchOfficialPrivacyPolicyHtml() {
+    const now = Date.now();
+    if (cachedPrivacyPolicyHtml && (now - cachedPrivacyPolicyFetchedAt) < USERCENTRICS_PRIVACY_POLICY_CACHE_TTL_MS) {
+        return cachedPrivacyPolicyHtml;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    try {
+        const url = new URL(USERCENTRICS_PRIVACY_POLICY_URL);
+        url.searchParams.set('id', USERCENTRICS_PRIVACY_POLICY_ID);
+        url.searchParams.set('language', 'en');
+
+        const response = await fetch(url.toString(), {
+            signal: controller.signal,
+            headers: {
+                'user-agent': 'FTC-Launchpad/1.0'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Usercentrics privacy policy request failed with status ${response.status}`);
+        }
+
+        const html = await response.text();
+        cachedPrivacyPolicyHtml = html;
+        cachedPrivacyPolicyFetchedAt = now;
+        return html;
+    } catch (error) {
+        if (cachedPrivacyPolicyHtml) {
+            return cachedPrivacyPolicyHtml;
+        }
+        return null;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+async function sendSignupVerificationEmail({ to, code }) {
+    const verificationFrom = process.env.SIGNUP_VERIFICATION_FROM || `"${process.env.EMAIL_NAME || 'FIRST Start'}" <onboarding@resend.dev>`;
+    const html = buildTransactionalEmailTemplate({
+        preheader: 'Your FIRST Start verification code',
+        title: 'Verify your email',
+        intro: 'Use this verification code to finish creating your FIRST Start account.',
+        details: [
+            { label: 'Verification code', value: `<strong style="font-size:28px;letter-spacing:0.18em;">${code}</strong>` },
+            { label: 'Expiration', value: 'This code expires in 10 minutes.' }
+        ],
+        outro: 'If you did not request this code, you can safely ignore this message.',
+        footer: 'FIRST Start account verification'
+    });
+
+    await sendTransactionalEmail({
+        to,
+        from: verificationFrom,
+        subject: 'Your FIRST Start verification code',
+        html
     });
 }
 
@@ -209,6 +306,7 @@ function anonymousAllowedPath(pathname) {
         || path === '/signup'
         || path === '/signup/seeker'
         || path === '/signup/manager'
+        || path === '/terms'
         || path === '/join-form'
         || path === '/join-team'
         || path === '/teams-nearby'
@@ -3420,6 +3518,14 @@ router.get('/signup', function(req, res){
     });
 });
 
+router.get('/terms', async function(req, res){
+    const policyHtml = await fetchOfficialPrivacyPolicyHtml();
+    res.render('pages/terms', {
+        nextPath: sanitizeNextPath(req.query.next, ''),
+        policyHtml
+    });
+});
+
 // Dedicated pages for each signup mode (selection page links here)
 router.get('/signup/seeker', async function(req, res){
     const values = {};
@@ -3453,17 +3559,51 @@ router.get('/signup/manager', async function(req, res){
     });
 });
 
+router.get('/signup/verify', function(req, res){
+    const pending = getPendingSignupVerification(req);
+    if (!pending) {
+        return res.redirect('/signup');
+    }
+    const email = pending.data && pending.data.email ? pending.data.email : '';
+    res.render('pages/signup-verify', {
+        error: null,
+        success: null,
+        email,
+        mode: pending.mode || 'seeker',
+        formUrl: pending.formUrl || buildSignupFormUrl(pending.mode || 'seeker', pending.data || {}),
+        expiresAt: pending.expiresAt || null
+    });
+});
+
 router.post('/signup', async function(req, res){
     const mode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
     try {
         if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
-        const { name, email, password, age, phone, profilePicture, interests, experience, inviteToken } = req.body;
+        const { name, email, password, age, phone, profilePicture, interests, experience, inviteToken, policyAccepted } = req.body;
         const nextPath = sanitizeNextPath(req.body.next, '');
         const normalizedEmail = normalizeEmail(email);
-        const requiredFields = { name, normalizedEmail, password };
+        const seekerRequiredFields = {
+            name,
+            normalizedEmail,
+            password,
+            age,
+            phone,
+            interests,
+            experience
+        };
+        const managerRequiredFields = { name, normalizedEmail, password };
+        const requiredFields = mode === 'seeker' ? seekerRequiredFields : managerRequiredFields;
         const hasMissingRequiredField = Object.values(requiredFields).some(value => !String(value ?? '').trim());
         if (hasMissingRequiredField) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body, inviteToken: inviteToken || null, nextPath });
         if (String(password).length < 8) return res.render(`pages/signup-${mode}`, { error: 'Password must be at least 8 characters.', values: req.body, inviteToken: inviteToken || null, nextPath });
+        if (!['1', 'on', 'true'].includes(String(policyAccepted || '').trim().toLowerCase())) {
+            return res.render(`pages/signup-${mode}`, {
+                error: 'You must agree to the policy before creating an account.',
+                values: req.body,
+                inviteToken: inviteToken || null,
+                nextPath
+            });
+        }
 
         const trimmedAge = String(age || '').trim();
         const numericAge = trimmedAge ? Number(trimmedAge) : null;
@@ -3472,10 +3612,186 @@ router.post('/signup', async function(req, res){
         }
         const existing = await User.findOne({ email: normalizedEmail }).exec();
         if (existing) return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body, inviteToken: inviteToken || null, nextPath });
+        const verificationCode = generateSignupVerificationCode();
+        const codeSalt = crypto.randomBytes(16).toString('hex');
+        const pending = {
+            mode,
+            formUrl: buildSignupFormUrl(mode, req.body),
+            data: {
+                name: String(name || '').trim(),
+                email: normalizedEmail,
+                password: String(password || ''),
+                age: String(age || '').trim(),
+                phone: String(phone || '').trim(),
+                profilePicture: String(profilePicture || '').trim(),
+                interests: String(interests || '').trim(),
+                experience: String(experience || '').trim(),
+                inviteToken: inviteToken || null,
+                nextPath,
+                policyAccepted: '1'
+            },
+            codeSalt,
+            codeHash: hashSignupVerificationCode(verificationCode, codeSalt),
+            codeSentAt: Date.now(),
+            expiresAt: Date.now() + SIGNUP_VERIFICATION_TTL_MS,
+            attempts: 0
+        };
+        req.session.pendingSignupVerification = pending;
+        try {
+            await sendSignupVerificationEmail({ to: normalizedEmail, code: verificationCode });
+        } catch (emailErr) {
+            clearPendingSignupVerification(req);
+            console.error('Failed to send signup verification email:', emailErr);
+            return res.render(`pages/signup-${mode}`, {
+                error: 'We could not send a verification code to that email right now. Please try again.',
+                values: req.body,
+                inviteToken: inviteToken || null,
+                nextPath
+            });
+        }
+        return res.render('pages/signup-verify', {
+            error: null,
+            success: 'We sent a verification code to your email.',
+            email: normalizedEmail,
+            mode,
+            formUrl: pending.formUrl,
+            expiresAt: pending.expiresAt
+        });
+    } catch (err) {
+        console.error('Signup failed:', err);
+        const renderMode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
+        res.render(`pages/signup-${renderMode}`, { error: 'Unable to create the account right now.', values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
+    }
+});
+
+router.post('/signup/verify/resend', async function(req, res){
+    const pending = getPendingSignupVerification(req);
+    if (!pending) return res.redirect('/signup');
+    if (!pending.data || !pending.data.email) {
+        clearPendingSignupVerification(req);
+        return res.redirect('/signup');
+    }
+    if (Date.now() > Number(pending.expiresAt || 0)) {
+        clearPendingSignupVerification(req);
+        return res.render('pages/signup-verify', {
+            error: 'Your verification code expired. Please sign up again to receive a new one.',
+            success: null,
+            email: pending.data.email,
+            mode: pending.mode || 'seeker',
+            formUrl: pending.formUrl || buildSignupFormUrl(pending.mode || 'seeker', pending.data || {}),
+            expiresAt: pending.expiresAt || null
+        });
+    }
+
+    const verificationCode = generateSignupVerificationCode();
+    const codeSalt = crypto.randomBytes(16).toString('hex');
+    pending.codeSalt = codeSalt;
+    pending.codeHash = hashSignupVerificationCode(verificationCode, codeSalt);
+    pending.codeSentAt = Date.now();
+    pending.expiresAt = Date.now() + SIGNUP_VERIFICATION_TTL_MS;
+    pending.attempts = 0;
+    req.session.pendingSignupVerification = pending;
+
+    try {
+        await sendSignupVerificationEmail({ to: pending.data.email, code: verificationCode });
+    } catch (emailErr) {
+        console.error('Failed to resend signup verification email:', emailErr);
+        return res.render('pages/signup-verify', {
+            error: 'We could not resend the verification code right now. Please try again.',
+            success: null,
+            email: pending.data.email,
+            mode: pending.mode || 'seeker',
+            formUrl: pending.formUrl || buildSignupFormUrl(pending.mode || 'seeker', pending.data || {}),
+            expiresAt: pending.expiresAt || null
+        });
+    }
+
+    return res.render('pages/signup-verify', {
+        error: null,
+        success: 'We sent a new verification code to your email.',
+        email: pending.data.email,
+        mode: pending.mode || 'seeker',
+        formUrl: pending.formUrl || buildSignupFormUrl(pending.mode || 'seeker', pending.data || {}),
+        expiresAt: pending.expiresAt || null
+    });
+});
+
+router.post('/signup/verify', async function(req, res){
+    const pending = getPendingSignupVerification(req);
+    if (!pending) return res.redirect('/signup');
+    if (!pending.data || !pending.data.email) {
+        clearPendingSignupVerification(req);
+        return res.redirect('/signup');
+    }
+
+    if (Date.now() > Number(pending.expiresAt || 0)) {
+        clearPendingSignupVerification(req);
+        return res.render('pages/signup-verify', {
+            error: 'Your verification code expired. Please sign up again to receive a new one.',
+            success: null,
+            email: pending.data.email,
+            mode: pending.mode || 'seeker',
+            formUrl: pending.formUrl || buildSignupFormUrl(pending.mode || 'seeker', pending.data || {}),
+            expiresAt: pending.expiresAt || null
+        });
+    }
+
+    const enteredCode = normalizeVerificationCode(req.body && req.body.verificationCode);
+    const expectedHash = hashSignupVerificationCode(enteredCode, pending.codeSalt || '');
+    if (!enteredCode || enteredCode.length !== 6 || expectedHash !== pending.codeHash) {
+        pending.attempts = Number(pending.attempts || 0) + 1;
+        req.session.pendingSignupVerification = pending;
+        const tooManyAttempts = pending.attempts >= 5;
+        if (tooManyAttempts) {
+            clearPendingSignupVerification(req);
+            return res.render('pages/signup-verify', {
+                error: 'Too many incorrect attempts. Please sign up again to get a fresh code.',
+                success: null,
+                email: pending.data.email,
+                mode: pending.mode || 'seeker',
+                formUrl: pending.formUrl || buildSignupFormUrl(pending.mode || 'seeker', pending.data || {}),
+                expiresAt: pending.expiresAt || null
+            });
+        }
+        return res.render('pages/signup-verify', {
+            error: 'That code was not correct. Please try again.',
+            success: null,
+            email: pending.data.email,
+            mode: pending.mode || 'seeker',
+            formUrl: pending.formUrl || buildSignupFormUrl(pending.mode || 'seeker', pending.data || {}),
+            expiresAt: pending.expiresAt || null
+        });
+    }
+
+    const { name, email, password, age, phone, profilePicture, interests, experience, inviteToken, nextPath } = pending.data;
+    const mode = pending.mode === 'manager' ? 'manager' : 'seeker';
+    clearPendingSignupVerification(req);
+
+    try {
+        if (!isDatabaseConnected()) {
+            return res.render(`pages/signup-${mode}`, {
+                error: databaseErrorMessage(),
+                values: pending.data,
+                inviteToken: inviteToken || null,
+                nextPath
+            });
+        }
+
+        const existing = await User.findOne({ email }).exec();
+        if (existing) {
+            return res.render(`pages/signup-${mode}`, {
+                error: 'Email already registered',
+                values: pending.data,
+                inviteToken: inviteToken || null,
+                nextPath
+            });
+        }
+
+        const numericAge = age ? Number(age) : null;
         const user = new User({
             name: name.trim(),
-            email: normalizedEmail,
-            age: mode === 'seeker' && numericAge ? numericAge : undefined,
+            email,
+            age: mode === 'seeker' && Number.isInteger(numericAge) ? numericAge : undefined,
             phone: String(phone || '').trim(),
             profilePicture: String(profilePicture || '').trim(),
             interests: mode === 'seeker' ? String(interests || '').trim() : undefined,
@@ -3483,7 +3799,7 @@ router.post('/signup', async function(req, res){
         });
         await user.setPassword(password);
         await user.save();
-        console.log(`User signup saved: ${user.email} -> ${mongoose.connection.name}.${User.collection.name}`);
+        console.log(`User signup saved after email verification: ${user.email} -> ${mongoose.connection.name}.${User.collection.name}`);
         await signIn(req, user);
 
         const contactTeams = await attachContactTeamsToUser(user);
@@ -3500,9 +3816,13 @@ router.post('/signup', async function(req, res){
         if (contactTeams.length) return res.redirect('/my-team');
         res.redirect('/');
     } catch (err) {
-        console.error('Signup failed:', err);
-        const renderMode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
-        res.render(`pages/signup-${renderMode}`, { error: 'Unable to create the account right now.', values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
+        console.error('Email verification signup failed:', err);
+        res.render(`pages/signup-${mode}`, {
+            error: 'Unable to create the account right now.',
+            values: pending.data,
+            inviteToken: inviteToken || null,
+            nextPath
+        });
     }
 });
 

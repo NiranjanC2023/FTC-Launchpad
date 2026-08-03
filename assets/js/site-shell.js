@@ -240,6 +240,42 @@ function initSignupForm() {
   const modeInput = form.querySelector('#signupMode') || form.querySelector('input[name="signupMode"]');
   const managerContainer = form.querySelector('.signup-manager-fields');
   const seekerContainer = form.querySelector('.signup-seeker-fields');
+  const currentUrl = new URL(window.location.href);
+  currentUrl.hash = '';
+  currentUrl.searchParams.delete('nocache');
+  const currentPath = `${currentUrl.pathname}${currentUrl.search}`;
+  const draftKey = `signup_draft:${currentPath}`;
+  const returnKey = 'signup_terms_return_url';
+
+  function captureDraft() {
+    try {
+      const payload = {};
+      new FormData(form).forEach((value, key) => {
+        payload[key] = value;
+      });
+      sessionStorage.setItem(draftKey, JSON.stringify(payload));
+      sessionStorage.setItem(returnKey, currentPath);
+    } catch (e) {}
+  }
+
+  function restoreDraft() {
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (!raw) return;
+      const payload = JSON.parse(raw);
+      form.querySelectorAll('input, textarea, select').forEach((el) => {
+        if (!el.name || !(el.name in payload)) return;
+        if (el.type === 'checkbox' || el.type === 'radio') {
+          const values = Array.isArray(payload[el.name]) ? payload[el.name].map(String) : [String(payload[el.name])];
+          el.checked = values.includes(el.value);
+        } else if (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') {
+          el.value = String(payload[el.name]);
+        } else if (el.type !== 'hidden') {
+          el.value = String(payload[el.name]);
+        }
+      });
+    } catch (e) {}
+  }
 
   function setMode(mode) {
     modeButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
@@ -257,6 +293,18 @@ function initSignupForm() {
     try { sessionStorage.setItem('signup_intent', mode); } catch (e) {}
   }
 
+  restoreDraft();
+  form.querySelectorAll('input, textarea, select').forEach(el => {
+    el.addEventListener('input', captureDraft);
+    el.addEventListener('change', captureDraft);
+  });
+
+  const termsButton = form.querySelector('.terms-button');
+  if (termsButton) {
+    termsButton.setAttribute('href', '/terms#usercentrics-ppg');
+    termsButton.addEventListener('click', captureDraft);
+  }
+
   if (modeButtons && modeButtons.length > 0) {
     modeButtons.forEach(btn => btn.addEventListener('click', () => setMode(btn.dataset.mode)));
     // initialize default mode for combined page
@@ -271,6 +319,16 @@ function initSignupForm() {
     if (seekerContainer) seekerContainer.querySelectorAll('input, textarea, select').forEach(el => el.disabled = initial === 'manager');
     try { sessionStorage.setItem('signup_intent', initial); } catch (e) {}
   }
+}
+
+function initTermsPage() {
+  const backLink = document.querySelector('[data-terms-back-link]');
+  if (!backLink) return;
+
+  try {
+    const returnUrl = sessionStorage.getItem('signup_terms_return_url');
+    if (returnUrl) backLink.setAttribute('href', returnUrl);
+  } catch (e) {}
 }
 
 document.addEventListener('DOMContentLoaded', () => {

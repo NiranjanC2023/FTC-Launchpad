@@ -38,7 +38,7 @@ const GZIP_CONTENT_TYPES = {
 };
 
 const MAIN_CSS_VERSION = "32";
-const MAIN_JS_VERSION = "41";
+const MAIN_JS_VERSION = "43";
 const HOME_JS_VERSION = "13";
 const BOOTSTRAP_STYLESHEET = '<link rel="stylesheet" href="/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6">';
 const EXTERNAL_ASSET_REPLACEMENTS = [
@@ -138,11 +138,11 @@ app.use(function setSecurityHeaders(req, res, next) {
     res.set({
         "Content-Security-Policy": [
             "default-src 'self'",
-            `script-src 'self' 'nonce-${nonce}'`,
+            `script-src 'self' 'nonce-${nonce}' https://policygenerator.usercentrics.eu`,
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com",
             "font-src 'self' data:",
-            "connect-src 'self' https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com",
+            "connect-src 'self' https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com https://policygenerator.usercentrics.eu",
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",

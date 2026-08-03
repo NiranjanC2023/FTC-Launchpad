@@ -34,8 +34,15 @@
           <label class="form-label">Password</label>
           <input name="password" id="password" type="password" class="form-control" required />
         </div>
-
         <p class="text-muted" style="margin: 0 0 18px;">You can connect to a team after sign up from your dashboard.</p>
+
+        <div class="mb-3" style="display:flex; flex-wrap:wrap; align-items:center; gap:12px; justify-content:space-between;">
+          <label class="form-label" style="display:flex; align-items:center; gap:10px; margin:0;">
+            <input name="policyAccepted" type="checkbox" value="1" required <%= values && ['1', 'on', 'true'].includes(String(values.policyAccepted || '').toLowerCase()) ? 'checked' : '' %> />
+            <span>I agree to the policy</span>
+          </label>
+          <a class="btn terms-button" href="/terms#usercentrics-ppg">View terms</a>
+        </div>
 
         <button class="btn btn-primary" type="submit">Create account</button>
       </form>
@@ -44,6 +51,6 @@
     </div>
   </main>
 
-  <script src="/assets/js/main.js?v=37"></script>
+  <script src="/assets/js/main.js?v=43"></script>
 </body>
 </html>
