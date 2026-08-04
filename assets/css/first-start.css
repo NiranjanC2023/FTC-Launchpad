@@ -5,11 +5,28 @@
 
 .home-page header {
   text-align: left;
+  box-shadow:
+    0 14px 28px rgba(8, 48, 29, 0.34),
+    0 2px 0 rgba(79, 225, 125, 0.12) inset;
+}
+
+.home-page header .navbar,
+.home-page header .navbar-default {
+  box-shadow:
+    0 14px 28px rgba(8, 48, 29, 0.34),
+    0 2px 0 rgba(79, 225, 125, 0.12) inset;
 }
 
 .home-page .navbar-header .navbar-brand {
   justify-content: flex-start;
   margin-right: 0;
+}
+
+@media (min-width: 861px) and (max-width: 1120px) {
+  .home-page .navbar-collapse,
+  .home-page .navbar-nav {
+    min-height: 42px;
+  }
 }
 
 .home-page {

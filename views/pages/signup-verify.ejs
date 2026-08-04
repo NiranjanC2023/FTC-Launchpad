@@ -42,12 +42,50 @@
 
         <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
           <button class="btn btn-primary" type="submit">Verify and create account</button>
-          <button class="btn btn-secondary" type="submit" formaction="/signup/verify/resend">Resend code</button>
+          <button class="btn btn-secondary" type="submit" formaction="/signup/verify/resend" formnovalidate data-resend-code-button>Resend code</button>
         </div>
       </form>
     </div>
   </main>
 
   <script src="/assets/js/main.js?v=43"></script>
+  <script>
+    (function() {
+      const resendButton = document.querySelector('[data-resend-code-button]');
+      if (!resendButton) return;
+
+      const resendAvailableAt = Number(<%= Number(typeof resendAvailableAt !== 'undefined' ? resendAvailableAt : 0) %>);
+      if (!resendAvailableAt) return;
+
+      let timerId = null;
+
+      function formatRemaining(remainingMs) {
+        const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${String(seconds).padStart(2, '0')}`;
+      }
+
+      function updateResendState() {
+        const remainingMs = Math.max(0, resendAvailableAt - Date.now());
+        if (remainingMs <= 0) {
+          resendButton.disabled = false;
+          resendButton.textContent = 'Resend code';
+          if (timerId) {
+            window.clearTimeout(timerId);
+            timerId = null;
+          }
+          return;
+        }
+
+        resendButton.disabled = true;
+        resendButton.textContent = `Resend code in ${formatRemaining(remainingMs)}`;
+
+        timerId = window.setTimeout(updateResendState, Math.min(remainingMs, 1000));
+      }
+
+      updateResendState();
+    })();
+  </script>
 </body>
 </html>

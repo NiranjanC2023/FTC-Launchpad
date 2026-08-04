@@ -33,7 +33,10 @@
         <input id="name" name="name" value="<%= values && values.name ? values.name : '' %>" required>
 
         <label for="age">Age</label>
-        <input id="age" name="age" type="number" min="3" max="18" step="1" value="<%= values && values.age ? values.age : '' %>">
+        <input id="age" name="age" type="number" min="13" max="18" step="1" value="<%= values && values.age ? values.age : '' %>">
+
+        <label for="country">Country</label>
+        <input id="country" name="country" autocomplete="country-name" value="<%= values && values.country ? values.country : '' %>" readonly>
 
         <label for="experience">Experience (brief)</label>
         <textarea id="experience" name="experience" rows="4" placeholder="e.g., none, some Java, built RC car"><%= values && values.experience ? values.experience : '' %></textarea>

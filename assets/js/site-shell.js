@@ -404,10 +404,10 @@ function loadSiteShells() {
         const drawer = document.querySelector('[data-navbar-collapse]');
         if (!toggle || !drawer) return;
 
-        const mobileQuery = window.matchMedia ? window.matchMedia('(max-width: 860px)') : null;
+        const mobileQuery = window.matchMedia ? window.matchMedia('(max-width: 1120px)') : null;
 
         function syncDrawerState() {
-          const isMobile = mobileQuery ? mobileQuery.matches : window.innerWidth <= 860;
+          const isMobile = mobileQuery ? mobileQuery.matches : window.innerWidth <= 1120;
           const isOpen = drawer.classList.contains('is-open');
 
           if (!isMobile) {
@@ -444,8 +444,15 @@ function loadSiteShells() {
           });
         }
 
+        if (mobileQuery && !toggle.dataset.breakpointBound) {
+          toggle.dataset.breakpointBound = 'true';
+          mobileQuery.addEventListener('change', syncDrawerState);
+        }
+
         window.addEventListener('resize', syncDrawerState, { passive: true });
         syncDrawerState();
+        window.requestAnimationFrame(syncDrawerState);
+        window.setTimeout(syncDrawerState, 0);
       }
 
       bindNavbarDrawer();

@@ -39,9 +39,9 @@
         <div class="mb-3" style="display:flex; flex-wrap:wrap; align-items:center; gap:12px; justify-content:space-between;">
           <label class="form-label" style="display:flex; align-items:center; gap:10px; margin:0;">
             <input name="policyAccepted" type="checkbox" value="1" required <%= values && ['1', 'on', 'true'].includes(String(values.policyAccepted || '').toLowerCase()) ? 'checked' : '' %> />
-            <span>I agree to the policy</span>
+            <span>I am 13+ and agree to the privacy policy</span>
           </label>
-          <a class="btn terms-button" href="/terms#usercentrics-ppg">View terms</a>
+          <a class="btn terms-button" href="/terms#usercentrics-ppg">View privacy policy</a>
         </div>
 
         <button class="btn btn-primary" type="submit">Create account</button>

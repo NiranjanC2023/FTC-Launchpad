@@ -27,7 +27,7 @@
       <form method="POST" action="/team-register" class="form-grid">
         <% const selectedMode = values.registrationMode || 'existing'; %>
         <% const selectedProgram = values.program || 'FTC'; %>
-        <% const showRegistrationExtras = selectedMode !== 'new' && (selectedProgram === 'FLL Challenge' || selectedProgram === 'FLL Explore'); %>
+        <% const showRegistrationExtras = selectedMode !== 'new' && selectedProgram === 'FLL Challenge'; %>
 
         <div class="registration-choice form-grid-full">
           <p class="registration-choice-question">Choose how you want to register</p>
@@ -49,7 +49,6 @@
           <option value="FTC" <%= selectedProgram === 'FTC' ? 'selected' : '' %>>FIRST Tech Challenge</option>
           <option value="FRC" <%= selectedProgram === 'FRC' ? 'selected' : '' %>>FIRST Robotics Competition</option>
           <option value="FLL Challenge" <%= selectedProgram === 'FLL Challenge' ? 'selected' : '' %>>FIRST LEGO League Challenge</option>
-          <option value="FLL Explore" <%= selectedProgram === 'FLL Explore' ? 'selected' : '' %>>FIRST LEGO League Explore</option>
         </select>
 
         <div class="registration-field-inline form-grid-full <%= selectedMode === 'new' ? 'registration-hidden' : '' %>" data-registration-field="teamNumber">
@@ -69,7 +68,7 @@
           <small class="text-muted form-note form-grid-full">For team privacy, the map marker is offset from the exact address and shown inside a 1000 meter bubble.</small>
         <% } %>
 
-        <% const showLocationFields = selectedMode === 'new' || selectedProgram === 'FLL Challenge' || selectedProgram === 'FLL Explore'; %>
+        <% const showLocationFields = selectedMode === 'new' || selectedProgram === 'FLL Challenge'; %>
         <div class="registration-location-grid form-grid-full <%= showLocationFields ? '' : 'registration-hidden' %>" data-team-location-fields>
           <label for="city">City</label>
           <input id="city" name="city" required value="<%= values.city || '' %>" />
@@ -130,7 +129,7 @@
         const isNew = selected && selected.value === 'new';
         const programValue = String(form.querySelector('#program')?.value || '').trim();
         const isOfficial = !isNew && (programValue === 'FTC' || programValue === 'FRC');
-        const showExtras = !isNew && (programValue === 'FLL Challenge' || programValue === 'FLL Explore');
+        const showExtras = !isNew && programValue === 'FLL Challenge';
         const showLocation = !isOfficial;
 
         if (teamNumberField) teamNumberField.classList.toggle('registration-hidden', isNew);

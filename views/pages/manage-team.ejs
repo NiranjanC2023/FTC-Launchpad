@@ -262,9 +262,9 @@
 
         .recruit-card {
             background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md);
-            padding: 20px; margin-bottom: 15px; transition: all 0.2s ease; position: relative; overflow: hidden; min-width: 0;
+            padding: 20px; margin-bottom: 15px; transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease; position: relative; overflow: visible; min-width: 0;
         }
-        .recruit-card:hover { border-color: var(--accent-primary); transform: scale(1.01); background: var(--surface); }
+        .recruit-card:hover { border-color: var(--accent-primary); transform: translateY(-2px); background: var(--surface); }
         .recruit-card::after { 
             content: ''; position: absolute; left: 0; top: 0; height: 100%; width: 4px; 
             background: var(--accent-secondary); opacity: 0.6;
@@ -301,7 +301,7 @@
             border: 1px solid var(--border-color);
             border-radius: 12px;
             background: var(--surface);
-            overflow: hidden;
+            overflow: visible;
         }
         .recruit-details-dropdown > summary {
             list-style: none;
@@ -334,12 +334,14 @@
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
+            min-width: 0;
         }
         .recruit-detail-chip {
             padding: 10px 12px;
             border: 1px solid var(--border-color);
             border-radius: 10px;
             background: var(--surface);
+            min-width: 0;
         }
         .recruit-detail-label {
             display: block;
@@ -354,7 +356,11 @@
             margin: 0;
             color: var(--text-primary);
             font-weight: 600;
+            line-height: 1.45;
+            white-space: normal;
             overflow-wrap: anywhere;
+            word-break: break-word;
+            min-width: 0;
         }
         .recruit-detail-full { grid-column: 1 / -1; }
         .status-modal {
@@ -522,6 +528,8 @@
         <% var teamOptions = Array.isArray(teamOptions) ? teamOptions : []; %>
         <% var teamSelectionOnly = typeof teamSelectionOnly !== 'undefined' ? teamSelectionOnly : false; %>
         <% var currentTeamRole = typeof currentTeamRole !== 'undefined' ? currentTeamRole : ''; %>
+        <% function normalizeRecruitText(value) { return String(value || '').replace(/\s+/g, ' ').trim(); } %>
+        <% function previewRecruitText(value, maxLength) { const text = normalizeRecruitText(value); if (!text) return ''; const limit = maxLength || 180; return text.length > limit ? text.slice(0, limit - 1).trimEnd() + '…' : text; } %>
         <% var isCaptain = Boolean(currentTeamRole); %>
         <% const managedTeamOptions = Array.isArray(teamOptions) ? teamOptions : []; %>
         <div class="page-header">
@@ -842,7 +850,7 @@
                                                         <span class="label label-default" style="font-weight: 800;">Age <%= recruit.age %></span>
                                                         <span class="label label-info" style="background: var(--bg-secondary); color: var(--accent-primary); font-weight: 800;"><%= recruit.interests %></span>
                                                     </div>
-                                                    <p class="small text-muted" style="margin: 0;"><strong>Background:</strong> <%= recruit.experience %></p>
+                                                    <p class="small text-muted" style="margin: 0;"><strong>Background:</strong> <%= previewRecruitText(recruit.experience, 160) || 'Not provided' %></p>
                                                     <details class="recruit-details-dropdown">
                                                         <summary>Applicant details</summary>
                                                         <div class="recruit-details-panel">
@@ -861,11 +869,11 @@
                                                                 </div>
                                                                 <div class="recruit-detail-chip">
                                                                     <span class="recruit-detail-label">Interests</span>
-                                                                    <p class="recruit-detail-value"><%= recruit.interests || 'Not provided' %></p>
+                                                                    <p class="recruit-detail-value"><%= normalizeRecruitText(recruit.interests) || 'Not provided' %></p>
                                                                 </div>
                                                                 <div class="recruit-detail-chip recruit-detail-full">
                                                                     <span class="recruit-detail-label">Background</span>
-                                                                    <p class="recruit-detail-value"><%= recruit.experience || 'Not provided' %></p>
+                                                                    <p class="recruit-detail-value"><%= previewRecruitText(recruit.experience, 220) || 'Not provided' %></p>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -936,11 +944,11 @@
                                                         </div>
                                                         <div class="recruit-detail-chip">
                                                             <span class="recruit-detail-label">Interests</span>
-                                                            <p class="recruit-detail-value"><%= waitRecruit.interests || 'Not provided' %></p>
+                                                            <p class="recruit-detail-value"><%= normalizeRecruitText(waitRecruit.interests) || 'Not provided' %></p>
                                                         </div>
                                                         <div class="recruit-detail-chip recruit-detail-full">
                                                             <span class="recruit-detail-label">Background</span>
-                                                            <p class="recruit-detail-value"><%= waitRecruit.experience || 'Not provided' %></p>
+                                                            <p class="recruit-detail-value"><%= previewRecruitText(waitRecruit.experience, 220) || 'Not provided' %></p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -999,11 +1007,11 @@
                                                         </div>
                                                         <div class="recruit-detail-chip">
                                                             <span class="recruit-detail-label">Interests</span>
-                                                            <p class="recruit-detail-value"><%= acceptedRecruit.interests || 'Not provided' %></p>
+                                                            <p class="recruit-detail-value"><%= normalizeRecruitText(acceptedRecruit.interests) || 'Not provided' %></p>
                                                         </div>
                                                         <div class="recruit-detail-chip recruit-detail-full">
                                                             <span class="recruit-detail-label">Background</span>
-                                                            <p class="recruit-detail-value"><%= acceptedRecruit.experience || 'Not provided' %></p>
+                                                            <p class="recruit-detail-value"><%= previewRecruitText(acceptedRecruit.experience, 220) || 'Not provided' %></p>
                                                         </div>
                                                     </div>
                                                 </div>

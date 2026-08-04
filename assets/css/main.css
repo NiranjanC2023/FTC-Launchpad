@@ -1157,7 +1157,7 @@ h3 {
   }
 }
 
-@media (min-width: 861px) {
+@media (min-width: 1121px) {
   .navbar-collapse[hidden] {
     display: flex !important;
   }
@@ -3979,7 +3979,7 @@ textarea.form-control {
   }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1120px) {
   header,
   .navbar,
   .site-messages,
@@ -4673,16 +4673,6 @@ footer p,
 }
 
 /* Auth page specific layout adjustments */
-.auth-page header {
-  padding: 8px 0;
-  box-shadow: none;
-}
-
-.auth-page .navbar .container {
-  padding: 0 20px;
-  min-height: 56px;
-}
-
 .auth-page main {
   padding: 36px 0 72px;
 }
@@ -4750,7 +4740,48 @@ footer p,
   width: 100%;
 }
 
-@media (max-width: 860px) {
+/*
+ * Keep the shared site header identical on every page. Bootstrap adds clearfix
+ * pseudo-elements and brand/button margins on some routes, while the optimized
+ * home bundle does not include them. Neutralize those implicit pieces and define
+ * the shell spacing here so it cannot vary with the page bundle.
+ */
+header .navbar .container::before,
+header .navbar .container::after,
+header .navbar-header::before,
+header .navbar-header::after {
+  display: none !important;
+  content: none !important;
+}
+
+header .navbar-header .navbar-brand {
+  margin-left: 0 !important;
+}
+
+header .navbar-header {
+  margin-left: 0 !important;
+}
+
+header .navbar-nav > li > a {
+  display: block;
+}
+
+@media (max-width: 1120px) {
+  header .navbar .container {
+    min-height: 84px;
+  }
+
+  header .navbar-header .navbar-brand {
+    margin-left: clamp(12px, 2.3vw, 16px) !important;
+  }
+
+  header .navbar-toggle {
+    margin: 8px 15px 8px auto !important;
+    padding: 9px 10px;
+  }
+}
+
+@media (max-width: 1120px) {
   header,
   header .navbar,
   header .navbar-default,

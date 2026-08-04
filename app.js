@@ -18,6 +18,7 @@ var ejs = require("ejs");
 var params = require("./params/params");
 var setUpPassport = require("./setuppassport");
 var Team = require("./models/team");
+var hasGlobalPrivacyControl = require("./lib/gpc").hasGlobalPrivacyControl;
 //var routes = require("./routes");
 
 var app = express();
@@ -138,11 +139,11 @@ app.use(function setSecurityHeaders(req, res, next) {
     res.set({
         "Content-Security-Policy": [
             "default-src 'self'",
-            `script-src 'self' 'nonce-${nonce}' https://policygenerator.usercentrics.eu`,
+            `script-src 'self' 'nonce-${nonce}'`,
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com",
             "font-src 'self' data:",
-            "connect-src 'self' https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com https://policygenerator.usercentrics.eu",
+            "connect-src 'self' https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com",
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",
@@ -155,6 +156,12 @@ app.use(function setSecurityHeaders(req, res, next) {
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "camera=(), microphone=(), geolocation=(self)"
     });
+    next();
+});
+
+app.use(function recognizeGlobalPrivacyControl(req, res, next) {
+    req.globalPrivacyControl = hasGlobalPrivacyControl(req.get("Sec-GPC"));
+    res.locals.globalPrivacyControl = req.globalPrivacyControl;
     next();
 });
 
@@ -194,6 +201,14 @@ app.use(express.static(path.join(__dirname, "public"), {
 app.get("/favicon.ico", function(req, res) {
     res.set("Cache-Control", "public, max-age=604800");
     res.type("png").sendFile(path.join(ASSETS_ROOT, "img", "first-start-logo.png"));
+});
+
+app.get("/.well-known/gpc.json", function(req, res) {
+    res.set("Cache-Control", "public, max-age=86400");
+    res.type("application/json").send({
+        gpc: true,
+        lastUpdate: "2026-08-04"
+    });
 });
 
 app.set("views", path.join(__dirname, "views"));

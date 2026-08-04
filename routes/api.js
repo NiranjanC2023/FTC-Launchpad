@@ -6,6 +6,8 @@ const Student = require('../models/student');
 const User = require('../models/user');
 const { createNotification, listNotifications, countUnreadNotifications, markNotificationsRead, clearNotifications, serializeNotification, normalizeEmail } = require('../lib/notifications');
 const { DEFAULT_FROM, buildTransactionalEmailTemplate, sendTransactionalEmail } = require('../lib/email');
+const { validatePhoneNumber } = require('../lib/phone');
+const { countriesMatch } = require('../lib/country');
 const { isRecruitingTeam } = require('../lib/team-status');
 const { isDatabaseConnected, waitForDatabase } = require('../lib/database');
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
@@ -16,6 +18,7 @@ function publicUser(user) {
 		name: user.name,
 		email: user.email,
 		age: user.age,
+		country: user.country,
 		phone: user.phone,
 		profilePicture: user.profilePicture,
 		interests: user.interests,
@@ -59,7 +62,7 @@ function parseOptionalAge(value) {
 	const number = Number(raw);
 	return {
 		value: number,
-		valid: Number.isInteger(number) && number >= 3 && number <= 18
+		valid: Number.isInteger(number) && number >= 13 && number <= 18
 	};
 }
 
@@ -76,7 +79,7 @@ async function requireAuthenticatedApi(req, res, next) {
 		}
 
 		const user = await User.findById(req.session.userId)
-			.select('_id name email age phone interests experience')
+			.select('_id name email age country phone interests experience')
 			.lean()
 			.exec();
 		if (!user) {
@@ -236,14 +239,24 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 		const name = String(account.name || '').trim();
 		const normalizedEmail = normalizeEmail(account.email);
 		const age = account.age;
+		const country = String(account.country || '').trim();
 		const experience = account.experience;
 		const phone = account.phone;
 		const interests = account.interests;
 		if (!name || !normalizedEmail) return res.status(400).json({ ok: false, error: 'Complete your account profile before applying.' });
 		const normalizedTeamId = String(teamId || '').trim();
 		const shouldApplyToTeam = Boolean(normalizedTeamId && mongoose.Types.ObjectId.isValid(normalizedTeamId));
-		const team = shouldApplyToTeam ? await Team.findById(normalizedTeamId).select('_id name teamNumber contact recruiting').lean().exec() : null;
+		const team = shouldApplyToTeam ? await Team.findById(normalizedTeamId).select('_id name teamNumber contact recruiting country').lean().exec() : null;
 		if (normalizedTeamId && !team) return res.status(400).json({ ok: false, error: 'valid team required' });
+		if (team && !country) {
+			return res.status(400).json({ ok: false, error: 'Add your country to your account before applying to a team.' });
+		}
+		if (team && !String(team.country || '').trim()) {
+			return res.status(403).json({ ok: false, error: 'This team does not have a country listed and cannot receive applications.' });
+		}
+		if (team && !countriesMatch(country, team.country)) {
+			return res.status(403).json({ ok: false, error: 'You can only apply to teams in your country.' });
+		}
 		if (team && !isRecruitingTeam(team)) {
 			return res.status(403).json({ ok: false, error: 'This team is not currently recruiting and cannot receive applications.' });
 		}
@@ -261,6 +274,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 			const isRejected = student.applicationStatus === 'rejected';
 			student.name = name;
 			student.age = age;
+			student.country = country;
 			student.experience = experience;
 			student.phone = phone;
 			student.interests = interests;
@@ -349,6 +363,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 		student = new Student({
 			name,
 			age,
+			country,
 			experience,
 			email: normalizedEmail,
 			phone,
@@ -427,22 +442,27 @@ router.get('/signups', function(req, res) {
 router.post('/users/signup', async function(req, res) {
 	try {
 		if (!requireDatabase(res)) return;
-		const { name, email, password, age, phone, profilePicture, interests, experience } = req.body;
+		const { name, email, password, age, country, phone, profilePicture, interests, experience } = req.body;
 		const normalizedEmail = normalizeEmail(email);
 		if (!name || !normalizedEmail || !password) return res.status(400).json({ ok: false, error: 'name/email/password required' });
 		if (String(password).length < 8) return res.status(400).json({ ok: false, error: 'password must be at least 8 characters' });
 		const parsedAge = parseOptionalAge(age);
-		if (!parsedAge.valid) return res.status(400).json({ ok: false, error: 'age must be a whole number from 3 to 18' });
+		if (!parsedAge.valid) return res.status(400).json({ ok: false, error: 'age must be a whole number from 13 to 18' });
+		const phoneCheck = validatePhoneNumber(phone, { required: false });
+		if (!phoneCheck.valid) return res.status(400).json({ ok: false, error: phoneCheck.error || 'phone must be valid' });
 		const existing = await User.findOne({ email: normalizedEmail }).exec();
 		if (existing) return res.status(400).json({ ok: false, error: 'email already registered' });
 		const user = new User({
 			name: name.trim(),
 			email: normalizedEmail,
 			age: parsedAge.value,
-			phone,
+			country: String(country || '').trim() || undefined,
+			phone: phoneCheck.normalized,
 			profilePicture,
 			interests,
-			experience
+			experience,
+			emailVerified: true,
+			emailVerifiedAt: new Date()
 		});
 		await user.setPassword(password);
 		await user.save();

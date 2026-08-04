@@ -9,6 +9,7 @@ const { createNotification, normalizeEmail } = require('../lib/notifications');
 const Notification = require('../models/notification');
 const SiteVisit = require('../models/siteVisit');
 const { DEFAULT_FROM, sendTransactionalEmail, buildTransactionalEmailTemplate } = require('../lib/email');
+const { validatePhoneNumber } = require('../lib/phone');
 const { isRecruitingTeam } = require('../lib/team-status');
 const { isDatabaseConnected, waitForDatabase } = require('../lib/database');
 const fs = require('fs');
@@ -16,11 +17,8 @@ const path = require('path');
 const crypto = require('crypto');
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
 const LOCALHOST_HOST_PATTERN = /^(localhost|127(?:\.\d{1,3}){3}|\[?::1\]?)(?::\d+)?$/i;
-const USERCENTRICS_PRIVACY_POLICY_ID = 'fb54bbd7-7e7d-41ed-ae56-bfeb13277b45';
-const USERCENTRICS_PRIVACY_POLICY_URL = 'https://policygenerator.usercentrics.eu/api/embedding';
-const USERCENTRICS_PRIVACY_POLICY_CACHE_TTL_MS = 60 * 60 * 1000;
-let cachedPrivacyPolicyHtml = null;
-let cachedPrivacyPolicyFetchedAt = 0;
+const LOCAL_PRIVACY_POLICY_HTML = fs.readFileSync(path.join(__dirname, '..', 'views', 'partial', 'privacy-policy.html'), 'utf8');
+const SIGNUP_VERIFICATION_RESEND_INTERVAL_MS = 5 * 60 * 1000;
 
 function signIn(req, user) {
     return new Promise((resolve, reject) => {
@@ -66,47 +64,8 @@ function clearPendingSignupVerification(req) {
     }
 }
 
-async function fetchOfficialPrivacyPolicyHtml() {
-    const now = Date.now();
-    if (cachedPrivacyPolicyHtml && (now - cachedPrivacyPolicyFetchedAt) < USERCENTRICS_PRIVACY_POLICY_CACHE_TTL_MS) {
-        return cachedPrivacyPolicyHtml;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    try {
-        const url = new URL(USERCENTRICS_PRIVACY_POLICY_URL);
-        url.searchParams.set('id', USERCENTRICS_PRIVACY_POLICY_ID);
-        url.searchParams.set('language', 'en');
-
-        const response = await fetch(url.toString(), {
-            signal: controller.signal,
-            headers: {
-                'user-agent': 'FTC-Launchpad/1.0'
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`Usercentrics privacy policy request failed with status ${response.status}`);
-        }
-
-        const html = await response.text();
-        cachedPrivacyPolicyHtml = html;
-        cachedPrivacyPolicyFetchedAt = now;
-        return html;
-    } catch (error) {
-        if (cachedPrivacyPolicyHtml) {
-            return cachedPrivacyPolicyHtml;
-        }
-        return null;
-    } finally {
-        clearTimeout(timeoutId);
-    }
-}
-
 async function sendSignupVerificationEmail({ to, code }) {
-    const verificationFrom = process.env.SIGNUP_VERIFICATION_FROM || `"${process.env.EMAIL_NAME || 'FIRST Start'}" <onboarding@resend.dev>`;
+    const verificationFrom = process.env.SIGNUP_VERIFICATION_FROM || DEFAULT_FROM;
     const html = buildTransactionalEmailTemplate({
         preheader: 'Your FIRST Start verification code',
         title: 'Verify your email',
@@ -321,6 +280,7 @@ function anonymousAllowedPath(pathname) {
 
 router.use(function trackSiteTraffic(req, res, next) {
     if (req.method !== 'GET') return next();
+    if (req.globalPrivacyControl) return next();
     if (req.path.startsWith('/api/')) return next();
     if (req.path.startsWith('/assets/')) return next();
     if (req.path === '/favicon.ico') return next();
@@ -650,6 +610,7 @@ function mapTeam(team) {
         teamNumber: team.teamNumber,
         name: team.name,
         contact: team.contact,
+        country: team.country,
         lat: displayCoords.lat,
         lon: displayCoords.lon,
         isNewTeam: Boolean(team.isNewTeam),
@@ -732,8 +693,7 @@ async function geocodeAddress(values) {
 const PROGRAM_LABELS = {
     FTC: 'FIRST Tech Challenge',
     FRC: 'FIRST Robotics Competition',
-    'FLL Challenge': 'FIRST LEGO League Challenge',
-    'FLL Explore': 'FIRST LEGO League Explore'
+    'FLL Challenge': 'FIRST LEGO League Challenge'
 };
 const FTC_SCOUT_API_BASE = 'https://api.ftcscout.org/rest/v1';
 const FTC_SCOUT_GRAPHQL_ENDPOINT = 'https://api.ftcscout.org/graphql';
@@ -1507,7 +1467,10 @@ router.get("/", async function(req, res){
     }
 
     try {
-        const teams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
+        const teams = await Team.find({
+            program: { $in: Object.keys(PROGRAM_LABELS) },
+            $or: [{ verified: true }, { isNewTeam: true }]
+        })
             .sort({ updatedAt: -1, teamNumber: 1 })
             .limit(300)
             .select('program teamNumber isNewTeam name city state country lat lon notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified updatedAt')
@@ -1607,13 +1570,13 @@ router.get("/join-form", ensureAuthenticated, async function(req, res){
             return res.render("pages/join-form", { values: {} });
         }
 
-        const user = await User.findById(req.session.userId).select('name age experience email phone interests').lean().exec();
+        const user = await User.findById(req.session.userId).select('name age country experience email phone interests').lean().exec();
         if (!user) {
             return res.render("pages/join-form", { values: {} });
         }
 
         const studentProfile = user.email
-            ? await Student.findOne({ email: normalizeEmail(user.email) }).select('name age experience email phone interests').lean().exec()
+            ? await Student.findOne({ email: normalizeEmail(user.email) }).select('name age country experience email phone interests').lean().exec()
             : null;
 
         const values = {
@@ -1847,7 +1810,10 @@ router.get("/team-org", function(req, res){
 router.get("/teams-nearby", async function(req, res){
     try {
         if (!(await waitForDatabase())) return res.render("pages/teams-nearby", { teams: [], databaseUnavailable: true });
-        const teams = await Team.find({ $or: [{ verified: true }, { isNewTeam: true }] })
+        const teams = await Team.find({
+            program: { $in: Object.keys(PROGRAM_LABELS) },
+            $or: [{ verified: true }, { isNewTeam: true }]
+        })
             .sort({ recruiting: -1, teamNumber: 1 })
             .limit(300)
             .select('program teamNumber isNewTeam name city state country lat lon notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified contact')
@@ -1861,7 +1827,7 @@ router.get("/teams-nearby", async function(req, res){
         let studentApp = null;
         let currentUser = null;
         if (req.session && req.session.userId) {
-            currentUser = await User.findById(req.session.userId).select('name age experience email phone interests').lean().exec();
+            currentUser = await User.findById(req.session.userId).select('name age country experience email phone interests').lean().exec();
             if (currentUser && currentUser.email) {
                 const student = await Student.findOne({ email: normalizeEmail(currentUser.email) }).lean().exec();
                 if (student) {
@@ -1904,10 +1870,17 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         const registrationUser = await User.findById(req.session.userId).select('email').lean().exec();
         if (!registrationUser || !registrationUser.email) return res.redirect('/login');
 
+        if (!PROGRAM_LABELS[String(values.program || '').trim()]) {
+            return res.render('pages/team-register', {
+                error: 'Choose a supported FIRST program.',
+                message: null,
+                values
+            });
+        }
         const program = normalizeProgram(values.program);
         const registrationMode = String(values.registrationMode || 'existing').toLowerCase() === 'new' ? 'new' : 'existing';
         const isNewTeam = registrationMode === 'new';
-        const isFllProgram = program === 'FLL Challenge' || program === 'FLL Explore';
+        const isFllProgram = program === 'FLL Challenge';
         const isOfficialTeam = !isNewTeam && !isFllProgram;
         const contact = normalizeEmail(values.contact);
         values.contact = contact;
@@ -1957,7 +1930,7 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         if (!geocodedAddress) {
             return res.render('pages/team-register', {
                 error: isOfficialTeam
-                    ? 'We could not verify that address. Please enter the team address in the official city and try again.'
+                    ? 'We could not verify that team.'
                     : 'Could not find that location on the map. Try adding the city, state, and country, or use a more specific address.',
                 message: null,
                 values
@@ -2003,7 +1976,7 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             ? getTeamOrganizationFromApiProfile(apiTeamDetails && apiTeamDetails.profile ? apiTeamDetails.profile : official)
             : '';
         const recruiting = values.recruiting === 'on';
-        const allowFllExtras = program === 'FLL Challenge' || program === 'FLL Explore';
+        const allowFllExtras = program === 'FLL Challenge';
         const canUseTeamApiAwards = program === 'FTC' || program === 'FRC' || allowFllExtras;
         if (isOfficialTeam && !resolvedCountry) {
             return res.render('pages/team-register', {
@@ -2122,7 +2095,7 @@ router.get('/stats', ensureAuthenticated, async function(req, res) {
         const trafficRecentWindowStart = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30);
         const [allUsers, allTeams, allStudents, allInvites, allVisits, totalTrafficVisits, recentTrafficVisits, recentNotifications, notificationCount, unreadNotificationCount] = await Promise.all([
             User.find({}).select('createdAt').lean().exec(),
-            Team.find({}).select('program teamNumber name city state country recruiting verified isNewTeam createdAt updatedAt').lean().exec(),
+            Team.find({ program: { $in: Object.keys(PROGRAM_LABELS) } }).select('program teamNumber name city state country recruiting verified isNewTeam createdAt updatedAt').lean().exec(),
             Student.find({}).select('applicationStatus applicationTeam sentApplications createdAt updatedAt').lean().exec(),
             ManagerInvite.find({}).select('acceptedAt expiresAt createdAt').lean().exec(),
             SiteVisit.find({ createdAt: { $gte: trafficWindowStart } }).select('path createdAt').lean().exec(),
@@ -2179,7 +2152,7 @@ router.get('/stats', ensureAuthenticated, async function(req, res) {
             count: entry.traffic
         }));
 
-        const teamProgramBreakdown = buildBreakdown(allTeams, team => normalizeProgram(team.program), ['FTC', 'FRC', 'FLL Challenge', 'FLL Explore']);
+        const teamProgramBreakdown = buildBreakdown(allTeams, team => normalizeProgram(team.program), ['FTC', 'FRC', 'FLL Challenge']);
         const teamVerificationBreakdown = buildBreakdown(allTeams, team => (team.verified ? 'Verified' : 'Unverified'), ['Verified', 'Unverified']);
         const teamTypeBreakdown = buildBreakdown(allTeams, team => (team.isNewTeam ? 'New team' : 'Existing team'), ['Existing team', 'New team']);
         const teamRecruitingBreakdown = buildBreakdown(allTeams, team => (team.recruiting ? 'Recruiting' : 'Not recruiting'), ['Recruiting', 'Not recruiting']);
@@ -3518,11 +3491,10 @@ router.get('/signup', function(req, res){
     });
 });
 
-router.get('/terms', async function(req, res){
-    const policyHtml = await fetchOfficialPrivacyPolicyHtml();
+router.get('/terms', function(req, res){
     res.render('pages/terms', {
         nextPath: sanitizeNextPath(req.query.next, ''),
-        policyHtml
+        policyHtml: LOCAL_PRIVACY_POLICY_HTML
     });
 });
 
@@ -3579,15 +3551,26 @@ router.post('/signup', async function(req, res){
     const mode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
     try {
         if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
-        const { name, email, password, age, phone, profilePicture, interests, experience, inviteToken, policyAccepted } = req.body;
+        const { name, email, password, age, country, phone, profilePicture, interests, experience, inviteToken, policyAccepted } = req.body;
         const nextPath = sanitizeNextPath(req.body.next, '');
         const normalizedEmail = normalizeEmail(email);
+        const phoneCheck = mode === 'seeker'
+            ? validatePhoneNumber(phone, { required: true })
+            : validatePhoneNumber(phone, { required: false });
+        if (!phoneCheck.valid) {
+            return res.render(`pages/signup-${mode}`, {
+                error: phoneCheck.error || 'Enter a valid phone number.',
+                values: req.body,
+                inviteToken: inviteToken || null,
+                nextPath
+            });
+        }
         const seekerRequiredFields = {
             name,
             normalizedEmail,
             password,
             age,
-            phone,
+            country,
             interests,
             experience
         };
@@ -3598,7 +3581,7 @@ router.post('/signup', async function(req, res){
         if (String(password).length < 8) return res.render(`pages/signup-${mode}`, { error: 'Password must be at least 8 characters.', values: req.body, inviteToken: inviteToken || null, nextPath });
         if (!['1', 'on', 'true'].includes(String(policyAccepted || '').trim().toLowerCase())) {
             return res.render(`pages/signup-${mode}`, {
-                error: 'You must agree to the policy before creating an account.',
+                error: 'You must confirm that you are 13+ and agree to the privacy policy before creating an account.',
                 values: req.body,
                 inviteToken: inviteToken || null,
                 nextPath
@@ -3607,13 +3590,33 @@ router.post('/signup', async function(req, res){
 
         const trimmedAge = String(age || '').trim();
         const numericAge = trimmedAge ? Number(trimmedAge) : null;
-        if (mode === 'seeker' && (!trimmedAge || !Number.isInteger(numericAge) || numericAge < 3 || numericAge > 18)) {
-            return res.render(`pages/signup-${mode}`, { error: 'Age must be a whole number from 3 to 18.', values: req.body, inviteToken: inviteToken || null, nextPath });
+        if (mode === 'seeker' && (!trimmedAge || !Number.isInteger(numericAge) || numericAge < 13 || numericAge > 18)) {
+            return res.render(`pages/signup-${mode}`, { error: 'Age must be a whole number from 13 to 18.', values: req.body, inviteToken: inviteToken || null, nextPath });
         }
         const existing = await User.findOne({ email: normalizedEmail }).exec();
-        if (existing) return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body, inviteToken: inviteToken || null, nextPath });
+        if (existing && existing.emailVerified !== false) {
+            return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body, inviteToken: inviteToken || null, nextPath });
+        }
         const verificationCode = generateSignupVerificationCode();
         const codeSalt = crypto.randomBytes(16).toString('hex');
+        const isReusingUnverifiedDraft = Boolean(existing && existing.emailVerified === false);
+        const user = isReusingUnverifiedDraft ? existing : new User({
+            email: normalizedEmail,
+            emailVerified: false
+        });
+
+        user.name = String(name || '').trim();
+        user.email = normalizedEmail;
+        user.age = mode === 'seeker' && Number.isInteger(numericAge) ? numericAge : undefined;
+        user.country = mode === 'seeker' ? String(country || '').trim() : undefined;
+        user.phone = phoneCheck.normalized ? String(phoneCheck.normalized).trim() : undefined;
+        user.profilePicture = String(profilePicture || '').trim();
+        user.interests = mode === 'seeker' ? String(interests || '').trim() : undefined;
+        user.experience = mode === 'seeker' ? String(experience || '').trim() : undefined;
+        user.emailVerified = false;
+        user.emailVerifiedAt = undefined;
+        await user.setPassword(password);
+        await user.save();
         const pending = {
             mode,
             formUrl: buildSignupFormUrl(mode, req.body),
@@ -3622,13 +3625,15 @@ router.post('/signup', async function(req, res){
                 email: normalizedEmail,
                 password: String(password || ''),
                 age: String(age || '').trim(),
-                phone: String(phone || '').trim(),
+                country: String(country || '').trim(),
+                phone: phoneCheck.normalized,
                 profilePicture: String(profilePicture || '').trim(),
                 interests: String(interests || '').trim(),
                 experience: String(experience || '').trim(),
                 inviteToken: inviteToken || null,
                 nextPath,
-                policyAccepted: '1'
+                policyAccepted: '1',
+                userId: String(user._id)
             },
             codeSalt,
             codeHash: hashSignupVerificationCode(verificationCode, codeSalt),
@@ -3641,6 +3646,9 @@ router.post('/signup', async function(req, res){
             await sendSignupVerificationEmail({ to: normalizedEmail, code: verificationCode });
         } catch (emailErr) {
             clearPendingSignupVerification(req);
+            if (!isReusingUnverifiedDraft) {
+                await User.deleteOne({ _id: user._id }).exec().catch(() => {});
+            }
             console.error('Failed to send signup verification email:', emailErr);
             return res.render(`pages/signup-${mode}`, {
                 error: 'We could not send a verification code to that email right now. Please try again.',
@@ -3655,7 +3663,8 @@ router.post('/signup', async function(req, res){
             email: normalizedEmail,
             mode,
             formUrl: pending.formUrl,
-            expiresAt: pending.expiresAt
+            expiresAt: pending.expiresAt,
+            resendAvailableAt: Number(pending.resendCooldownUntil || 0)
         });
     } catch (err) {
         console.error('Signup failed:', err);
@@ -3671,6 +3680,22 @@ router.post('/signup/verify/resend', async function(req, res){
         clearPendingSignupVerification(req);
         return res.redirect('/signup');
     }
+    const resendAllowedAt = Number(pending.resendCooldownUntil || 0);
+    if (resendAllowedAt && Date.now() < resendAllowedAt) {
+        const waitMs = Math.max(0, resendAllowedAt - Date.now());
+        const waitSeconds = Math.ceil(waitMs / 1000);
+        const waitMinutes = Math.floor(waitSeconds / 60);
+        const remainingSeconds = waitSeconds % 60;
+        return res.render('pages/signup-verify', {
+            error: `You can request a new code once every 5 minutes. Please wait ${waitMinutes}:${String(remainingSeconds).padStart(2, '0')} and try again.`,
+            success: null,
+            email: pending.data.email,
+            mode: pending.mode || 'seeker',
+            formUrl: pending.formUrl || buildSignupFormUrl(pending.mode || 'seeker', pending.data || {}),
+            expiresAt: pending.expiresAt || null,
+            resendAvailableAt: resendAllowedAt
+        });
+    }
     if (Date.now() > Number(pending.expiresAt || 0)) {
         clearPendingSignupVerification(req);
         return res.render('pages/signup-verify', {
@@ -3679,18 +3704,13 @@ router.post('/signup/verify/resend', async function(req, res){
             email: pending.data.email,
             mode: pending.mode || 'seeker',
             formUrl: pending.formUrl || buildSignupFormUrl(pending.mode || 'seeker', pending.data || {}),
-            expiresAt: pending.expiresAt || null
+            expiresAt: pending.expiresAt || null,
+            resendAvailableAt: resendAllowedAt
         });
     }
 
     const verificationCode = generateSignupVerificationCode();
     const codeSalt = crypto.randomBytes(16).toString('hex');
-    pending.codeSalt = codeSalt;
-    pending.codeHash = hashSignupVerificationCode(verificationCode, codeSalt);
-    pending.codeSentAt = Date.now();
-    pending.expiresAt = Date.now() + SIGNUP_VERIFICATION_TTL_MS;
-    pending.attempts = 0;
-    req.session.pendingSignupVerification = pending;
 
     try {
         await sendSignupVerificationEmail({ to: pending.data.email, code: verificationCode });
@@ -3702,9 +3722,18 @@ router.post('/signup/verify/resend', async function(req, res){
             email: pending.data.email,
             mode: pending.mode || 'seeker',
             formUrl: pending.formUrl || buildSignupFormUrl(pending.mode || 'seeker', pending.data || {}),
-            expiresAt: pending.expiresAt || null
+            expiresAt: pending.expiresAt || null,
+            resendAvailableAt: resendAllowedAt
         });
     }
+
+    pending.codeSalt = codeSalt;
+    pending.codeHash = hashSignupVerificationCode(verificationCode, codeSalt);
+    pending.codeSentAt = Date.now();
+    pending.resendCooldownUntil = Date.now() + SIGNUP_VERIFICATION_RESEND_INTERVAL_MS;
+    pending.expiresAt = Date.now() + SIGNUP_VERIFICATION_TTL_MS;
+    pending.attempts = 0;
+    req.session.pendingSignupVerification = pending;
 
     return res.render('pages/signup-verify', {
         error: null,
@@ -3712,7 +3741,8 @@ router.post('/signup/verify/resend', async function(req, res){
         email: pending.data.email,
         mode: pending.mode || 'seeker',
         formUrl: pending.formUrl || buildSignupFormUrl(pending.mode || 'seeker', pending.data || {}),
-        expiresAt: pending.expiresAt || null
+        expiresAt: pending.expiresAt || null,
+        resendAvailableAt: Number(pending.resendCooldownUntil || 0)
     });
 });
 
@@ -3763,7 +3793,7 @@ router.post('/signup/verify', async function(req, res){
         });
     }
 
-    const { name, email, password, age, phone, profilePicture, interests, experience, inviteToken, nextPath } = pending.data;
+    const { name, email, password, age, country, phone, profilePicture, interests, experience, inviteToken, nextPath } = pending.data;
     const mode = pending.mode === 'manager' ? 'manager' : 'seeker';
     clearPendingSignupVerification(req);
 
@@ -3777,27 +3807,41 @@ router.post('/signup/verify', async function(req, res){
             });
         }
 
-        const existing = await User.findOne({ email }).exec();
-        if (existing) {
-            return res.render(`pages/signup-${mode}`, {
-                error: 'Email already registered',
-                values: pending.data,
-                inviteToken: inviteToken || null,
-                nextPath
+        const userId = pending.userId && mongoose.Types.ObjectId.isValid(pending.userId) ? pending.userId : null;
+        let user = userId ? await User.findById(userId).exec() : null;
+        if (!user) {
+            user = await User.findOne({ email }).exec();
+        }
+        if (!user) {
+            const numericAge = age ? Number(age) : null;
+            user = new User({
+                name: name.trim(),
+                email,
+                age: mode === 'seeker' && Number.isInteger(numericAge) ? numericAge : undefined,
+                country: mode === 'seeker' ? String(country || '').trim() : undefined,
+                phone: String(phone || '').trim(),
+                profilePicture: String(profilePicture || '').trim(),
+                interests: mode === 'seeker' ? String(interests || '').trim() : undefined,
+                experience: mode === 'seeker' ? String(experience || '').trim() : undefined,
+                emailVerified: true,
+                emailVerifiedAt: new Date()
             });
+            await user.setPassword(password);
         }
 
-        const numericAge = age ? Number(age) : null;
-        const user = new User({
-            name: name.trim(),
-            email,
-            age: mode === 'seeker' && Number.isInteger(numericAge) ? numericAge : undefined,
-            phone: String(phone || '').trim(),
-            profilePicture: String(profilePicture || '').trim(),
-            interests: mode === 'seeker' ? String(interests || '').trim() : undefined,
-            experience: mode === 'seeker' ? String(experience || '').trim() : undefined
-        });
-        await user.setPassword(password);
+        user.name = name.trim();
+        user.email = email;
+        user.age = mode === 'seeker' && age ? Number(age) : undefined;
+        user.country = mode === 'seeker' ? String(country || '').trim() : undefined;
+        user.phone = String(phone || '').trim();
+        user.profilePicture = String(profilePicture || '').trim();
+        user.interests = mode === 'seeker' ? String(interests || '').trim() : undefined;
+        user.experience = mode === 'seeker' ? String(experience || '').trim() : undefined;
+        user.emailVerified = true;
+        user.emailVerifiedAt = user.emailVerifiedAt || new Date();
+        if (!user.passwordHash) {
+            await user.setPassword(password);
+        }
         await user.save();
         console.log(`User signup saved after email verification: ${user.email} -> ${mongoose.connection.name}.${User.collection.name}`);
         await signIn(req, user);
@@ -3873,6 +3917,7 @@ router.get('/account/signup-info', ensureAuthenticated, async function(req, res)
         const values = {
             name: user.name || '',
             age: user.age || '',
+            country: user.country || '',
             experience: user.experience || '',
             email: user.email || '',
             phone: user.phone || '',
@@ -3899,15 +3944,27 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
 
         const name = String(req.body.name || '').trim();
         const age = String(req.body.age || '').trim();
+        const country = String(req.body.country || '').trim();
         const experience = String(req.body.experience || '').trim();
         const email = String(req.body.email || '').trim();
         const phone = String(req.body.phone || '').trim();
         const interests = String(req.body.interests || '').trim();
+        const phoneCheck = validatePhoneNumber(phone, { required: false });
+
+        if (!phoneCheck.valid) {
+            return res.render('pages/account-signup-info', {
+                error: phoneCheck.error || 'Enter a valid phone number.',
+                success: null,
+                values: req.body || {},
+                backTarget,
+                backUrl
+            });
+        }
 
         const normalizedEmail = normalizeEmail(email);
-        if (!name || !normalizedEmail) {
+        if (!name || !normalizedEmail || !country) {
             return res.render('pages/account-signup-info', {
-                error: 'Name and valid email are required.',
+                error: 'Name, country, and valid email are required.',
                 success: null,
                 values: req.body || {},
                 backTarget,
@@ -3916,9 +3973,9 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
         }
 
         const numericAge = age ? Number(age) : undefined;
-        if (age && (!Number.isInteger(numericAge) || numericAge < 3 || numericAge > 18)) {
+        if (age && (!Number.isInteger(numericAge) || numericAge < 13 || numericAge > 18)) {
             return res.render('pages/account-signup-info', {
-                error: 'Age must be a whole number from 3 to 18.',
+                error: 'Age must be a whole number from 13 to 18.',
                 success: null,
                 values: req.body || {},
                 backTarget,
@@ -3940,8 +3997,9 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
         const updatedUser = await User.findByIdAndUpdate(req.session.userId, {
             name,
             age: numericAge,
+            country,
             email: normalizedEmail,
-            phone,
+            phone: phoneCheck.normalized,
             interests,
             experience
         }, { new: true, runValidators: true }).exec();
@@ -3950,9 +4008,10 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
         if (student) {
             student.name = name;
             student.age = numericAge;
+            student.country = country;
             student.experience = experience;
             student.interests = interests;
-            student.phone = phone;
+            student.phone = phoneCheck.normalized;
             student.email = normalizedEmail;
             await student.save();
         }
@@ -3973,9 +4032,10 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             values: {
                 name,
                 age,
+                country,
                 experience,
                 email: normalizedEmail,
-                phone,
+                phone: phoneCheck.normalized,
                 interests
             },
             backTarget,
@@ -4219,6 +4279,14 @@ router.post('/login', async function(req, res){
         if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required', notice: null, inviteToken: inviteToken || null, nextPath });
         const user = await User.findOne({ email: normalizedEmail }).exec();
         if (!user) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
+        if (user.emailVerified === false) {
+            return res.render('pages/login', {
+                error: 'Please verify your email before signing in.',
+                notice: null,
+                inviteToken: inviteToken || null,
+                nextPath
+            });
+        }
         const ok = await user.validatePassword(password);
         if (!ok) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
         await signIn(req, user);

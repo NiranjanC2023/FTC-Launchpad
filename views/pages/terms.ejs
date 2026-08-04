@@ -14,19 +14,7 @@
       <a href="/signup" class="btn btn-secondary back-button" data-terms-back-link>&larr; Back to signup</a>
 
       <div id="usercentrics-ppg" class="uc-privacy-policy">
-        <% if (policyHtml) { %>
-          <%- policyHtml %>
-        <% } else { %>
-          <div style="padding: 24px 0; color: #334155; font-size: 15px; line-height: 1.6;">
-            Loading the official privacy policy…
-          </div>
-          <script
-            id="usercentrics-ppg-script"
-            privacy-policy-id="fb54bbd7-7e7d-41ed-ae56-bfeb13277b45"
-            data-language="en"
-            src="https://policygenerator.usercentrics.eu/api/privacy-policy"
-          ></script>
-        <% } %>
+        <%- policyHtml %>
       </div>
 
       <script nonce="<%= cspNonce %>">

@@ -218,6 +218,41 @@ function isTeamRecruiting(team) {
   return true;
 }
 
+function normalizeCountryName(value) {
+  const normalized = String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+  const aliases = {
+    us: 'united states',
+    'u s': 'united states',
+    usa: 'united states',
+    'u s a': 'united states',
+    'united states of america': 'united states',
+    uk: 'united kingdom',
+    'u k': 'united kingdom',
+    gb: 'united kingdom',
+    'great britain': 'united kingdom',
+    uae: 'united arab emirates',
+    'u a e': 'united arab emirates'
+  };
+  return aliases[normalized] || normalized;
+}
+
+function getCountryApplicationState(team) {
+  const user = getCurrentUser();
+  if (!user) return { needsCountry: false, outsideCountry: false };
+  const userCountry = normalizeCountryName(user.country);
+  const teamCountry = normalizeCountryName(team && team.country);
+  return {
+    needsCountry: !userCountry,
+    outsideCountry: Boolean(userCountry && (!teamCountry || userCountry !== teamCountry))
+  };
+}
+
 function initDeclarativeActions() {
   document.querySelectorAll('[data-copy-code]').forEach((button) => {
     button.addEventListener('click', () => copyCode(button));
@@ -344,7 +379,7 @@ function renderTeams(teams, userCoords) {
   }
 
   // create a simple accessible list alongside the map
-  const programOptions = ['All', 'FTC', 'FRC', 'FLL Challenge', 'FLL Explore'];
+  const programOptions = ['All', 'FTC', 'FRC', 'FLL Challenge'];
   const distanceUnitPreference = getDistanceUnitPreference();
   const distanceFilterOptions = distanceUnitPreference === 'imperial'
     ? [
@@ -790,6 +825,7 @@ function getTeamRecruitingLabel(team) {
     const programLabel = String(team.program || 'FTC');
     const isNewTeam = Boolean(team.isNewTeam);
     const isRecruiting = isTeamRecruiting(team);
+    const countryApplicationState = getCountryApplicationState(team);
     const teamNumber = isNewTeam
       ? 'New Team'
       : (team.teamNumber ? `${programLabel} ${team.teamNumber}` : `${programLabel} team`);
@@ -883,7 +919,7 @@ function getTeamRecruitingLabel(team) {
           })}
         ` : ''}
         <div class="team-actions">
-          <button class="btn btn-primary send-btn">${isRecruiting ? 'Send My Info' : 'Not Recruiting'}</button>
+          <button class="btn btn-primary send-btn"${!isRecruiting || countryApplicationState.outsideCountry ? ' disabled' : ''}>${!isRecruiting ? 'Not Recruiting' : countryApplicationState.needsCountry ? 'Add Country to Apply' : countryApplicationState.outsideCountry ? 'Outside Your Country' : 'Send My Info'}</button>
         </div>
       </div>
     `);
@@ -1096,6 +1132,7 @@ function getTeamRecruitingLabel(team) {
       const programLabel = String(team.program || 'FTC');
       const isNewTeam = Boolean(team.isNewTeam);
       const isRecruiting = isTeamRecruiting(team);
+      const countryApplicationState = getCountryApplicationState(team);
       const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, teamLat, teamLon) : null;
       const distanceData = Number.isFinite(dist) ? formatDistance(dist, distanceUnitPreference) : null;
       const location = String(team.location || '').trim();
@@ -1110,10 +1147,10 @@ function getTeamRecruitingLabel(team) {
           <p style="margin: 0 0 12px 0; font-size: 0.95em; font-weight: 700; color: #0056b3;">Approximate ${escapeHTML(radiusMeters)}-meter area</p>
           <div style="margin-bottom: 12px;">
             <p style="margin: 0; font-size: 0.9em; font-weight: 800; color: #555; text-transform: uppercase;">Contact</p>
-            <p style="margin: 0; font-size: 1em; font-weight: 600; color: #222;">Apply securely through FIRST Start</p>
+            ${teamContact ? `<p style="margin: 0; font-size: 1em; font-weight: 600; color: #222;"><a href="mailto:${escapeHTML(teamContact)}" style="color: inherit; text-decoration: underline;">${escapeHTML(teamContact)}</a></p>` : '<p style="margin: 0; font-size: 1em; font-weight: 600; color: #222;">Contact email not listed</p>'}
           </div>
           ${distanceData ? `<p style="margin: 0 0 15px 0; font-size: 1em; font-weight: 800; color: #d32f2f;">${distanceData.label} away</p>` : ''}
-          <button class="popup-send-btn btn btn-primary" style="width: 100%; font-weight: 800; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none;" data-team="${escapeHTML(teamName)}">Send My Info</button>
+          <button class="popup-send-btn btn btn-primary" style="width: 100%; font-weight: 800; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none;" data-team="${escapeHTML(teamName)}"${!isRecruiting || countryApplicationState.outsideCountry ? ' disabled' : ''}>${!isRecruiting ? 'Not Recruiting' : countryApplicationState.needsCountry ? 'Add Country to Apply' : countryApplicationState.outsideCountry ? 'Outside Your Country' : 'Send My Info'}</button>
         </div>
       `;
 
@@ -1232,8 +1269,19 @@ function getTeamRecruitingLabel(team) {
 }
 
 async function sendToTeam(team) {
-  if (!getCurrentUser()) {
+  const currentUser = getCurrentUser();
+  if (!currentUser) {
     redirectToAuthGate(window.location.pathname || '/teams-nearby', 'Send My Info');
+    return;
+  }
+
+  const countryApplicationState = getCountryApplicationState(team);
+  if (countryApplicationState.needsCountry) {
+    window.location.href = '/account/signup-info';
+    return;
+  }
+  if (countryApplicationState.outsideCountry) {
+    alert('You can only apply to teams in your country.');
     return;
   }
 
@@ -1704,10 +1752,10 @@ function loadSiteShells() {
         const drawer = document.querySelector('[data-navbar-collapse]');
         if (!toggle || !drawer) return;
 
-        const mobileQuery = window.matchMedia ? window.matchMedia('(max-width: 860px)') : null;
+        const mobileQuery = window.matchMedia ? window.matchMedia('(max-width: 1120px)') : null;
 
         function syncDrawerState() {
-          const isMobile = mobileQuery ? mobileQuery.matches : window.innerWidth <= 860;
+          const isMobile = mobileQuery ? mobileQuery.matches : window.innerWidth <= 1120;
           const isOpen = drawer.classList.contains('is-open');
 
           if (!isMobile) {
@@ -1744,8 +1792,15 @@ function loadSiteShells() {
           });
         }
 
+        if (mobileQuery && !toggle.dataset.breakpointBound) {
+          toggle.dataset.breakpointBound = 'true';
+          mobileQuery.addEventListener('change', syncDrawerState);
+        }
+
         window.addEventListener('resize', syncDrawerState, { passive: true });
         syncDrawerState();
+        window.requestAnimationFrame(syncDrawerState);
+        window.setTimeout(syncDrawerState, 0);
       }
 
       bindNavbarDrawer();
