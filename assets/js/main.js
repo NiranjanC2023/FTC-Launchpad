@@ -1136,6 +1136,7 @@ function getTeamRecruitingLabel(team) {
       const dist = userCoords ? haversineDistance(userCoords.lat, userCoords.lon, teamLat, teamLon) : null;
       const distanceData = Number.isFinite(dist) ? formatDistance(dist, distanceUnitPreference) : null;
       const location = String(team.location || '').trim();
+      const teamContact = String(team.contact || '').trim();
       const radiusMeters = Number(team.radiusMeters) || 1000;
 
       const popupContent = `

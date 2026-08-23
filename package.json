@@ -22,7 +22,7 @@
     "start": "node app.js",
     "predev": "npm run build:client",
     "dev": "nodemon app.js",
-    "test": "node --check app.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js && node tests/team-verification.test.js && node tests/privacy-location.test.js && node tests/stats-localhost.test.js && node tests/age-validation.test.js && node tests/phone-validation.test.js && node tests/country-application.test.js && node tests/gpc.test.js",
+    "test": "node --check app.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js && node tests/team-verification.test.js && node tests/privacy-location.test.js && node tests/teams-map.test.js && node tests/typography.test.js && node tests/email.test.js && node tests/stats-localhost.test.js && node tests/age-validation.test.js && node tests/phone-validation.test.js && node tests/country-application.test.js && node tests/gpc.test.js",
     "test:full": "npm run build:client && npm test"
   },
   "dependencies": {

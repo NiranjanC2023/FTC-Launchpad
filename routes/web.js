@@ -651,7 +651,7 @@ async function geocodeAddress(values) {
 
     for (const address of variants) {
         try {
-            const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
+            const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=${encodeURIComponent(address)}`;
             const response = await fetch(url, {
                 headers: {
                     'User-Agent': 'FTC-Starter-Hub/1.0',
@@ -669,17 +669,20 @@ async function geocodeAddress(values) {
             const lon = toNumber(first.lon);
             if (lat === null || lon === null) continue;
 
-            const address = first.address && typeof first.address === 'object' ? first.address : {};
+            const addressDetails = first.address && typeof first.address === 'object' ? first.address : {};
             const city = String(
-                address.city
-                || address.town
-                || address.village
-                || address.hamlet
-                || address.municipality
+                addressDetails.city
+                || addressDetails.town
+                || addressDetails.village
+                || addressDetails.municipality
+                || addressDetails.city_district
+                || addressDetails.hamlet
+                || addressDetails.suburb
+                || addressDetails.county
                 || ''
             ).trim();
-            const state = String(address.state || address.province || '').trim();
-            const country = String(address.country || '').trim();
+            const state = String(addressDetails.state || addressDetails.province || addressDetails.region || addressDetails.state_district || '').trim();
+            const country = String(addressDetails.country || addressDetails.country_code || '').trim();
 
             return { lat, lon, city, state, country, displayName: String(first.display_name || '').trim() };
         } catch (err) {
@@ -695,6 +698,11 @@ const PROGRAM_LABELS = {
     FRC: 'FIRST Robotics Competition',
     'FLL Challenge': 'FIRST LEGO League Challenge'
 };
+const FIRSTAUTH_AUTHORIZE_URL = 'https://firstauth.org/oauth/authorize';
+const FIRSTAUTH_API_BASE = 'https://api.firstauth.org';
+const FIRSTAUTH_CLIENT_ID = String(process.env.FIRSTAUTH_CLIENT_ID || '').trim();
+const FIRSTAUTH_CLIENT_SECRET = String(process.env.FIRSTAUTH_CLIENT_SECRET || '').trim();
+const FIRSTAUTH_VERIFICATION_TTL_MS = 10 * 60 * 1000;
 const FTC_SCOUT_API_BASE = 'https://api.ftcscout.org/rest/v1';
 const FTC_SCOUT_GRAPHQL_ENDPOINT = 'https://api.ftcscout.org/graphql';
 const BLUE_ALLIANCE_API_BASE = 'https://www.thebluealliance.com/api/v3';
@@ -705,6 +713,74 @@ const FTC_AWARD_TYPE_LABELS = {};
 function normalizeProgram(program) {
     const value = String(program || '').trim();
     return PROGRAM_LABELS[value] ? value : 'FTC';
+}
+
+function isFirstAuthConfigured() {
+    return Boolean(FIRSTAUTH_CLIENT_ID && FIRSTAUTH_CLIENT_SECRET);
+}
+
+function normalizeFirstAuthProgram(program) {
+    const value = String(program || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (value === 'FRC') return 'FRC';
+    if (value === 'FTC') return 'FTC';
+    if (value === 'FLL' || value === 'FLLCHALLENGE' || value === 'FIRSTLEGOLEAGUECHALLENGE') return 'FLL Challenge';
+    return '';
+}
+
+function findFirstAuthTeam(teams, program, teamNumber) {
+    const expectedProgram = normalizeProgram(program);
+    const expectedTeamNumber = parsePositiveTeamNumber(teamNumber);
+    if (!expectedTeamNumber) return null;
+    return (Array.isArray(teams) ? teams : []).find((team) => (
+        normalizeFirstAuthProgram(team && team.program) === expectedProgram
+        && parsePositiveTeamNumber(team && team.team_number) === expectedTeamNumber
+    )) || null;
+}
+
+function getFirstAuthRedirectUri(req) {
+    return String(process.env.FIRSTAUTH_REDIRECT_URI || `${getAppBaseUrl(req)}/auth/firstauth/callback`).trim();
+}
+
+function firstAuthProofMatches(proof, program, teamNumber) {
+    return Boolean(
+        proof
+        && Number(proof.expiresAt) > Date.now()
+        && normalizeFirstAuthProgram(proof.program) === normalizeProgram(program)
+        && parsePositiveTeamNumber(proof.teamNumber) === parsePositiveTeamNumber(teamNumber)
+    );
+}
+
+function validateFirstAuthRegistration(values = {}) {
+    if (String(values.registrationMode || '').toLowerCase() !== 'existing') {
+        return 'FirstAuth ownership verification is only available for existing teams.';
+    }
+    if (!PROGRAM_LABELS[String(values.program || '').trim()] || !parsePositiveTeamNumber(values.teamNumber)) {
+        return 'Choose a FIRST program and enter a valid team number before verifying with FirstAuth.';
+    }
+    if (!String(values.name || '').trim()) return 'Enter the team name before verifying with FirstAuth.';
+    const contact = normalizeEmail(values.contact);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) {
+        return 'Enter a valid contact email before verifying with FirstAuth.';
+    }
+    if (!String(values.address || '').trim()) return 'Enter the team address before verifying with FirstAuth.';
+    if (normalizeProgram(values.program) === 'FLL Challenge'
+        && (!String(values.city || '').trim() || !String(values.country || '').trim())) {
+        return 'Enter the city and country before verifying an FLL Challenge team.';
+    }
+    return '';
+}
+
+async function revokeFirstAuthToken(accessToken) {
+    if (!accessToken || !isFirstAuthConfigured()) return;
+    await fetch(`${FIRSTAUTH_API_BASE}/oauth/revoke`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+            token: accessToken,
+            client_id: FIRSTAUTH_CLIENT_ID,
+            client_secret: FIRSTAUTH_CLIENT_SECRET
+        })
+    }).catch(() => null);
 }
 
 function isConfiguredCredential(value) {
@@ -1848,14 +1924,191 @@ router.get("/teams-nearby", async function(req, res){
     }
 });
 
+router.post('/team-register/firstauth', requireAccountForTeamRegister, async function(req, res) {
+    const values = { ...(req.body || {}) };
+    const program = normalizeProgram(values.program);
+    const teamNumber = parsePositiveTeamNumber(values.teamNumber);
+
+    if (!isFirstAuthConfigured()) {
+        return res.render('pages/team-register', {
+            error: 'FirstAuth is not configured yet. Add FIRSTAUTH_CLIENT_ID and FIRSTAUTH_CLIENT_SECRET to the server environment.',
+            message: null,
+            values,
+            firstAuthConfigured: false,
+            firstAuthVerification: null
+        });
+    }
+    const validationError = validateFirstAuthRegistration(values);
+    if (validationError) {
+        return res.render('pages/team-register', {
+            error: validationError,
+            message: null,
+            values,
+            firstAuthConfigured: true,
+            firstAuthVerification: null
+        });
+    }
+
+    let officialRecord = null;
+    if (program === 'FTC' || program === 'FRC') {
+        const officialVerification = await verifyTeamWithApi(teamNumber, program, values.name);
+        if (!officialVerification.ok) {
+            return res.render('pages/team-register', {
+                error: officialVerification.error,
+                message: null,
+                values,
+                firstAuthConfigured: true,
+                firstAuthVerification: null
+            });
+        }
+        if (!officialVerification.nameMatched) {
+            return res.render('pages/team-register', {
+                error: 'Team is unable to be verified.',
+                message: null,
+                values,
+                firstAuthConfigured: true,
+                firstAuthVerification: null
+            });
+        }
+
+        const officialLocation = extractTeamLocation(officialVerification.details || officialVerification.team);
+        const submittedLocation = await geocodeAddress({ address: values.address });
+        if (!submittedLocation) {
+            return res.render('pages/team-register', {
+                error: 'We could not find that address. Enter a complete team address before verifying ownership.',
+                message: null,
+                values,
+                firstAuthConfigured: true,
+                firstAuthVerification: null
+            });
+        }
+        if (!locationMatchesOfficialRecord(submittedLocation, officialLocation)) {
+            return res.render('pages/team-register', {
+                error: 'Team is unable to be verified.',
+                message: null,
+                values,
+                firstAuthConfigured: true,
+                firstAuthVerification: null
+            });
+        }
+
+        officialRecord = {
+            source: officialVerification.source,
+            name: officialVerification.officialName,
+            city: officialLocation.city,
+            state: officialLocation.state,
+            country: officialLocation.country
+        };
+    }
+
+    const state = crypto.randomBytes(32).toString('hex');
+    const redirectUri = getFirstAuthRedirectUri(req);
+    req.session.pendingFirstAuthTeamRegistration = {
+        state,
+        redirectUri,
+        createdAt: Date.now(),
+        values: { ...values, program, teamNumber: String(teamNumber) },
+        officialRecord
+    };
+    await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+
+    const authorizeUrl = new URL(FIRSTAUTH_AUTHORIZE_URL);
+    authorizeUrl.searchParams.set('client_id', FIRSTAUTH_CLIENT_ID);
+    authorizeUrl.searchParams.set('redirect_uri', redirectUri);
+    authorizeUrl.searchParams.set('response_type', 'code');
+    authorizeUrl.searchParams.set('state', state);
+    return res.redirect(authorizeUrl.toString());
+});
+
+router.get('/auth/firstauth/callback', requireAccountForTeamRegister, async function(req, res) {
+    const pending = req.session.pendingFirstAuthTeamRegistration;
+    const returnedState = String(req.query.state || '');
+    const expectedState = String(pending && pending.state || '');
+    const stateMatches = returnedState.length === expectedState.length
+        && returnedState.length > 0
+        && crypto.timingSafeEqual(Buffer.from(returnedState), Buffer.from(expectedState));
+    const isFresh = pending && Date.now() - Number(pending.createdAt || 0) <= FIRSTAUTH_VERIFICATION_TTL_MS;
+
+    if (!pending || !stateMatches || !isFresh) {
+        delete req.session.pendingFirstAuthTeamRegistration;
+        delete req.session.firstAuthTeamVerification;
+        return res.redirect('/team-register?firstauth=invalid');
+    }
+    if (req.query.error || !req.query.code) {
+        return res.redirect('/team-register?firstauth=denied');
+    }
+
+    let accessToken = '';
+    try {
+        const tokenResponse = await fetch(`${FIRSTAUTH_API_BASE}/oauth/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+                grant_type: 'authorization_code',
+                code: String(req.query.code),
+                redirect_uri: pending.redirectUri,
+                client_id: FIRSTAUTH_CLIENT_ID,
+                client_secret: FIRSTAUTH_CLIENT_SECRET
+            })
+        });
+        const tokenPayload = await tokenResponse.json().catch(() => ({}));
+        if (!tokenResponse.ok || !tokenPayload.access_token) {
+            throw new Error(tokenPayload.error_description || tokenPayload.error || 'FirstAuth token exchange failed.');
+        }
+        accessToken = String(tokenPayload.access_token);
+
+        const userInfoResponse = await fetch(`${FIRSTAUTH_API_BASE}/oauth/userinfo`, {
+            headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' }
+        });
+        const userInfo = await userInfoResponse.json().catch(() => ({}));
+        if (!userInfoResponse.ok) throw new Error(userInfo.error || 'FirstAuth verification failed.');
+
+        const values = pending.values || {};
+        const verifiedTeam = findFirstAuthTeam(userInfo.teams, values.program, values.teamNumber);
+        if (!verifiedTeam) {
+            delete req.session.firstAuthTeamVerification;
+            return res.redirect('/team-register?firstauth=team_mismatch');
+        }
+
+        req.session.firstAuthTeamVerification = {
+            subject: String(userInfo.sub || ''),
+            displayName: String(userInfo.display_name || ''),
+            program: normalizeFirstAuthProgram(verifiedTeam.program),
+            teamNumber: parsePositiveTeamNumber(verifiedTeam.team_number),
+            verifiedAt: verifiedTeam.last_reverified_at || verifiedTeam.verified_at || new Date().toISOString(),
+            expiresAt: Date.now() + FIRSTAUTH_VERIFICATION_TTL_MS
+        };
+        return res.redirect('/team-register?firstauth=verified');
+    } catch (error) {
+        console.error('FirstAuth team verification failed:', error.message);
+        delete req.session.firstAuthTeamVerification;
+        return res.redirect('/team-register?firstauth=failed');
+    } finally {
+        await revokeFirstAuthToken(accessToken);
+    }
+});
+
 router.get('/team-register', requireAccountForTeamRegister, async function(req, res) {
-    const registrationMode = String(req.query.mode || '').toLowerCase() === 'new' ? 'new' : 'existing';
+    const pendingValues = req.session.pendingFirstAuthTeamRegistration && req.session.pendingFirstAuthTeamRegistration.values;
+    const registrationMode = pendingValues
+        ? 'existing'
+        : (String(req.query.mode || '').toLowerCase() === 'new' ? 'new' : 'existing');
     const user = await User.findById(req.session.userId).select('email').lean().exec().catch(() => null);
     if (!user) return res.redirect('/login');
+    const firstAuthMessages = {
+        verified: 'FirstAuth verified your membership. Review the details and save the team.',
+        denied: 'FirstAuth authorization was cancelled. No team was registered.',
+        invalid: 'The FirstAuth verification request expired or was invalid. Please try again.',
+        team_mismatch: 'FirstAuth did not return the selected team. Verify that team in FirstAuth, then try again.',
+        failed: 'FirstAuth could not verify the team right now. Please try again.'
+    };
+    const firstAuthStatus = String(req.query.firstauth || '');
     res.render('pages/team-register', {
-        error: null,
-        message: null,
-        values: { registrationMode, contact: normalizeEmail(user.email) }
+        error: firstAuthStatus && firstAuthStatus !== 'verified' ? firstAuthMessages[firstAuthStatus] || null : null,
+        message: firstAuthStatus === 'verified' ? firstAuthMessages.verified : null,
+        values: pendingValues || { registrationMode, contact: normalizeEmail(user.email) },
+        firstAuthConfigured: isFirstAuthConfigured(),
+        firstAuthVerification: req.session.firstAuthTeamVerification || null
     });
 });
 
@@ -1869,6 +2122,7 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
 
         const registrationUser = await User.findById(req.session.userId).select('email').lean().exec();
         if (!registrationUser || !registrationUser.email) return res.redirect('/login');
+        const accountEmail = normalizeEmail(registrationUser.email);
 
         if (!PROGRAM_LABELS[String(values.program || '').trim()]) {
             return res.render('pages/team-register', {
@@ -1885,6 +2139,16 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         const contact = normalizeEmail(values.contact);
         values.contact = contact;
         const teamNumber = isNewTeam ? null : parsePositiveTeamNumber(values.teamNumber);
+
+        if (!isNewTeam && !firstAuthProofMatches(req.session.firstAuthTeamVerification, program, teamNumber)) {
+            return res.render('pages/team-register', {
+                error: 'Verify your membership in this team with FirstAuth before saving it.',
+                message: null,
+                values,
+                firstAuthConfigured: isFirstAuthConfigured(),
+                firstAuthVerification: req.session.firstAuthTeamVerification || null
+            });
+        }
 
         if (!contact) {
             return res.render('pages/team-register', {
@@ -1938,11 +2202,8 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         }
 
         if (isOfficialTeam && !locationMatchesOfficialRecord(geocodedAddress, officialLocation)) {
-            const officialCity = officialLocation.city || 'the official city';
-            const officialState = officialLocation.state ? `, ${officialLocation.state}` : '';
-            const officialCountry = officialLocation.country ? `, ${officialLocation.country}` : '';
             return res.render('pages/team-register', {
-                error: `That address does not match the official record. Use an address in ${officialCity}${officialState}${officialCountry}.`,
+                error: 'Team is unable to be verified.',
                 message: null,
                 values
             });
@@ -1986,7 +2247,7 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             });
         }
 
-        const existingTeam = isOfficialTeam
+        const existingTeam = !isNewTeam
             ? await Team.findOne({ teamNumber, program }).select('contact managers').lean().exec()
             : null;
         if (existingTeam) {
@@ -2035,8 +2296,8 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             verificationSource: isNewTeam
                 ? 'Self-reported new team'
                 : isFllProgram
-                    ? 'Self-reported FIRST LEGO League team'
-                    : `${verification.source || (program === 'FRC' ? 'Blue Alliance' : 'FTC Scout')} lookup`,
+                    ? 'FirstAuth OAuth'
+                    : `FirstAuth OAuth + ${verification.source || (program === 'FRC' ? 'Blue Alliance' : 'FTC Scout')} lookup`,
             updatedAt: new Date()
         };
 
@@ -2062,6 +2323,9 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
                 await User.findByIdAndUpdate(req.session.userId, { $set: { teamNumber } }).exec();
             }
         }
+
+        delete req.session.firstAuthTeamVerification;
+        delete req.session.pendingFirstAuthTeamRegistration;
 
         res.render('pages/team-register', {
             error: null,
@@ -3593,6 +3857,9 @@ router.post('/signup', async function(req, res){
         if (mode === 'seeker' && (!trimmedAge || !Number.isInteger(numericAge) || numericAge < 13 || numericAge > 18)) {
             return res.render(`pages/signup-${mode}`, { error: 'Age must be a whole number from 13 to 18.', values: req.body, inviteToken: inviteToken || null, nextPath });
         }
+
+        delete req.session.firstAuthTeamVerification;
+        delete req.session.pendingFirstAuthTeamRegistration;
         const existing = await User.findOne({ email: normalizedEmail }).exec();
         if (existing && existing.emailVerified !== false) {
             return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body, inviteToken: inviteToken || null, nextPath });
@@ -4330,6 +4597,11 @@ module.exports.__test = {
     buildTeamRegistrationAddress,
     extractTeamLocation,
     locationMatchesOfficialRecord,
+    normalizeFirstAuthProgram,
+    findFirstAuthTeam,
+    firstAuthProofMatches,
+    validateFirstAuthRegistration,
+    geocodeAddress,
     verifySubmittedTeamDetails,
     verifyTeamWithApi
 };

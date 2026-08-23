@@ -38,8 +38,8 @@ const GZIP_CONTENT_TYPES = {
     ".xml": "application/xml; charset=utf-8"
 };
 
-const MAIN_CSS_VERSION = "32";
-const MAIN_JS_VERSION = "43";
+const MAIN_CSS_VERSION = "35";
+const MAIN_JS_VERSION = "44";
 const HOME_JS_VERSION = "13";
 const BOOTSTRAP_STYLESHEET = '<link rel="stylesheet" href="/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6">';
 const EXTERNAL_ASSET_REPLACEMENTS = [
@@ -146,7 +146,7 @@ app.use(function setSecurityHeaders(req, res, next) {
             "connect-src 'self' https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com",
             "object-src 'none'",
             "base-uri 'self'",
-            "form-action 'self'",
+            "form-action 'self' https://firstauth.org https://accorid.com",
             "frame-ancestors 'none'"
         ].join("; "),
         "Strict-Transport-Security": "max-age=31536000; includeSubDomains",

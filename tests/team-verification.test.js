@@ -9,6 +9,56 @@ async function run() {
   assert.strictEqual(helpers.parsePositiveTeamNumber('12.5'), null);
   assert.strictEqual(helpers.normalizeRegion('CA'), helpers.normalizeRegion('California'));
   assert.strictEqual(helpers.normalizeCountry('USA'), helpers.normalizeCountry('United States of America'));
+  assert.strictEqual(helpers.normalizeFirstAuthProgram('FLL Challenge'), 'FLL Challenge');
+  assert.strictEqual(helpers.normalizeFirstAuthProgram('FIRST LEGO League Challenge'), 'FLL Challenge');
+  assert.deepStrictEqual(
+    helpers.findFirstAuthTeam([
+      { team_number: 9415, program: 'FTC' },
+      { team_number: 254, program: 'FRC' }
+    ], 'FTC', '9415'),
+    { team_number: 9415, program: 'FTC' }
+  );
+  assert.strictEqual(
+    helpers.findFirstAuthTeam([{ team_number: 254, program: 'FRC' }], 'FTC', '254'),
+    null
+  );
+  assert.strictEqual(helpers.firstAuthProofMatches({
+    program: 'FTC',
+    teamNumber: 9415,
+    expiresAt: Date.now() + 60_000
+  }, 'FTC', 9415), true);
+  assert.strictEqual(helpers.firstAuthProofMatches({
+    program: 'FTC',
+    teamNumber: 9415,
+    expiresAt: Date.now() - 1
+  }, 'FTC', 9415), false);
+  const completeFirstAuthTeam = {
+    registrationMode: 'existing',
+    program: 'FTC',
+    teamNumber: '9415',
+    name: 'Evergreen Tech-A-Trons',
+    contact: 'team@example.com',
+    address: '123 Main Street'
+  };
+  assert.strictEqual(helpers.validateFirstAuthRegistration(completeFirstAuthTeam), '');
+  assert.match(
+    helpers.validateFirstAuthRegistration({ ...completeFirstAuthTeam, registrationMode: 'new' }),
+    /only available for existing teams/
+  );
+  assert.match(
+    helpers.validateFirstAuthRegistration({ ...completeFirstAuthTeam, address: '' }),
+    /address/
+  );
+  assert.match(
+    helpers.validateFirstAuthRegistration({ ...completeFirstAuthTeam, program: 'FLL Challenge' }),
+    /city and country/
+  );
+  assert.strictEqual(helpers.validateFirstAuthRegistration({
+    ...completeFirstAuthTeam,
+    program: 'FLL Challenge',
+    city: 'San Jose',
+    country: 'USA'
+  }), '');
   assert.strictEqual(helpers.normalizeTeamName('The Cheesy Poofs'), helpers.normalizeTeamName('Cheesy Poofs'));
   assert.strictEqual(
     helpers.buildTeamRegistrationAddress({}, 'San Jose', 'CA', 'USA'),
@@ -89,6 +139,38 @@ async function run() {
     });
     assert.strictEqual(mismatchedDetails.ok, false);
     assert.deepStrictEqual(mismatchedDetails.mismatches, ['city']);
+  } finally {
+    global.fetch = originalFetch;
+  }
+
+  global.fetch = async (url) => {
+    assert.match(url, /addressdetails=1/);
+    return {
+      ok: true,
+      json: async () => ([{
+        lat: '37.3090613',
+        lon: '-121.7730776',
+        display_name: '3060 Beckley Drive, Evergreen, San Jose, California, United States',
+        address: {
+          suburb: 'Evergreen',
+          city: 'San Jose',
+          state: 'California',
+          country: 'United States'
+        }
+      }])
+    };
+  };
+
+  try {
+    const geocoded = await helpers.geocodeAddress({ address: '3060 Beckley Dr San Jose, CA 95135' });
+    assert.deepStrictEqual(
+      { city: geocoded.city, state: geocoded.state, country: geocoded.country },
+      { city: 'San Jose', state: 'California', country: 'United States' }
+    );
+    assert.strictEqual(
+      helpers.locationMatchesOfficialRecord(geocoded, { city: 'San Jose', state: 'CA', country: 'USA' }),
+      true
+    );
   } finally {
     global.fetch = originalFetch;
   }

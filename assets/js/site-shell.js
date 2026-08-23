@@ -220,6 +220,41 @@ function isTeamRecruiting(team) {
   return true;
 }
 
+function normalizeCountryName(value) {
+  const normalized = String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+  const aliases = {
+    us: 'united states',
+    'u s': 'united states',
+    usa: 'united states',
+    'u s a': 'united states',
+    'united states of america': 'united states',
+    uk: 'united kingdom',
+    'u k': 'united kingdom',
+    gb: 'united kingdom',
+    'great britain': 'united kingdom',
+    uae: 'united arab emirates',
+    'u a e': 'united arab emirates'
+  };
+  return aliases[normalized] || normalized;
+}
+
+function getCountryApplicationState(team) {
+  const user = getCurrentUser();
+  if (!user) return { needsCountry: false, outsideCountry: false };
+  const userCountry = normalizeCountryName(user.country);
+  const teamCountry = normalizeCountryName(team && team.country);
+  return {
+    needsCountry: !userCountry,
+    outsideCountry: Boolean(userCountry && (!teamCountry || userCountry !== teamCountry))
+  };
+}
+
 function initDeclarativeActions() {
   document.querySelectorAll('[data-copy-code]').forEach((button) => {
     button.addEventListener('click', () => copyCode(button));

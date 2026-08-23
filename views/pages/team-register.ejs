@@ -44,6 +44,17 @@
           <p class="registration-choice-note">Use official team verification for an existing FIRST record, or choose new team if you are starting a team that has not been registered yet.</p>
         </div>
 
+        <div class="form-grid-full" data-firstauth-status>
+          <% if (typeof firstAuthVerification !== 'undefined' && firstAuthVerification) { %>
+            <div class="alert alert-success">
+              FirstAuth verified <strong><%= firstAuthVerification.program %> <%= firstAuthVerification.teamNumber %></strong>
+              <%= firstAuthVerification.displayName ? ' for ' + firstAuthVerification.displayName : '' %>.
+            </div>
+          <% } else { %>
+            <p class="form-note text-muted">Existing teams must verify membership through FirstAuth before the listing can be saved.</p>
+          <% } %>
+        </div>
+
         <label for="program">FIRST program</label>
         <select id="program" name="program" required>
           <option value="FTC" <%= selectedProgram === 'FTC' ? 'selected' : '' %>>FIRST Tech Challenge</option>
@@ -63,7 +74,7 @@
         <input id="contact" name="contact" type="email" required value="<%= values.contact || '' %>" />
 
         <label for="address">Address</label>
-        <input id="address" name="address" placeholder="Street address, meeting area, or landmark" value="<%= values.address || '' %>" />
+        <input id="address" name="address" required placeholder="Street address, meeting area, or landmark" value="<%= values.address || '' %>" />
         <% if (!(selectedMode !== 'new' && (selectedProgram === 'FTC' || selectedProgram === 'FRC'))) { %>
           <small class="text-muted form-note form-grid-full">For team privacy, the map marker is offset from the exact address and shown inside a 1000 meter bubble.</small>
         <% } %>
@@ -105,7 +116,19 @@
         </label>
 
         <span></span>
-        <button class="btn btn-primary" type="submit">Verify and Save Team</button>
+        <div class="registration-submit-actions">
+          <button
+            class="btn btn-primary"
+            type="submit"
+            formaction="/team-register/firstauth"
+            data-firstauth-submit
+          >Verify Team Ownership with FirstAuth</button>
+          <button class="btn btn-primary" type="submit" data-team-save>Save Team</button>
+          <small class="text-muted" data-firstauth-requirements>Complete every required field before verifying ownership.</small>
+          <% if (typeof firstAuthConfigured !== 'undefined' && !firstAuthConfigured) { %>
+            <small class="text-muted">FirstAuth credentials must be configured by the site administrator.</small>
+          <% } %>
+        </div>
       </form>
     </div>
   </main>
@@ -123,6 +146,12 @@
       const yearsInput = form.querySelector('#yearsInProgram');
       const extraInputs = [awardsInput, yearsInput].filter(Boolean);
       const locationFields = form.querySelector('[data-team-location-fields]');
+      const firstAuthButton = form.querySelector('[data-firstauth-submit]');
+      const saveButton = form.querySelector('[data-team-save]');
+      const firstAuthStatus = form.querySelector('[data-firstauth-status]');
+      const firstAuthRequirements = form.querySelector('[data-firstauth-requirements]');
+      const verifiedProgram = <%- JSON.stringify(typeof firstAuthVerification !== 'undefined' && firstAuthVerification ? firstAuthVerification.program : '') %>;
+      const verifiedTeamNumber = <%- JSON.stringify(typeof firstAuthVerification !== 'undefined' && firstAuthVerification ? String(firstAuthVerification.teamNumber) : '') %>;
 
       function syncMode() {
         const selected = modeInputs.find(input => input.checked);
@@ -153,11 +182,23 @@
           input.disabled = !showExtras;
         });
 
+        const proofMatches = !isNew
+          && verifiedProgram === programValue
+          && verifiedTeamNumber === String(teamNumberInput?.value || '').trim();
+        if (firstAuthButton) firstAuthButton.hidden = isNew || proofMatches;
+        if (firstAuthButton) firstAuthButton.disabled = isNew;
+        if (saveButton) saveButton.hidden = !isNew && !proofMatches;
+        if (firstAuthStatus) firstAuthStatus.hidden = isNew;
+        if (firstAuthRequirements) firstAuthRequirements.hidden = isNew || proofMatches || form.checkValidity();
+
       }
 
       modeInputs.forEach(input => input.addEventListener('change', syncMode));
       const programInput = form.querySelector('#program');
       if (programInput) programInput.addEventListener('change', syncMode);
+      if (teamNumberInput) teamNumberInput.addEventListener('input', syncMode);
+      form.addEventListener('input', syncMode);
+      form.addEventListener('change', syncMode);
       syncMode();
     })();
   </script>

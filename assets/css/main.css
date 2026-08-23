@@ -60,6 +60,8 @@
 html {
   min-height: 100%;
   font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   scroll-behavior: smooth;
 }
 
@@ -84,8 +86,8 @@ body {
   background-size: auto, auto, 44px 44px, 44px 44px, auto, auto;
   background-attachment: fixed;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 17px;
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 1.55;
   text-rendering: optimizeLegibility;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
@@ -1012,11 +1014,11 @@ main {
 
 /* Responsive typography scaling */
 h1 {
-  font-size: clamp(2rem, 5vw, 5rem);
+  font-size: clamp(2rem, 4vw, 3.25rem);
 }
 
 h2 {
-  font-size: clamp(1.2rem, 3vw, 2.4rem);
+  font-size: clamp(1.5rem, 2.5vw, 2.1rem);
 }
 
 /* Improve spacing on small screens */
@@ -1091,8 +1093,8 @@ h1,
   max-width: 920px;
   margin: 0 0 18px;
   color: var(--text-primary);
-  font-size: clamp(3rem, 5.8vw, 5rem);
-  line-height: 1;
+  font-size: clamp(2.25rem, 4.5vw, 3.5rem);
+  line-height: 1.08;
   font-weight: 800;
   letter-spacing: 0;
 }
@@ -1100,7 +1102,7 @@ h1,
 h2 {
   margin: 40px 0 14px;
   color: var(--text-primary);
-  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-size: clamp(1.5rem, 2.5vw, 2.1rem);
   line-height: 1.1;
   font-weight: 800;
   letter-spacing: 0;
@@ -1119,8 +1121,8 @@ h3 {
   max-width: 690px;
   margin: 0 0 30px;
   color: var(--text-secondary);
-  font-size: clamp(1.18rem, 1.6vw, 1.42rem);
-  line-height: 1.7;
+  font-size: clamp(1rem, 1.25vw, 1.15rem);
+  line-height: 1.6;
 }
 
 .site-messages {
@@ -1208,7 +1210,7 @@ h3 {
   padding: 12px 20px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 800;
   line-height: 1.2;
   text-decoration: none;
@@ -4294,6 +4296,24 @@ header > .theme-toggle {
     flex: 0 0 auto;
     margin-left: auto;
   }
+}
+
+.registration-submit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.registration-submit-actions small {
+  flex-basis: 100%;
+  text-align: center;
+}
+
+.registration-submit-actions [hidden],
+[data-firstauth-status][hidden] {
+  display: none !important;
 }
 
 @media (max-width: 1440px) and (min-width: 1121px) {

@@ -25,6 +25,21 @@ const email = require('../lib/email');
 assert.strictEqual(email.getEmailConfigStatus().configured, false);
 assert.match(email.getEmailConfigErrorMessage(), /Email is not configured/);
 assert.strictEqual(typeof email.sendTransactionalEmail, 'function');
+assert.strictEqual(typeof email.buildEmailIdempotencyKey, 'function');
+
+const payload = {
+    from: 'FIRST Start <mail@findfirst.org>',
+    to: ['Student@Example.com'],
+    subject: 'Application received',
+    html: '<p>Hello</p>'
+};
+const duplicateKey = email.buildEmailIdempotencyKey({ ...payload });
+assert.strictEqual(email.buildEmailIdempotencyKey(payload), duplicateKey);
+assert.match(duplicateKey, /^first-start\/[a-f0-9]{64}$/);
+assert.notStrictEqual(
+    email.buildEmailIdempotencyKey({ ...payload, subject: 'Different event' }),
+    duplicateKey
+);
 
 restoreEnv('RESEND_API_KEY', originalResendKey);
 restoreEnv('RESEND_FROM_EMAIL', originalResendFrom);
