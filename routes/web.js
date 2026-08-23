@@ -1975,6 +1975,20 @@ router.post('/team-register/firstauth', requireAccountForTeamRegister, async fun
         });
     }
 
+    const alreadyRegistered = await Team.findOne({ program, teamNumber })
+        .select('_id')
+        .lean()
+        .exec();
+    if (alreadyRegistered) {
+        return res.render('pages/team-register', {
+            error: 'This team is already registered. Manage the existing listing from My Team.',
+            message: null,
+            values,
+            firstAuthConfigured: true,
+            firstAuthVerification: null
+        });
+    }
+
     let officialRecord = null;
     if (program === 'FTC' || program === 'FRC') {
         const officialVerification = await verifyTeamWithApi(teamNumber, program, values.name);
@@ -2321,7 +2335,6 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
 
         const registrationUser = await User.findById(req.session.userId).select('email').lean().exec();
         if (!registrationUser || !registrationUser.email) return res.redirect('/login');
-        const accountEmail = normalizeEmail(registrationUser.email);
 
         if (!PROGRAM_LABELS[String(values.program || '').trim()]) {
             return res.render('pages/team-register', {
@@ -2475,20 +2488,17 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             }) === registrationKey) || null;
         }
         if (existingTeam) {
-            const ownsByEmail = normalizeEmail(existingTeam.contact) === accountEmail;
-            const ownsByManager = Array.isArray(existingTeam.managers)
-                && existingTeam.managers.some(managerId => String(managerId) === String(req.session.userId));
-            if (!ownsByEmail && !ownsByManager) {
-                return res.render('pages/team-register', {
-                    error: 'This team is already registered. An existing team manager must invite you or transfer ownership.',
-                    message: null,
-                    values
-                });
-            }
+            return res.render('pages/team-register', {
+                error: isNewTeam
+                    ? 'This new team listing is already registered. Manage the existing listing from My Team.'
+                    : 'This team is already registered. Manage the existing listing from My Team.',
+                message: null,
+                values
+            });
         }
 
         const teamFilter = isNewTeam
-            ? (existingTeam ? { _id: existingTeam._id } : { registrationKey })
+            ? { registrationKey }
             : { teamNumber, program };
 
         const teamData = {
