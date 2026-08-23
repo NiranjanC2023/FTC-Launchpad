@@ -750,6 +750,14 @@ function firstAuthProofMatches(proof, program, teamNumber) {
     );
 }
 
+function firstAuthStateMatches(pending, returnedState) {
+    const expectedState = String(pending && pending.state || '');
+    const receivedState = String(returnedState || '');
+    return receivedState.length === expectedState.length
+        && receivedState.length > 0
+        && crypto.timingSafeEqual(Buffer.from(receivedState), Buffer.from(expectedState));
+}
+
 function validateFirstAuthRegistration(values = {}) {
     if (String(values.registrationMode || '').toLowerCase() !== 'existing') {
         return 'FirstAuth ownership verification is only available for existing teams.';
@@ -1428,6 +1436,24 @@ function buildTeamRegistrationAddress(values, city, state, country) {
     return [city, state, country].map(value => String(value || '').trim()).filter(Boolean).join(', ');
 }
 
+function buildTeamRegistrationKey({ program, teamNumber, isNewTeam, name, address, city, state, country }) {
+    const normalizedProgram = normalizeProgram(program);
+    if (!isNewTeam) {
+        const normalizedTeamNumber = parsePositiveTeamNumber(teamNumber);
+        return normalizedTeamNumber ? `${normalizedProgram}:official:${normalizedTeamNumber}` : '';
+    }
+    const parts = [
+        normalizeTeamName(name),
+        normalizeTeamName(address),
+        normalizeTeamName(city),
+        normalizeRegion(state),
+        normalizeCountry(country)
+    ];
+    return parts.every(Boolean) || (parts[0] && parts[1] && parts[2] && parts[4])
+        ? `${normalizedProgram}:new:${parts.join(':')}`
+        : '';
+}
+
 function compareTeamNameToNumber(submittedName, officialName) {
     const normalizedSubmitted = normalizeTeamName(submittedName);
     const normalizedOfficial = normalizeTeamName(officialName);
@@ -2020,22 +2046,110 @@ router.post('/team-register/firstauth', requireAccountForTeamRegister, async fun
     return res.redirect(authorizeUrl.toString());
 });
 
+router.post('/manage-team/firstauth', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!(await waitForDatabase())) return res.redirect('/manage-team?error=firstauth_failed');
+        if (!isFirstAuthConfigured()) return res.redirect('/manage-team?error=firstauth_failed');
+
+        const user = await User.findById(req.session.userId).lean().exec();
+        if (!user) return res.redirect('/logout');
+
+        const teamId = String(req.body.teamId || '').trim();
+        const teamNumber = parsePositiveTeamNumber(req.body.teamNumber);
+        const values = {
+            program: 'FTC',
+            teamNumber: teamNumber ? String(teamNumber) : String(req.body.teamNumber || '').trim(),
+            name: String(req.body.name || '').trim(),
+            contact: normalizeEmail(req.body.contact),
+            address: String(req.body.address || '').trim(),
+            city: String(req.body.city || '').trim(),
+            state: String(req.body.state || '').trim(),
+            country: String(req.body.country || '').trim(),
+            notes: String(req.body.notes || '').trim(),
+            recruiting: ['1', 'on', 'true'].includes(String(req.body.recruiting || '').toLowerCase())
+        };
+        req.session.teamUpgradeDraft = { teamId, values };
+
+        const contactIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.contact);
+        if (!teamId || !teamNumber || !values.name || !contactIsValid || !values.address || !values.city || !values.country) {
+            return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=firstauth_invalid`);
+        }
+
+        const team = await Team.findOne({
+            _id: teamId,
+            isNewTeam: true,
+            $or: [
+                { contact: buildContactEmailQuery(user.email) },
+                { managers: user._id }
+            ]
+        }).lean().exec();
+        if (!team) return res.redirect('/manage-team?error=firstauth_not_new');
+
+        const duplicate = await Team.findOne({
+            _id: { $ne: team._id },
+            program: 'FTC',
+            teamNumber
+        }).select('_id').lean().exec();
+        if (duplicate) return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=firstauth_duplicate`);
+
+        const officialVerification = await verifyTeamWithApi(teamNumber, 'FTC');
+        if (!officialVerification.ok) {
+            return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=firstauth_unverified`);
+        }
+
+        const submittedCoordinates = await geocodeAddress(values);
+        if (!submittedCoordinates) {
+            return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=firstauth_address`);
+        }
+
+        const state = crypto.randomBytes(32).toString('hex');
+        const redirectUri = getFirstAuthRedirectUri(req);
+        req.session.pendingFirstAuthTeamUpgrade = {
+            state,
+            redirectUri,
+            createdAt: Date.now(),
+            teamId,
+            program: 'FTC',
+            teamNumber,
+            values,
+            submittedCoordinates
+        };
+        await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+
+        const authorizeUrl = new URL(FIRSTAUTH_AUTHORIZE_URL);
+        authorizeUrl.searchParams.set('client_id', FIRSTAUTH_CLIENT_ID);
+        authorizeUrl.searchParams.set('redirect_uri', redirectUri);
+        authorizeUrl.searchParams.set('response_type', 'code');
+        authorizeUrl.searchParams.set('state', state);
+        return res.redirect(authorizeUrl.toString());
+    } catch (error) {
+        console.error('Unable to start FirstAuth team upgrade:', error.message);
+        return res.redirect('/manage-team?error=firstauth_failed');
+    }
+});
+
 router.get('/auth/firstauth/callback', requireAccountForTeamRegister, async function(req, res) {
-    const pending = req.session.pendingFirstAuthTeamRegistration;
     const returnedState = String(req.query.state || '');
-    const expectedState = String(pending && pending.state || '');
-    const stateMatches = returnedState.length === expectedState.length
-        && returnedState.length > 0
-        && crypto.timingSafeEqual(Buffer.from(returnedState), Buffer.from(expectedState));
+    const pendingUpgrade = req.session.pendingFirstAuthTeamUpgrade;
+    const pendingRegistration = req.session.pendingFirstAuthTeamRegistration;
+    const isUpgrade = firstAuthStateMatches(pendingUpgrade, returnedState);
+    const pending = isUpgrade ? pendingUpgrade : pendingRegistration;
+    const stateMatches = firstAuthStateMatches(pending, returnedState);
     const isFresh = pending && Date.now() - Number(pending.createdAt || 0) <= FIRSTAUTH_VERIFICATION_TTL_MS;
+    const failurePath = isUpgrade
+        ? `/manage-team?team=${encodeURIComponent(String(pendingUpgrade && pendingUpgrade.teamId || ''))}`
+        : '/team-register';
 
     if (!pending || !stateMatches || !isFresh) {
-        delete req.session.pendingFirstAuthTeamRegistration;
-        delete req.session.firstAuthTeamVerification;
-        return res.redirect('/team-register?firstauth=invalid');
+        if (isUpgrade) delete req.session.pendingFirstAuthTeamUpgrade;
+        else {
+            delete req.session.pendingFirstAuthTeamRegistration;
+            delete req.session.firstAuthTeamVerification;
+        }
+        return res.redirect(`${failurePath}${failurePath.includes('?') ? '&' : '?'}${isUpgrade ? 'error=firstauth_invalid' : 'firstauth=invalid'}`);
     }
     if (req.query.error || !req.query.code) {
-        return res.redirect('/team-register?firstauth=denied');
+        return res.redirect(`${failurePath}${failurePath.includes('?') ? '&' : '?'}${isUpgrade ? 'error=firstauth_denied' : 'firstauth=denied'}`);
     }
 
     let accessToken = '';
@@ -2063,11 +2177,95 @@ router.get('/auth/firstauth/callback', requireAccountForTeamRegister, async func
         const userInfo = await userInfoResponse.json().catch(() => ({}));
         if (!userInfoResponse.ok) throw new Error(userInfo.error || 'FirstAuth verification failed.');
 
-        const values = pending.values || {};
+        const values = isUpgrade ? pending : (pending.values || {});
         const verifiedTeam = findFirstAuthTeam(userInfo.teams, values.program, values.teamNumber);
         if (!verifiedTeam) {
-            delete req.session.firstAuthTeamVerification;
-            return res.redirect('/team-register?firstauth=team_mismatch');
+            if (isUpgrade) delete req.session.pendingFirstAuthTeamUpgrade;
+            else delete req.session.firstAuthTeamVerification;
+            return res.redirect(`${failurePath}${failurePath.includes('?') ? '&' : '?'}${isUpgrade ? 'error=firstauth_unverified' : 'firstauth=team_mismatch'}`);
+        }
+
+        if (isUpgrade) {
+            const user = await User.findById(req.session.userId).lean().exec();
+            const team = user ? await Team.findOne({
+                _id: pending.teamId,
+                isNewTeam: true,
+                $or: [
+                    { contact: buildContactEmailQuery(user.email) },
+                    { managers: user._id }
+                ]
+            }).exec() : null;
+            if (!team) {
+                delete req.session.pendingFirstAuthTeamUpgrade;
+                return res.redirect(`${failurePath}&error=firstauth_not_new`);
+            }
+
+            const duplicate = await Team.findOne({
+                _id: { $ne: team._id },
+                program: 'FTC',
+                teamNumber: pending.teamNumber
+            }).select('_id').lean().exec();
+            if (duplicate) {
+                delete req.session.pendingFirstAuthTeamUpgrade;
+                return res.redirect(`${failurePath}&error=firstauth_duplicate`);
+            }
+
+            const officialVerification = await verifyTeamWithApi(pending.teamNumber, 'FTC');
+            if (!officialVerification.ok || !officialVerification.details) {
+                delete req.session.pendingFirstAuthTeamUpgrade;
+                return res.redirect(`${failurePath}&error=firstauth_unverified`);
+            }
+
+            const details = officialVerification.details;
+            const officialLocation = extractTeamLocation(details);
+            const officialCoordinates = await geocodeAddress(officialLocation).catch(() => null);
+            const officialName = officialVerification.officialName || team.name;
+            const organization = getTeamOrganizationFromApiProfile(details.profile) || team.organization || '';
+            const submittedValues = pending.values || {};
+            const firstAuthVerifiedAt = new Date(verifiedTeam.last_reverified_at || verifiedTeam.verified_at || Date.now());
+            const verifiedAt = Number.isNaN(firstAuthVerifiedAt.getTime()) ? new Date() : firstAuthVerifiedAt;
+
+            team.program = 'FTC';
+            team.teamNumber = pending.teamNumber;
+            team.registrationKey = buildTeamRegistrationKey({ program: 'FTC', teamNumber: pending.teamNumber, isNewTeam: false });
+            team.isNewTeam = false;
+            team.name = officialName;
+            team.organization = organization;
+            team.contact = normalizeEmail(submittedValues.contact) || team.contact;
+            team.address = String(submittedValues.address || team.address).trim();
+            team.city = officialLocation.city || String(submittedValues.city || team.city).trim();
+            team.state = officialLocation.state || String(submittedValues.state || team.state).trim();
+            team.country = officialLocation.country || String(submittedValues.country || team.country).trim();
+            const resolvedCoordinates = officialCoordinates || pending.submittedCoordinates;
+            if (resolvedCoordinates) {
+                team.lat = resolvedCoordinates.lat;
+                team.lon = resolvedCoordinates.lon;
+            }
+            team.notes = String(submittedValues.notes || '').trim();
+            team.recruiting = Boolean(submittedValues.recruiting);
+            team.awards = details.awards || '';
+            team.awardHistory = sortHistoryEntriesMostRecent(details.awardHistory || []);
+            team.yearsInProgram = details.yearsInProgram;
+            team.advancementLevels = details.advancementLevels || [];
+            team.advancementHistory = sortHistoryEntriesMostRecent(details.advancementHistory || []);
+            team.verified = true;
+            team.verifiedAt = verifiedAt;
+            team.verificationSource = 'FirstAuth OAuth + FTC Scout';
+            team.updatedAt = new Date();
+            await team.save();
+
+            const managerIds = Array.from(new Set([
+                String(req.session.userId),
+                ...(Array.isArray(team.managers) ? team.managers.map(String) : [])
+            ])).filter(mongoose.Types.ObjectId.isValid);
+            if (managerIds.length) {
+                await User.updateMany({ _id: { $in: managerIds } }, { $set: { teamNumber: pending.teamNumber } }).exec();
+            }
+
+            delete req.session.pendingFirstAuthTeamUpgrade;
+            delete req.session.teamUpgradeDraft;
+            req.session.activeTeamId = String(team._id);
+            return res.redirect(`/manage-team?team=${encodeURIComponent(String(team._id))}&success=team_verified`);
         }
 
         req.session.firstAuthTeamVerification = {
@@ -2081,8 +2279,9 @@ router.get('/auth/firstauth/callback', requireAccountForTeamRegister, async func
         return res.redirect('/team-register?firstauth=verified');
     } catch (error) {
         console.error('FirstAuth team verification failed:', error.message);
-        delete req.session.firstAuthTeamVerification;
-        return res.redirect('/team-register?firstauth=failed');
+        if (isUpgrade) delete req.session.pendingFirstAuthTeamUpgrade;
+        else delete req.session.firstAuthTeamVerification;
+        return res.redirect(`${failurePath}${failurePath.includes('?') ? '&' : '?'}${isUpgrade ? 'error=firstauth_failed' : 'firstauth=failed'}`);
     } finally {
         await revokeFirstAuthToken(accessToken);
     }
@@ -2247,16 +2446,41 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             });
         }
 
-        const existingTeam = !isNewTeam
-            ? await Team.findOne({ teamNumber, program }).select('contact managers').lean().exec()
-            : null;
+        const registrationKey = buildTeamRegistrationKey({
+            program,
+            teamNumber,
+            isNewTeam,
+            name: officialName,
+            address: values.address,
+            city: resolvedCity,
+            state: resolvedState,
+            country: resolvedCountry || (isNewTeam ? 'USA' : '')
+        });
+        let existingTeam = !isNewTeam
+            ? await Team.findOne({ teamNumber, program }).select('contact managers registrationKey').lean().exec()
+            : await Team.findOne({ registrationKey }).select('contact managers registrationKey').lean().exec();
+        if (isNewTeam && !existingTeam) {
+            const possibleDuplicates = await Team.find({ isNewTeam: true, program })
+                .select('name address city state country contact managers registrationKey')
+                .lean()
+                .exec();
+            existingTeam = possibleDuplicates.find(team => buildTeamRegistrationKey({
+                program: team.program || program,
+                isNewTeam: true,
+                name: team.name,
+                address: team.address,
+                city: team.city,
+                state: team.state,
+                country: team.country
+            }) === registrationKey) || null;
+        }
         if (existingTeam) {
             const ownsByEmail = normalizeEmail(existingTeam.contact) === accountEmail;
             const ownsByManager = Array.isArray(existingTeam.managers)
                 && existingTeam.managers.some(managerId => String(managerId) === String(req.session.userId));
             if (!ownsByEmail && !ownsByManager) {
                 return res.render('pages/team-register', {
-                    error: 'This official team is already registered. An existing team manager must invite you or transfer ownership.',
+                    error: 'This team is already registered. An existing team manager must invite you or transfer ownership.',
                     message: null,
                     values
                 });
@@ -2264,12 +2488,13 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         }
 
         const teamFilter = isNewTeam
-            ? { program, contact, name: officialName }
+            ? (existingTeam ? { _id: existingTeam._id } : { registrationKey })
             : { teamNumber, program };
 
         const teamData = {
             program,
             ...(isNewTeam ? {} : { teamNumber }),
+            registrationKey,
             isNewTeam,
             name: officialName,
             organization: officialOrganization,
@@ -2336,6 +2561,13 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         });
     } catch (err) {
         console.error('Team registration failed:', err);
+        if (err && err.code === 11000) {
+            return res.render('pages/team-register', {
+                error: 'This team is already registered. An existing team manager must invite you or transfer ownership.',
+                message: null,
+                values
+            });
+        }
         res.render('pages/team-register', { error: 'Unable to verify and save the team right now.', message: null, values });
     }
 });
@@ -2575,6 +2807,20 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             errorMessage = 'You do not have permission to clear pending invitations.';
         } else if (queryError === 'pending_invites_clear_failed') {
             errorMessage = 'Unable to clear pending invitations. Please try again.';
+        } else if (queryError === 'firstauth_invalid') {
+            errorMessage = 'Complete every required team field before verifying.';
+        } else if (queryError === 'firstauth_address') {
+            errorMessage = 'We could not find that address. Enter a complete team address before verifying.';
+        } else if (queryError === 'firstauth_not_new') {
+            errorMessage = 'Only a new-team listing can be upgraded from this page.';
+        } else if (queryError === 'firstauth_duplicate') {
+            errorMessage = 'That official team is already registered.';
+        } else if (queryError === 'firstauth_denied') {
+            errorMessage = 'FirstAuth authorization was cancelled.';
+        } else if (queryError === 'firstauth_unverified') {
+            errorMessage = 'Team is unable to be verified.';
+        } else if (queryError === 'firstauth_failed') {
+            errorMessage = 'Team is unable to be verified. Please try again.';
         }
 
         // Handle success messages
@@ -2604,6 +2850,8 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             successMessage = 'You left the team successfully.';
         } else if (querySuccess === 'pending_invitations_cleared') {
             successMessage = 'Pending invitations cleared successfully.';
+        } else if (querySuccess === 'team_verified') {
+            successMessage = 'Team ownership verified. The listing was updated with official FTC Scout information.';
         }
 
         const teamOptions = await getAccessibleTeamsForUser(user);
@@ -2624,6 +2872,13 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         const teamTenureLabel = team ? formatTeamTenureLabel(team) : null;
         const currentTeamRole = team ? getTeamManagerRole(team, user._id) : '';
         const isCaptainForTeam = Boolean(currentTeamRole);
+        const savedUpgradeDraft = req.session.teamUpgradeDraft;
+        const pendingUpgrade = req.session.pendingFirstAuthTeamUpgrade;
+        const matchingUpgradeDraft = team && savedUpgradeDraft && String(savedUpgradeDraft.teamId) === String(team._id)
+            ? savedUpgradeDraft.values
+            : team && pendingUpgrade && String(pendingUpgrade.teamId) === String(team._id)
+                ? pendingUpgrade.values
+                : null;
 
         let teamManagers = [];
         let pendingInvitations = [];
@@ -2766,6 +3021,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             waitlistCount,
             rejectedCount,
             teamTenureLabel,
+            teamVerificationDraft: matchingUpgradeDraft,
             error: errorMessage,
             success: successMessage
         });
@@ -4595,10 +4851,12 @@ module.exports.__test = {
     normalizeCountry,
     parsePositiveTeamNumber,
     buildTeamRegistrationAddress,
+    buildTeamRegistrationKey,
     extractTeamLocation,
     locationMatchesOfficialRecord,
     normalizeFirstAuthProgram,
     findFirstAuthTeam,
+    firstAuthStateMatches,
     firstAuthProofMatches,
     validateFirstAuthRegistration,
     geocodeAddress,

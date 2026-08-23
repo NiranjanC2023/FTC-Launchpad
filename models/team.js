@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const TeamSchema = new mongoose.Schema({
   program: { type: String, required: true, trim: true, default: 'FTC' },
   teamNumber: { type: Number },
+  registrationKey: { type: String, trim: true },
   isNewTeam: { type: Boolean, default: false },
   name: { type: String, required: true },
   organization: { type: String, trim: true },
@@ -41,6 +42,13 @@ TeamSchema.index(
   {
     unique: true,
     partialFilterExpression: { teamNumber: { $type: 'number' } }
+  }
+);
+TeamSchema.index(
+  { registrationKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { registrationKey: { $type: 'string' } }
   }
 );
 TeamSchema.index({ contact: 1 });

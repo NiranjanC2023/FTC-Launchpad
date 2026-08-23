@@ -51,6 +51,29 @@
         }
         .panel-head h3 { margin: 0; font-size: 1.2rem; font-weight: 800; display: flex; align-items: center; gap: 10px; }
         .panel-body { padding: 24px; }
+        .team-verification-card {
+            margin-bottom: 28px;
+            padding: 24px 26px;
+            background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+            border: 1px solid #86efac;
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+        }
+        .team-verification-card h2 { margin: 0 0 7px; font-size: 1.25rem; }
+        .team-verification-card p { margin: 0; color: var(--text-secondary); }
+        .team-verification-form {
+            display: grid;
+            grid-template-columns: 180px minmax(0, 1fr);
+            gap: 14px 18px;
+            align-items: center;
+            margin-top: 22px;
+        }
+        .team-verification-form > label { font-weight: 800; }
+        .team-verification-form textarea { min-height: 110px; resize: vertical; }
+        .team-verification-full { grid-column: 1 / -1; }
+        .team-verification-checkbox { display: flex; align-items: center; gap: 10px; font-weight: 800; }
+        .team-verification-checkbox input { width: 18px; height: 18px; }
+        .team-verification-actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; flex-wrap: wrap; }
         .team-switcher {
             display: inline-flex;
             align-items: center;
@@ -471,6 +494,17 @@
             .stats-grid {
                 grid-template-columns: 1fr;
             }
+            .team-verification-card {
+                padding: 20px;
+            }
+            .team-verification-form {
+                grid-template-columns: 1fr;
+            }
+            .team-verification-full,
+            .team-verification-form .btn {
+                width: 100%;
+            }
+            .team-verification-actions { justify-content: stretch; }
             .stat-card,
             .panel-head,
             .recruit-card .row {
@@ -554,9 +588,10 @@
             </div>
         </div>
         
-        <% if (typeof message !== 'undefined' && message) { %>
+        <% const dashboardSuccess = (typeof success !== 'undefined' && success) || (typeof message !== 'undefined' && message) || ''; %>
+        <% if (dashboardSuccess) { %>
             <div class="alert alert-success" style="background: #d1fae5; color: #065f46; border-color: #a7f3d0;">
-                <i class="fa-solid fa-circle-check"></i> <%= message %>
+                <i class="fa-solid fa-circle-check"></i> <%= dashboardSuccess %>
             </div>
         <% } %>
 
@@ -567,6 +602,60 @@
         <% if (team) { %>
             <% const isPrimary = (user && user.email && team && team.contact && user.email.toLowerCase() === team.contact.toLowerCase()); %>
             <% const isManager = Boolean(currentTeamRole); %>
+
+            <% if (team.isNewTeam && (isPrimary || isManager)) { %>
+                <% const verificationValues = (typeof teamVerificationDraft !== 'undefined' && teamVerificationDraft) ? teamVerificationDraft : team; %>
+                <section class="team-verification-card" aria-labelledby="verify-team-heading">
+                    <div>
+                        <h2 id="verify-team-heading"><i class="fa-solid fa-shield-halved"></i> Verify this new team as an official FTC team</h2>
+                        <p>Edit and complete the team information below before verifying. FTC Scout will supply the official team name, location, awards, and competition history after FirstAuth confirms ownership.</p>
+                    </div>
+                    <form class="team-verification-form" method="post" action="/manage-team/firstauth">
+                        <input type="hidden" name="teamId" value="<%= team._id %>">
+                        <input type="hidden" name="program" value="FTC">
+
+                        <label for="verifyProgram">FIRST program</label>
+                        <select id="verifyProgram" class="form-control" disabled>
+                            <option>FIRST Tech Challenge</option>
+                        </select>
+
+                        <label for="officialTeamNumber">Official FTC team number</label>
+                        <input id="officialTeamNumber" class="form-control" type="number" name="teamNumber" min="1" step="1" inputmode="numeric" required value="<%= verificationValues.teamNumber || '' %>">
+
+                        <label for="verifyTeamName">Team name</label>
+                        <input id="verifyTeamName" class="form-control" name="name" required value="<%= verificationValues.name || '' %>">
+
+                        <label for="verifyContact">Contact email</label>
+                        <input id="verifyContact" class="form-control" type="email" name="contact" required value="<%= verificationValues.contact || '' %>">
+
+                        <label for="verifyAddress">Address</label>
+                        <input id="verifyAddress" class="form-control" name="address" required placeholder="Street address, meeting area, or landmark" value="<%= verificationValues.address || '' %>">
+
+                        <label for="verifyCity">City</label>
+                        <input id="verifyCity" class="form-control" name="city" required value="<%= verificationValues.city || '' %>">
+
+                        <label for="verifyState">State or province</label>
+                        <input id="verifyState" class="form-control" name="state" value="<%= verificationValues.state || '' %>">
+
+                        <label for="verifyCountry">Country</label>
+                        <input id="verifyCountry" class="form-control" name="country" required value="<%= verificationValues.country || '' %>">
+
+                        <label for="verifyNotes">Recruiting info</label>
+                        <textarea id="verifyNotes" class="form-control" name="notes" placeholder="Meeting days, grades accepted, application link, or what students should include."><%= verificationValues.notes || '' %></textarea>
+
+                        <span aria-hidden="true"></span>
+                        <label class="team-verification-checkbox">
+                            <input type="checkbox" name="recruiting" <%= verificationValues.recruiting === false ? '' : 'checked' %>>
+                            <span>Show this team as recruiting</span>
+                        </label>
+
+                        <div class="team-verification-actions team-verification-full">
+                            <small class="text-muted">Complete every required field, then continue to FirstAuth.</small>
+                            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-arrow-up-right-from-square"></i> Verify and Become an Official FTC Team</button>
+                        </div>
+                    </form>
+                </section>
+            <% } %>
 
             <div class="stats-grid">
                 <div class="stat-card">

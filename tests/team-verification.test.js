@@ -22,6 +22,9 @@ async function run() {
     helpers.findFirstAuthTeam([{ team_number: 254, program: 'FRC' }], 'FTC', '254'),
     null
   );
+  assert.strictEqual(helpers.firstAuthStateMatches({ state: 'secure-state' }, 'secure-state'), true);
+  assert.strictEqual(helpers.firstAuthStateMatches({ state: 'secure-state' }, 'wrong-state'), false);
+  assert.strictEqual(helpers.firstAuthStateMatches(null, ''), false);
   assert.strictEqual(helpers.firstAuthProofMatches({
     program: 'FTC',
     teamNumber: 9415,
@@ -67,6 +70,30 @@ async function run() {
   assert.strictEqual(
     helpers.buildTeamRegistrationAddress({ address: 'Community Center' }, 'San Jose', 'CA', 'USA'),
     'Community Center'
+  );
+  assert.strictEqual(
+    helpers.buildTeamRegistrationKey({ program: 'FTC', teamNumber: 25690, isNewTeam: false }),
+    'FTC:official:25690'
+  );
+  assert.strictEqual(
+    helpers.buildTeamRegistrationKey({
+      program: 'FTC',
+      isNewTeam: true,
+      name: 'Evergreen Robotics',
+      address: '123 Main St.',
+      city: 'San Jos\u00e9',
+      state: 'California',
+      country: 'United States of America'
+    }),
+    helpers.buildTeamRegistrationKey({
+      program: 'FTC',
+      isNewTeam: true,
+      name: 'EVERGREEN ROBOTICS',
+      address: '123 Main St',
+      city: 'San Jose',
+      state: 'CA',
+      country: 'USA'
+    })
   );
   assert.strictEqual(
     helpers.locationMatchesOfficialRecord(
