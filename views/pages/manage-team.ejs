@@ -52,13 +52,47 @@
         .panel-head h3 { margin: 0; font-size: 1.2rem; font-weight: 800; display: flex; align-items: center; gap: 10px; }
         .panel-body { padding: 24px; }
         .team-verification-card {
-            margin-bottom: 28px;
+            position: relative;
+            width: min(760px, calc(100vw - 32px));
+            max-height: min(90vh, 900px);
+            overflow-y: auto;
             padding: 24px 26px;
-            background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+            background: var(--surface);
             border: 1px solid #86efac;
             border-radius: 12px;
-            box-shadow: var(--shadow-sm);
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+            z-index: 1;
         }
+        .team-verification-modal[hidden] { display: none; }
+        .team-verification-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            display: grid;
+            place-items: center;
+            padding: 16px;
+        }
+        .team-verification-backdrop {
+            position: absolute;
+            inset: 0;
+            border: 0;
+            background: rgba(15, 23, 42, 0.62);
+            cursor: default;
+        }
+        .team-verification-close {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            width: 36px;
+            height: 36px;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            background: var(--surface);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .team-verify-launch { padding: 8px 13px; font-size: 0.86rem; }
         .team-verification-card h2 { margin: 0 0 7px; font-size: 1.25rem; }
         .team-verification-card p { margin: 0; color: var(--text-secondary); }
         .team-verification-form {
@@ -584,6 +618,12 @@
                         </select>
                     </form>
                 <% } %>
+                <% const canVerifySelectedTeam = team && team.isNewTeam && (Boolean(currentTeamRole) || (user && user.email && team.contact && user.email.toLowerCase() === team.contact.toLowerCase())); %>
+                <% if (canVerifySelectedTeam) { %>
+                    <button class="btn btn-primary team-verify-launch" type="button" data-open-team-verification>
+                        <i class="fa-solid fa-shield-halved"></i> Verify Team
+                    </button>
+                <% } %>
                 <a href="/teams-nearby" class="btn btn-secondary"><i class="fa-solid fa-earth-americas"></i> View Listing</a>
             </div>
         </div>
@@ -605,7 +645,10 @@
 
             <% if (team.isNewTeam && (isPrimary || isManager)) { %>
                 <% const verificationValues = (typeof teamVerificationDraft !== 'undefined' && teamVerificationDraft) ? teamVerificationDraft : team; %>
-                <section class="team-verification-card" aria-labelledby="verify-team-heading">
+                <div class="team-verification-modal" data-team-verification-modal hidden>
+                    <button class="team-verification-backdrop" type="button" aria-label="Close team verification" data-close-team-verification></button>
+                    <section class="team-verification-card" role="dialog" aria-modal="true" aria-labelledby="verify-team-heading">
+                    <button class="team-verification-close" type="button" aria-label="Close team verification" data-close-team-verification><i class="fa-solid fa-xmark"></i></button>
                     <div>
                         <h2 id="verify-team-heading"><i class="fa-solid fa-shield-halved"></i> Verify this new team as an official FTC team</h2>
                         <p>Edit and complete the team information below before verifying. FTC Scout will supply the official team name, location, awards, and competition history after FirstAuth confirms ownership.</p>
@@ -654,7 +697,8 @@
                             <button class="btn btn-primary" type="submit"><i class="fa-solid fa-arrow-up-right-from-square"></i> Verify and Become an Official FTC Team</button>
                         </div>
                     </form>
-                </section>
+                    </section>
+                </div>
             <% } %>
 
             <div class="stats-grid">
@@ -1391,6 +1435,35 @@
             const tabButtons = document.querySelectorAll('[data-settings-tab]');
             const tabPanels = document.querySelectorAll('[data-settings-panel]');
             const historyToggleButtons = document.querySelectorAll('.team-history-toggle');
+            const verificationModal = document.querySelector('[data-team-verification-modal]');
+            const verificationOpenButton = document.querySelector('[data-open-team-verification]');
+            const verificationCloseButtons = document.querySelectorAll('[data-close-team-verification]');
+
+            function openVerificationModal() {
+                if (!verificationModal) return;
+                verificationModal.hidden = false;
+                document.body.style.overflow = 'hidden';
+                window.requestAnimationFrame(function() {
+                    verificationModal.querySelector('#officialTeamNumber')?.focus();
+                });
+            }
+
+            function closeVerificationModal() {
+                if (!verificationModal) return;
+                verificationModal.hidden = true;
+                document.body.style.overflow = '';
+                verificationOpenButton?.focus();
+            }
+
+            verificationOpenButton?.addEventListener('click', openVerificationModal);
+            verificationCloseButtons.forEach(function(button) {
+                button.addEventListener('click', closeVerificationModal);
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape' && verificationModal && !verificationModal.hidden) {
+                    closeVerificationModal();
+                }
+            });
 
             function activateTab(name) {
                 document.querySelector('.settings-tabs')?.classList.toggle('is-admin', name === 'admin');
