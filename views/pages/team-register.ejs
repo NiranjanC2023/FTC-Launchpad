@@ -23,8 +23,27 @@
       <% if (message) { %>
         <div class="alert alert-success"><%= message %></div>
       <% } %>
+      <% if (typeof showPublicEmailTutorial !== 'undefined' && showPublicEmailTutorial) { %>
+        <%- include('../partial/public-email-tutorial') %>
+      <% } %>
+      <% const pendingEmailVerification = typeof pendingTeamEmailVerification !== 'undefined' ? pendingTeamEmailVerification : null; %>
+      <% if (pendingEmailVerification && pendingEmailVerification.codeHash) { %>
+        <form method="POST" action="/team-register/email-verification/confirm" class="form-grid" style="margin-bottom:24px;">
+          <div class="form-grid-full">
+            <h2>Enter the team verification code</h2>
+            <p class="form-note text-muted">The 6-digit code was sent to <strong><%= pendingEmailVerification.maskedEmail %></strong>, the public email listed for <%= pendingEmailVerification.program %> team <%= pendingEmailVerification.teamNumber %> on the FIRST Dashboard.</p>
+          </div>
+          <label for="teamVerificationCode">Verification code</label>
+          <input id="teamVerificationCode" name="verificationCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+          <span></span>
+          <div class="registration-submit-actions">
+            <button class="btn btn-primary" type="submit">Verify Team Email</button>
+            <button class="btn btn-secondary" type="submit" formaction="/team-register/email-verification/resend" formnovalidate>Resend Code</button>
+          </div>
+        </form>
+      <% } %>
 
-      <form method="POST" action="/team-register" class="form-grid">
+      <form method="POST" action="/team-register" class="form-grid" data-team-register-form>
         <% const selectedMode = values.registrationMode || 'existing'; %>
         <% const selectedProgram = values.program || 'FTC'; %>
         <% const showRegistrationExtras = selectedMode !== 'new' && selectedProgram === 'FLL Challenge'; %>
@@ -44,14 +63,13 @@
           <p class="registration-choice-note">Use official team verification for an existing FIRST record, or choose new team if you are starting a team that has not been registered yet.</p>
         </div>
 
-        <div class="form-grid-full" data-firstauth-status>
-          <% if (typeof firstAuthVerification !== 'undefined' && firstAuthVerification) { %>
+        <div class="form-grid-full" data-email-verification-status>
+          <% if (typeof teamEmailVerification !== 'undefined' && teamEmailVerification) { %>
             <div class="alert alert-success">
-              FirstAuth verified <strong><%= firstAuthVerification.program %> <%= firstAuthVerification.teamNumber %></strong>
-              <%= firstAuthVerification.displayName ? ' for ' + firstAuthVerification.displayName : '' %>.
+              The FIRST Dashboard public email verified <strong><%= teamEmailVerification.program %> <%= teamEmailVerification.teamNumber %></strong>.
             </div>
           <% } else { %>
-            <p class="form-note text-muted">Existing teams must verify membership through FirstAuth before the listing can be saved.</p>
+            <p class="form-note text-muted">Existing teams must verify ownership with a code sent to the public email on their FIRST Dashboard profile.</p>
           <% } %>
         </div>
 
@@ -120,23 +138,21 @@
           <button
             class="btn btn-primary"
             type="submit"
-            formaction="/team-register/firstauth"
-            data-firstauth-submit
-          >Verify Team Ownership with FirstAuth</button>
+            formaction="/team-register/email-verification"
+            data-email-verification-submit
+          >Email Team Verification Code</button>
           <button class="btn btn-primary" type="submit" data-team-save>Save Team</button>
-          <small class="text-muted" data-firstauth-requirements>Complete every required field before verifying ownership.</small>
-          <% if (typeof firstAuthConfigured !== 'undefined' && !firstAuthConfigured) { %>
-            <small class="text-muted">FirstAuth credentials must be configured by the site administrator.</small>
-          <% } %>
+          <button class="btn btn-secondary" type="button" data-clear-team-register>Clear Fields</button>
+          <small class="text-muted" data-email-verification-requirements>Complete every required field before verifying ownership.</small>
         </div>
       </form>
     </div>
   </main>
 
-  <script src="/assets/js/main.js?v=37"></script>
+  <script src="/assets/js/main.js?v=45"></script>
   <script>
     (function() {
-      const form = document.querySelector('.form-grid');
+      const form = document.querySelector('[data-team-register-form]');
       if (!form) return;
       const modeInputs = Array.from(form.querySelectorAll('input[name="registrationMode"]'));
       const teamNumberField = form.querySelector('[data-registration-field="teamNumber"]');
@@ -146,12 +162,13 @@
       const yearsInput = form.querySelector('#yearsInProgram');
       const extraInputs = [awardsInput, yearsInput].filter(Boolean);
       const locationFields = form.querySelector('[data-team-location-fields]');
-      const firstAuthButton = form.querySelector('[data-firstauth-submit]');
+      const verificationButton = form.querySelector('[data-email-verification-submit]');
       const saveButton = form.querySelector('[data-team-save]');
-      const firstAuthStatus = form.querySelector('[data-firstauth-status]');
-      const firstAuthRequirements = form.querySelector('[data-firstauth-requirements]');
-      const verifiedProgram = <%- JSON.stringify(typeof firstAuthVerification !== 'undefined' && firstAuthVerification ? firstAuthVerification.program : '') %>;
-      const verifiedTeamNumber = <%- JSON.stringify(typeof firstAuthVerification !== 'undefined' && firstAuthVerification ? String(firstAuthVerification.teamNumber) : '') %>;
+      const verificationStatus = form.querySelector('[data-email-verification-status]');
+      const verificationRequirements = form.querySelector('[data-email-verification-requirements]');
+      const clearButton = form.querySelector('[data-clear-team-register]');
+      const verifiedProgram = <%- JSON.stringify(typeof teamEmailVerification !== 'undefined' && teamEmailVerification ? teamEmailVerification.program : '') %>;
+      const verifiedTeamNumber = <%- JSON.stringify(typeof teamEmailVerification !== 'undefined' && teamEmailVerification ? String(teamEmailVerification.teamNumber) : '') %>;
 
       function syncMode() {
         const selected = modeInputs.find(input => input.checked);
@@ -185,11 +202,11 @@
         const proofMatches = !isNew
           && verifiedProgram === programValue
           && verifiedTeamNumber === String(teamNumberInput?.value || '').trim();
-        if (firstAuthButton) firstAuthButton.hidden = isNew || proofMatches;
-        if (firstAuthButton) firstAuthButton.disabled = isNew;
+        if (verificationButton) verificationButton.hidden = isNew || proofMatches;
+        if (verificationButton) verificationButton.disabled = isNew;
         if (saveButton) saveButton.hidden = !isNew && !proofMatches;
-        if (firstAuthStatus) firstAuthStatus.hidden = isNew;
-        if (firstAuthRequirements) firstAuthRequirements.hidden = isNew || proofMatches || form.checkValidity();
+        if (verificationStatus) verificationStatus.hidden = isNew;
+        if (verificationRequirements) verificationRequirements.hidden = isNew || proofMatches || form.checkValidity();
 
       }
 
@@ -199,6 +216,21 @@
       if (teamNumberInput) teamNumberInput.addEventListener('input', syncMode);
       form.addEventListener('input', syncMode);
       form.addEventListener('change', syncMode);
+      clearButton?.addEventListener('click', function() {
+        form.querySelectorAll('input, textarea, select').forEach(function(field) {
+          if (field.matches('input[type="radio"]')) {
+            field.checked = field.value === 'existing';
+          } else if (field.matches('input[type="checkbox"]')) {
+            field.checked = field.name === 'recruiting';
+          } else if (field.tagName === 'SELECT') {
+            field.value = field.id === 'program' ? 'FTC' : '';
+          } else if (!field.matches('input[type="hidden"]')) {
+            field.value = '';
+          }
+        });
+        syncMode();
+        teamNumberInput?.focus();
+      });
       syncMode();
     })();
   </script>

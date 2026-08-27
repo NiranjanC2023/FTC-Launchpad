@@ -3,39 +3,39 @@ const webRoutes = require('../routes/web');
 
 async function run() {
   const helpers = webRoutes.__test;
+  assert.strictEqual(helpers.canAccessTeamEmailDirectory({ email: 'evergreentechatrons.contact@gmail.com' }), true);
+  assert.strictEqual(helpers.canAccessTeamEmailDirectory({ email: 'other@example.com' }), false);
   assert.strictEqual(helpers.parsePositiveTeamNumber('25690'), 25690);
   assert.strictEqual(helpers.parsePositiveTeamNumber(''), null);
   assert.strictEqual(helpers.parsePositiveTeamNumber('0'), null);
   assert.strictEqual(helpers.parsePositiveTeamNumber('12.5'), null);
   assert.strictEqual(helpers.normalizeRegion('CA'), helpers.normalizeRegion('California'));
   assert.strictEqual(helpers.normalizeCountry('USA'), helpers.normalizeCountry('United States of America'));
-  assert.strictEqual(helpers.normalizeFirstAuthProgram('FLL Challenge'), 'FLL Challenge');
-  assert.strictEqual(helpers.normalizeFirstAuthProgram('FIRST LEGO League Challenge'), 'FLL Challenge');
+  assert.strictEqual(helpers.normalizeDashboardProgram('FLL Challenge'), 'FLL Challenge');
+  assert.strictEqual(helpers.normalizeDashboardProgram('FIRST LEGO League Challenge'), 'FLL Challenge');
   assert.deepStrictEqual(
-    helpers.findFirstAuthTeam([
-      { team_number: 9415, program: 'FTC' },
+    helpers.findDashboardTeam([
+      { team_number_yearly: 9415, ff_program_name: 'FIRST Tech Challenge' },
       { team_number: 254, program: 'FRC' }
     ], 'FTC', '9415'),
-    { team_number: 9415, program: 'FTC' }
+    { team_number_yearly: 9415, ff_program_name: 'FIRST Tech Challenge' }
   );
   assert.strictEqual(
-    helpers.findFirstAuthTeam([{ team_number: 254, program: 'FRC' }], 'FTC', '254'),
+    helpers.findDashboardTeam([{ team_number: 254, program: 'FRC' }], 'FTC', '254'),
     null
   );
-  assert.strictEqual(helpers.firstAuthStateMatches({ state: 'secure-state' }, 'secure-state'), true);
-  assert.strictEqual(helpers.firstAuthStateMatches({ state: 'secure-state' }, 'wrong-state'), false);
-  assert.strictEqual(helpers.firstAuthStateMatches(null, ''), false);
-  assert.strictEqual(helpers.firstAuthProofMatches({
+  assert.strictEqual(helpers.maskEmailAddress('team@example.com'), 'te***@example.com');
+  assert.strictEqual(helpers.teamEmailProofMatches({
     program: 'FTC',
     teamNumber: 9415,
     expiresAt: Date.now() + 60_000
   }, 'FTC', 9415), true);
-  assert.strictEqual(helpers.firstAuthProofMatches({
+  assert.strictEqual(helpers.teamEmailProofMatches({
     program: 'FTC',
     teamNumber: 9415,
     expiresAt: Date.now() - 1
   }, 'FTC', 9415), false);
-  const completeFirstAuthTeam = {
+  const completeTeam = {
     registrationMode: 'existing',
     program: 'FTC',
     teamNumber: '9415',
@@ -43,26 +43,28 @@ async function run() {
     contact: 'team@example.com',
     address: '123 Main Street'
   };
-  assert.strictEqual(helpers.validateFirstAuthRegistration(completeFirstAuthTeam), '');
+  assert.strictEqual(helpers.validateTeamEmailRegistration(completeTeam), '');
   assert.match(
-    helpers.validateFirstAuthRegistration({ ...completeFirstAuthTeam, registrationMode: 'new' }),
+    helpers.validateTeamEmailRegistration({ ...completeTeam, registrationMode: 'new' }),
     /only available for existing teams/
   );
   assert.match(
-    helpers.validateFirstAuthRegistration({ ...completeFirstAuthTeam, address: '' }),
+    helpers.validateTeamEmailRegistration({ ...completeTeam, address: '' }),
     /address/
   );
   assert.match(
-    helpers.validateFirstAuthRegistration({ ...completeFirstAuthTeam, program: 'FLL Challenge' }),
+    helpers.validateTeamEmailRegistration({ ...completeTeam, program: 'FLL Challenge' }),
     /city and country/
   );
-  assert.strictEqual(helpers.validateFirstAuthRegistration({
-    ...completeFirstAuthTeam,
+  assert.strictEqual(helpers.validateTeamEmailRegistration({
+    ...completeTeam,
     program: 'FLL Challenge',
     city: 'San Jose',
     country: 'USA'
   }), '');
   assert.strictEqual(helpers.normalizeTeamName('The Cheesy Poofs'), helpers.normalizeTeamName('Cheesy Poofs'));
+  assert.strictEqual(helpers.compareTeamNameToNumber('Unlimited', 'Team Unlimited'), true);
+  assert.strictEqual(helpers.compareTeamNameToNumber('Different Team', 'Team Unlimited'), false);
   assert.strictEqual(
     helpers.buildTeamRegistrationAddress({}, 'San Jose', 'CA', 'USA'),
     'San Jose, CA, USA'
@@ -71,6 +73,10 @@ async function run() {
     helpers.buildTeamRegistrationAddress({ address: 'Community Center' }, 'San Jose', 'CA', 'USA'),
     'Community Center'
   );
+  assert.strictEqual(helpers.isUsableTeamAddress('3060 Beckley Drive'), true);
+  assert.strictEqual(helpers.isUsableTeamAddress('Community Center'), true);
+  assert.strictEqual(helpers.isUsableTeamAddress('here'), false);
+  assert.strictEqual(helpers.isUsableTeamAddress('test'), false);
   assert.strictEqual(
     helpers.buildTeamRegistrationKey({ program: 'FTC', teamNumber: 25690, isNewTeam: false }),
     'FTC:official:25690'

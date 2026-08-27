@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>FIRST Team Public Emails - FTC Starter Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/assets/css/main.css?v=13">
+</head>
+<body>
+  <header></header>
+
+  <main>
+    <div class="container team-email-directory">
+      <a href="/" class="btn btn-secondary back-button">&larr; Back Home</a>
+      <div class="team-email-directory-heading">
+        <div>
+          <p class="team-email-directory-eyebrow">Temporary preview</p>
+          <h1>FIRST Team Public Emails</h1>
+          <p class="subtitle">All teams from the latest available 2025–2026 United States FLL Challenge, FTC, and FRC profiles, including teams without a public email. No verification emails are sent from this page.</p>
+        </div>
+        <div class="team-email-directory-summary" aria-label="Directory totals">
+          <strong><%= totalTeamCount.toLocaleString() %></strong>
+          <span>teams</span>
+          <strong><%= emailCount.toLocaleString() %></strong>
+          <span>public emails</span>
+          <strong><%= missingEmailCount.toLocaleString() %></strong>
+          <span>without email</span>
+        </div>
+      </div>
+
+      <div class="team-email-directory-program-counts" aria-label="Team totals by program">
+        <span><strong><%= Number(programCounts['FLL Challenge'] || 0).toLocaleString() %></strong> FLL Challenge</span>
+        <span><strong><%= Number(programCounts.FTC || 0).toLocaleString() %></strong> FTC</span>
+        <span><strong><%= Number(programCounts.FRC || 0).toLocaleString() %></strong> FRC</span>
+      </div>
+
+      <% if (error) { %>
+        <div class="alert alert-danger"><%= error %></div>
+      <% } %>
+
+      <form class="team-email-directory-controls" method="get" action="/team-email-directory">
+        <label for="teamEmailDirectorySearch">Search teams or emails</label>
+        <input id="teamEmailDirectorySearch" name="q" type="search" placeholder="Team number, name, city, state, or email" autocomplete="off" value="<%= filters.query %>">
+        <label class="sr-only" for="teamEmailDirectoryProgram">Filter by program</label>
+        <select id="teamEmailDirectoryProgram" name="program">
+          <option value="" <%= filters.program ? '' : 'selected' %>>All programs</option>
+          <option value="FLL Challenge" <%= filters.program === 'FLL Challenge' ? 'selected' : '' %>>FLL Challenge</option>
+          <option value="FTC" <%= filters.program === 'FTC' ? 'selected' : '' %>>FTC</option>
+          <option value="FRC" <%= filters.program === 'FRC' ? 'selected' : '' %>>FRC</option>
+        </select>
+        <label class="sr-only" for="teamEmailDirectoryEmailStatus">Filter by email status</label>
+        <select id="teamEmailDirectoryEmailStatus" name="emailStatus">
+          <option value="" <%= filters.emailStatus ? '' : 'selected' %>>All email statuses</option>
+          <option value="with" <%= filters.emailStatus === 'with' ? 'selected' : '' %>>With public email</option>
+          <option value="without" <%= filters.emailStatus === 'without' ? 'selected' : '' %>>Without public email</option>
+        </select>
+        <button class="btn btn-primary" type="submit">Apply Filters</button>
+        <a class="btn btn-secondary" href="/team-email-directory">Clear</a>
+        <p class="team-email-directory-count" aria-live="polite">
+          <% if (filteredTeamCount) { %>
+            Showing <%= (pageStart + 1).toLocaleString() %>–<%= Math.min(pageStart + teams.length, filteredTeamCount).toLocaleString() %> of <%= filteredTeamCount.toLocaleString() %> matching teams
+          <% } else { %>
+            No matching teams
+          <% } %>
+        </p>
+      </form>
+
+      <div class="team-email-directory-table-wrap">
+        <table class="team-email-directory-table">
+          <thead>
+            <tr>
+              <th scope="col">Team</th>
+              <th scope="col">Program</th>
+              <th scope="col">Name</th>
+              <th scope="col">Location</th>
+              <th scope="col">Public email</th>
+            </tr>
+          </thead>
+          <tbody data-team-directory-body>
+            <% teams.forEach(function(team) { %>
+              <% const location = [team.city, team.state].filter(Boolean).join(', ') || team.country || 'Not listed'; %>
+              <tr data-team-directory-row data-program="<%= team.program %>" data-has-email="<%= team.publicEmail ? 'true' : 'false' %>" data-search-value="<%= [team.program, team.teamNumber, team.name, location, team.publicEmail].filter(Boolean).join(' ').toLowerCase() %>">
+                <td data-label="Team"><strong><%= team.teamNumber %></strong></td>
+                <td data-label="Program"><span class="team-email-directory-program"><%= team.program %></span></td>
+                <td data-label="Name"><%= team.name %></td>
+                <td data-label="Location"><%= location %></td>
+                <td data-label="Public email">
+                  <% if (team.publicEmail) { %>
+                    <span class="team-email-directory-address"><%= team.publicEmail %></span>
+                  <% } else { %>
+                    <span class="text-muted">Not listed</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+        <p class="team-email-directory-empty" <%= filteredTeamCount ? 'hidden' : '' %>>No teams match those filters.</p>
+      </div>
+
+      <% if (totalPages > 1) { %>
+        <nav class="team-email-directory-pagination" aria-label="Team directory pages">
+          <% const queryPrefix = paginationQuery ? paginationQuery + '&' : ''; %>
+          <% if (currentPage > 1) { %>
+            <a class="btn btn-secondary" href="/team-email-directory?<%= queryPrefix %>page=<%= currentPage - 1 %>">&larr; Previous</a>
+          <% } else { %>
+            <span></span>
+          <% } %>
+          <span>Page <strong><%= currentPage.toLocaleString() %></strong> of <strong><%= totalPages.toLocaleString() %></strong></span>
+          <% if (currentPage < totalPages) { %>
+            <a class="btn btn-secondary" href="/team-email-directory?<%= queryPrefix %>page=<%= currentPage + 1 %>">Next &rarr;</a>
+          <% } else { %>
+            <span></span>
+          <% } %>
+        </nav>
+      <% } %>
+    </div>
+  </main>
+
+  <script src="/assets/js/main.js?v=45"></script>
+</body>
+</html>

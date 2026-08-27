@@ -146,7 +146,7 @@ app.use(function setSecurityHeaders(req, res, next) {
             "connect-src 'self' https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com",
             "object-src 'none'",
             "base-uri 'self'",
-            "form-action 'self' https://firstauth.org https://accorid.com",
+            "form-action 'self' https://accorid.com",
             "frame-ancestors 'none'"
         ].join("; "),
         "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
@@ -379,7 +379,16 @@ const geocodingLimiter = rateLimit({
     message: { ok: false, error: "Too many location searches. Please wait and try again." }
 });
 app.use("/api", apiLimiter);
-app.use(["/api/users/login", "/api/users/signup", "/login", "/signup", "/forgot-password", "/reset-password"], authenticationLimiter);
+app.use([
+    "/api/users/login",
+    "/api/users/signup",
+    "/login",
+    "/signup",
+    "/forgot-password",
+    "/reset-password",
+    "/team-register/email-verification",
+    "/manage-team/email-verification"
+], authenticationLimiter);
 app.use(["/api/geocode-zip", "/api/geocode-location"], geocodingLimiter);
 app.use("/api", function preventPrivateApiCaching(req, res, next) {
     res.set("Cache-Control", "no-store");

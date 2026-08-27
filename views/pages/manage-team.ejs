@@ -639,6 +639,10 @@
             <div class="alert alert-danger"><%= error %></div>
         <% } %>
 
+        <% if (typeof showPublicEmailTutorial !== 'undefined' && showPublicEmailTutorial) { %>
+            <%- include('../partial/public-email-tutorial') %>
+        <% } %>
+
         <% if (team) { %>
             <% const isPrimary = (user && user.email && team && team.contact && user.email.toLowerCase() === team.contact.toLowerCase()); %>
             <% const isManager = Boolean(currentTeamRole); %>
@@ -651,9 +655,24 @@
                     <button class="team-verification-close" type="button" aria-label="Close team verification" data-close-team-verification><i class="fa-solid fa-xmark"></i></button>
                     <div>
                         <h2 id="verify-team-heading"><i class="fa-solid fa-shield-halved"></i> Verify this new team as an official FTC team</h2>
-                        <p>Edit and complete the team information below before verifying. FTC Scout will supply the official team name, location, awards, and competition history after FirstAuth confirms ownership.</p>
+                        <p>Edit and complete the team information below before verifying. FTC Scout will supply the official team name, location, awards, and competition history after the public email on the FIRST Dashboard confirms ownership.</p>
                     </div>
-                    <form class="team-verification-form" method="post" action="/manage-team/firstauth">
+                    <% const pendingEmailVerification = typeof pendingTeamEmailVerification !== 'undefined' && pendingTeamEmailVerification && String(pendingTeamEmailVerification.teamId) === String(team._id) ? pendingTeamEmailVerification : null; %>
+                    <% if (pendingEmailVerification && pendingEmailVerification.codeHash) { %>
+                    <form class="team-verification-form" method="post" action="/manage-team/email-verification/confirm">
+                        <div class="team-verification-full">
+                            <p>Enter the 6-digit code sent to <strong><%= pendingEmailVerification.maskedEmail %></strong>, the public email for FTC team <%= pendingEmailVerification.teamNumber %>.</p>
+                        </div>
+                        <label for="manageTeamVerificationCode">Verification code</label>
+                        <input id="manageTeamVerificationCode" class="form-control" name="verificationCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+                        <div class="team-verification-actions team-verification-full">
+                            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-envelope-circle-check"></i> Verify Team Email</button>
+                            <button class="btn btn-secondary" type="submit" formaction="/manage-team/email-verification/resend" formnovalidate>Resend Code</button>
+                            <button class="btn btn-secondary" type="submit" formaction="/manage-team/email-verification/cancel" formnovalidate>Start Over</button>
+                        </div>
+                    </form>
+                    <% } else { %>
+                    <form class="team-verification-form" method="post" action="/manage-team/email-verification">
                         <input type="hidden" name="teamId" value="<%= team._id %>">
                         <input type="hidden" name="program" value="FTC">
 
@@ -693,10 +712,11 @@
                         </label>
 
                         <div class="team-verification-actions team-verification-full">
-                            <small class="text-muted">Complete every required field, then continue to FirstAuth.</small>
-                            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-arrow-up-right-from-square"></i> Verify and Become an Official FTC Team</button>
+                            <small class="text-muted">Complete every required field, then send a code to the team’s public FIRST Dashboard email.</small>
+                            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-envelope"></i> Email Verification Code</button>
                         </div>
                     </form>
+                    <% } %>
                     </section>
                 </div>
             <% } %>
@@ -1444,7 +1464,7 @@
                 verificationModal.hidden = false;
                 document.body.style.overflow = 'hidden';
                 window.requestAnimationFrame(function() {
-                    verificationModal.querySelector('#officialTeamNumber')?.focus();
+                    (verificationModal.querySelector('#manageTeamVerificationCode') || verificationModal.querySelector('#officialTeamNumber'))?.focus();
                 });
             }
 
@@ -1456,6 +1476,7 @@
             }
 
             verificationOpenButton?.addEventListener('click', openVerificationModal);
+            if (verificationModal?.querySelector('#manageTeamVerificationCode')) openVerificationModal();
             verificationCloseButtons.forEach(function(button) {
                 button.addEventListener('click', closeVerificationModal);
             });
@@ -1520,6 +1541,6 @@
             });
         });
     </script>
-    <script src="/assets/js/main.js?v=37"></script>
+    <script src="/assets/js/main.js?v=45"></script>
 </body>
 </html>

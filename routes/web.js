@@ -344,6 +344,10 @@ function isStatsAccessUser(user) {
     return Boolean(user && normalizeEmail(user.email) === normalizeEmail(SUPPORT_EMAIL));
 }
 
+function canAccessTeamEmailDirectory(user) {
+    return Boolean(user && normalizeEmail(user.email) === normalizeEmail(TEAM_EMAIL_DIRECTORY_ACCESS_EMAIL));
+}
+
 function getMonthKey(date) {
     if (!date) return '';
     const value = new Date(date);
@@ -634,20 +638,23 @@ function buildAddress(values) {
         .join(', ');
 }
 
-async function geocodeAddress(values) {
-    const variants = [
+async function geocodeAddress(values, options = {}) {
+    const addressVariants = [
         [values.address, values.city, values.state, values.country],
         [values.address, values.city, values.state],
         [values.address, values.city, values.country],
+        [values.address, values.country],
+        [values.address]
+    ];
+    const locationVariants = [
         [values.city, values.state, values.country],
         [values.city, values.country],
         [values.state, values.country],
-        [values.address, values.country],
-        [values.city],
-        [values.address]
-    ]
+        [values.city]
+    ];
+    const variants = (options.requireAddress ? addressVariants : [...addressVariants, ...locationVariants])
         .map(parts => parts.map(value => (value || '').trim()).filter(Boolean).join(', '))
-        .filter(Boolean);
+        .filter((value, index, list) => Boolean(value) && list.indexOf(value) === index);
 
     for (const address of variants) {
         try {
@@ -698,16 +705,26 @@ const PROGRAM_LABELS = {
     FRC: 'FIRST Robotics Competition',
     'FLL Challenge': 'FIRST LEGO League Challenge'
 };
-const FIRSTAUTH_AUTHORIZE_URL = 'https://firstauth.org/oauth/authorize';
-const FIRSTAUTH_API_BASE = 'https://api.firstauth.org';
-const FIRSTAUTH_CLIENT_ID = String(process.env.FIRSTAUTH_CLIENT_ID || '').trim();
-const FIRSTAUTH_CLIENT_SECRET = String(process.env.FIRSTAUTH_CLIENT_SECRET || '').trim();
-const FIRSTAUTH_VERIFICATION_TTL_MS = 10 * 60 * 1000;
+const FIRST_SEARCH_API_URL = 'https://3dl2fnsh51.execute-api.us-east-1.amazonaws.com/prod/first-search';
+const TEAM_EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000;
+const TEAM_EMAIL_VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000;
+const TEAM_EMAIL_VERIFICATION_MAX_ATTEMPTS = 5;
+// TEMPORARY PREVIEW MODE: keep false while inspecting FIRST Dashboard public emails.
+// Change this back to true to restore verification-code delivery.
+const TEAM_VERIFICATION_EMAIL_DELIVERY_ENABLED = false;
+const TEAM_EMAIL_DIRECTORY_ACCESS_EMAIL = 'evergreentechatrons.contact@gmail.com';
+const TEAM_EMAIL_DIRECTORY_CACHE_TTL_MS = 5 * 60 * 1000;
+const TEAM_EMAIL_DIRECTORY_PROGRAMS = [
+    { key: 'FLL Challenge', names: ['FIRST LEGO League Challenge'], monikers: ['FLL', 'FLL Challenge'] },
+    { key: 'FTC', names: ['FIRST Tech Challenge'], monikers: ['FTC'] },
+    { key: 'FRC', names: ['FIRST Robotics Competition'], monikers: ['FRC'] }
+];
 const FTC_SCOUT_API_BASE = 'https://api.ftcscout.org/rest/v1';
 const FTC_SCOUT_GRAPHQL_ENDPOINT = 'https://api.ftcscout.org/graphql';
 const BLUE_ALLIANCE_API_BASE = 'https://www.thebluealliance.com/api/v3';
 const BLUE_ALLIANCE_AUTH_KEY = process.env.TBA_AUTH_KEY || process.env.BLUE_ALLIANCE_API_KEY || process.env.BLUE_ALLIANCE_AUTH_KEY || '';
 const teamApiDetailsCache = new Map();
+let teamEmailDirectoryCache = { expiresAt: 0, teams: [] };
 const FTC_AWARD_TYPE_LABELS = {};
 
 function normalizeProgram(program) {
@@ -715,80 +732,295 @@ function normalizeProgram(program) {
     return PROGRAM_LABELS[value] ? value : 'FTC';
 }
 
-function isFirstAuthConfigured() {
-    return Boolean(FIRSTAUTH_CLIENT_ID && FIRSTAUTH_CLIENT_SECRET);
+function isUsableTeamAddress(value) {
+    const normalized = normalizeTeamName(value);
+    if (!normalized || normalized.length < 5) return false;
+    const words = normalized.split(' ').filter(Boolean);
+    return /\d/.test(String(value || '')) || words.length >= 2;
 }
 
-function normalizeFirstAuthProgram(program) {
+function normalizeDashboardProgram(program) {
     const value = String(program || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (value === 'FRC') return 'FRC';
-    if (value === 'FTC') return 'FTC';
+    if (value === 'FRC' || value === 'FIRSTROBOTICSCOMPETITION') return 'FRC';
+    if (value === 'FTC' || value === 'FIRSTTECHCHALLENGE') return 'FTC';
     if (value === 'FLL' || value === 'FLLCHALLENGE' || value === 'FIRSTLEGOLEAGUECHALLENGE') return 'FLL Challenge';
     return '';
 }
 
-function findFirstAuthTeam(teams, program, teamNumber) {
+function findDashboardTeam(teams, program, teamNumber) {
     const expectedProgram = normalizeProgram(program);
     const expectedTeamNumber = parsePositiveTeamNumber(teamNumber);
     if (!expectedTeamNumber) return null;
     return (Array.isArray(teams) ? teams : []).find((team) => (
-        normalizeFirstAuthProgram(team && team.program) === expectedProgram
-        && parsePositiveTeamNumber(team && team.team_number) === expectedTeamNumber
+        normalizeDashboardProgram(team && (
+            team.program
+            || team.ff_team_type
+            || team.ff_program_moniker
+            || team.ff_program_name
+            || team.program_name
+        )) === expectedProgram
+        && parsePositiveTeamNumber(team && (
+            team.team_number_yearly
+            || team.team_number
+            || team.teamNumber
+        )) === expectedTeamNumber
     )) || null;
 }
 
-function getFirstAuthRedirectUri(req) {
-    return String(process.env.FIRSTAUTH_REDIRECT_URI || `${getAppBaseUrl(req)}/auth/firstauth/callback`).trim();
+function maskEmailAddress(email) {
+    const normalized = normalizeEmail(email);
+    const separator = normalized.indexOf('@');
+    if (separator <= 0) return '';
+    const local = normalized.slice(0, separator);
+    const domain = normalized.slice(separator + 1);
+    const visible = local.slice(0, Math.min(2, local.length));
+    return `${visible}${'*'.repeat(Math.max(3, local.length - visible.length))}@${domain}`;
 }
 
-function firstAuthProofMatches(proof, program, teamNumber) {
+function teamEmailProofMatches(proof, program, teamNumber) {
     return Boolean(
         proof
         && Number(proof.expiresAt) > Date.now()
-        && normalizeFirstAuthProgram(proof.program) === normalizeProgram(program)
+        && normalizeDashboardProgram(proof.program) === normalizeProgram(program)
         && parsePositiveTeamNumber(proof.teamNumber) === parsePositiveTeamNumber(teamNumber)
     );
 }
 
-function firstAuthStateMatches(pending, returnedState) {
-    const expectedState = String(pending && pending.state || '');
-    const receivedState = String(returnedState || '');
-    return receivedState.length === expectedState.length
-        && receivedState.length > 0
-        && crypto.timingSafeEqual(Buffer.from(receivedState), Buffer.from(expectedState));
+function teamEmailCodeMatches(pending, submittedCode) {
+    const code = normalizeVerificationCode(submittedCode);
+    const expectedHash = String(pending && pending.codeHash || '');
+    if (!/^\d{6}$/.test(code) || !pending || !pending.codeSalt || !expectedHash) return false;
+    const actualHash = hashSignupVerificationCode(code, pending.codeSalt);
+    return actualHash.length === expectedHash.length
+        && crypto.timingSafeEqual(Buffer.from(actualHash), Buffer.from(expectedHash));
 }
 
-function validateFirstAuthRegistration(values = {}) {
+function validateTeamEmailRegistration(values = {}) {
     if (String(values.registrationMode || '').toLowerCase() !== 'existing') {
-        return 'FirstAuth ownership verification is only available for existing teams.';
+        return 'Email ownership verification is only available for existing teams.';
     }
     if (!PROGRAM_LABELS[String(values.program || '').trim()] || !parsePositiveTeamNumber(values.teamNumber)) {
-        return 'Choose a FIRST program and enter a valid team number before verifying with FirstAuth.';
+        return 'Choose a FIRST program and enter a valid team number before requesting a verification code.';
     }
-    if (!String(values.name || '').trim()) return 'Enter the team name before verifying with FirstAuth.';
+    if (!String(values.name || '').trim()) return 'Enter the team name before requesting a verification code.';
     const contact = normalizeEmail(values.contact);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) {
-        return 'Enter a valid contact email before verifying with FirstAuth.';
+        return 'Enter a valid contact email before requesting a verification code.';
     }
-    if (!String(values.address || '').trim()) return 'Enter the team address before verifying with FirstAuth.';
+    if (!isUsableTeamAddress(values.address)) return 'Enter a complete team address before requesting a verification code.';
     if (normalizeProgram(values.program) === 'FLL Challenge'
         && (!String(values.city || '').trim() || !String(values.country || '').trim())) {
-        return 'Enter the city and country before verifying an FLL Challenge team.';
+        return 'Enter the city and country before verifying a FIRST LEGO League Challenge team.';
     }
     return '';
 }
 
-async function revokeFirstAuthToken(accessToken) {
-    if (!accessToken || !isFirstAuthConfigured()) return;
-    await fetch(`${FIRSTAUTH_API_BASE}/oauth/revoke`, {
+async function fetchDashboardTeamWithPublicEmail(program, teamNumber) {
+    const expectedProgram = normalizeProgram(program);
+    const expectedTeamNumber = parsePositiveTeamNumber(teamNumber);
+    if (!expectedTeamNumber) return null;
+    const programName = PROGRAM_LABELS[expectedProgram];
+    const response = await fetch(FIRST_SEARCH_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
-            token: accessToken,
-            client_id: FIRSTAUTH_CLIENT_ID,
-            client_secret: FIRSTAUTH_CLIENT_SECRET
+            index: 'teams_*',
+            query: {
+                size: 50,
+                query: {
+                    bool: {
+                        must: [
+                            { match: { team_number_yearly: String(expectedTeamNumber) } },
+                            {
+                                bool: {
+                                    should: [
+                                        { match: { ff_program_name: programName } },
+                                        { match: { program_name: programName } },
+                                        { match: { ff_team_type: expectedProgram } },
+                                        { match: { ff_program_moniker: expectedProgram } }
+                                    ],
+                                    minimum_should_match: 1
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
         })
-    }).catch(() => null);
+    });
+    if (!response.ok) throw new Error(`FIRST team search returned ${response.status}.`);
+    const payload = await response.json().catch(() => ({}));
+    const exactMatches = (Array.isArray(payload.results) ? payload.results : []).filter(team => (
+        findDashboardTeam([team], expectedProgram, expectedTeamNumber)
+    ));
+    exactMatches.sort((left, right) => {
+        const emailDifference = Number(Boolean(normalizeEmail(right.ff_team_public_email)))
+            - Number(Boolean(normalizeEmail(left.ff_team_public_email)));
+        if (emailDifference) return emailDifference;
+        return Number(right.profile_year || 0) - Number(left.profile_year || 0);
+    });
+    return exactMatches[0] || null;
+}
+
+async function fetchDashboardTeamDirectoryPage(programConfig, profileYear, offset = 0) {
+    const response = await fetch(FIRST_SEARCH_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+            index: 'teams_*',
+            query: {
+                size: 2000,
+                from: offset,
+                query: {
+                    bool: {
+                        must: [
+                            {
+                                bool: {
+                                    should: [
+                                        { match: { profile_year: String(profileYear) } }
+                                    ],
+                                    minimum_should_match: 1
+                                }
+                            },
+                            {
+                                bool: {
+                                    should: [
+                                        { terms: { team_country: ['United States', 'USA', 'US', 'United States of America'] } },
+                                        { terms: { event_country: ['United States', 'USA', 'US', 'United States of America'] } }
+                                    ],
+                                    minimum_should_match: 1
+                                }
+                            },
+                            {
+                                bool: {
+                                    should: [
+                                        { terms: { ff_program_name: programConfig.names } },
+                                        { terms: { program_name: programConfig.names } },
+                                        { terms: { ff_team_type: programConfig.monikers } },
+                                        { terms: { ff_program_moniker: programConfig.monikers } }
+                                    ],
+                                    minimum_should_match: 1
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        })
+    });
+    if (!response.ok) throw new Error(`FIRST team directory search returned ${response.status}.`);
+    const payload = await response.json().catch(() => ({}));
+    return (Array.isArray(payload.results) ? payload.results : []).map(record => ({
+        record,
+        program: programConfig.key
+    }));
+}
+
+async function fetchDashboardTeamEmailDirectory() {
+    if (teamEmailDirectoryCache.expiresAt > Date.now()) return teamEmailDirectoryCache.teams;
+    const directoryQueries = TEAM_EMAIL_DIRECTORY_PROGRAMS.flatMap(programConfig => (
+        ['2026', '2025'].map(profileYear => ({ programConfig, profileYear }))
+    ));
+    const programPages = await Promise.all(directoryQueries.map(async ({ programConfig, profileYear }) => {
+        const results = [];
+        let offset = 0;
+        while (offset < 10000) {
+            const page = await fetchDashboardTeamDirectoryPage(programConfig, profileYear, offset);
+            results.push(...page);
+            if (page.length < 2000) break;
+            offset += 2000;
+        }
+        return results;
+    }));
+    const byTeam = new Map();
+    for (const result of programPages.flat()) {
+        const record = result.record;
+        const program = result.program;
+        const teamNumber = parsePositiveTeamNumber(record && (record.team_number_yearly || record.team_number));
+        const publicEmail = normalizeEmail(record && record.ff_team_public_email);
+        if (!teamNumber) continue;
+        const team = {
+            program,
+            teamNumber,
+            name: String(record.team_nickname || record.team_name_calc || record.team_name || `FTC Team ${teamNumber}`).trim(),
+            city: String(record.team_city || '').trim(),
+            state: String(record.team_stateprov || '').trim(),
+            country: String(record.team_country || '').trim(),
+            publicEmail,
+            profileYear: Number(record.profile_year || 0),
+            modifiedAt: String(record.modified_when || '')
+        };
+        const teamKey = `${program}:${teamNumber}`;
+        const existing = byTeam.get(teamKey);
+        const shouldReplace = !existing
+            || (!existing.publicEmail && team.publicEmail)
+            || (Boolean(existing.publicEmail) === Boolean(team.publicEmail) && team.profileYear > existing.profileYear)
+            || (Boolean(existing.publicEmail) === Boolean(team.publicEmail)
+                && team.profileYear === existing.profileYear
+                && team.modifiedAt > existing.modifiedAt);
+        if (shouldReplace) byTeam.set(teamKey, team);
+    }
+    const programOrder = new Map(TEAM_EMAIL_DIRECTORY_PROGRAMS.map((program, index) => [program.key, index]));
+    const teams = Array.from(byTeam.values()).sort((left, right) => (
+        (programOrder.get(left.program) - programOrder.get(right.program))
+        || (left.teamNumber - right.teamNumber)
+    ));
+    teamEmailDirectoryCache = { expiresAt: Date.now() + TEAM_EMAIL_DIRECTORY_CACHE_TTL_MS, teams };
+    return teams;
+}
+
+async function sendTeamVerificationEmail({ to, code, program, teamNumber }) {
+    // Email delivery is intentionally disabled during public-email preview testing.
+    if (!TEAM_VERIFICATION_EMAIL_DELIVERY_ENABLED) return { skipped: true };
+    const html = buildTransactionalEmailTemplate({
+        preheader: `Verification code for ${program} team ${teamNumber}`,
+        title: 'Verify your FIRST team',
+        intro: `Someone is verifying ownership of ${program} team ${teamNumber} on Find FIRST.`,
+        details: [
+            { label: 'Verification code', value: `<strong style="font-size:28px;letter-spacing:0.18em;">${code}</strong>` },
+            { label: 'Expiration', value: 'This code expires in 10 minutes.' }
+        ],
+        outro: 'Only share this code if you want this person to manage the team listing. If you did not request it, you can ignore this email.',
+        footer: 'Find FIRST team ownership verification'
+    });
+    await sendTransactionalEmail({
+        to,
+        from: process.env.TEAM_VERIFICATION_FROM || DEFAULT_FROM,
+        subject: `Verify ${program} team ${teamNumber} on Find FIRST`,
+        html
+    });
+}
+
+function buildPendingTeamEmailVerification({ kind, program, teamNumber, publicEmail, values, teamId, submittedCoordinates }) {
+    const code = String(crypto.randomInt(100000, 1000000));
+    const codeSalt = crypto.randomBytes(16).toString('hex');
+    return {
+        code,
+        pending: {
+            kind,
+            program: normalizeProgram(program),
+            teamNumber: parsePositiveTeamNumber(teamNumber),
+            publicEmail: normalizeEmail(publicEmail),
+            maskedEmail: maskEmailAddress(publicEmail),
+            values,
+            teamId: teamId ? String(teamId) : '',
+            submittedCoordinates: submittedCoordinates || null,
+            codeSalt,
+            codeHash: hashSignupVerificationCode(code, codeSalt),
+            attempts: 0,
+            createdAt: Date.now(),
+            sentAt: Date.now(),
+            expiresAt: Date.now() + TEAM_EMAIL_VERIFICATION_TTL_MS
+        }
+    };
+}
+
+function getTeamEmailVerificationError(pending, kind, submittedCode) {
+    if (!pending || pending.kind !== kind) return 'No email verification is pending. Request a new code.';
+    if (Number(pending.expiresAt) <= Date.now()) return 'That verification code expired. Request a new code.';
+    if (Number(pending.attempts || 0) >= TEAM_EMAIL_VERIFICATION_MAX_ATTEMPTS) return 'Too many incorrect attempts. Request a new code.';
+    if (!teamEmailCodeMatches(pending, submittedCode)) return 'That verification code is incorrect.';
+    return '';
 }
 
 function isConfiguredCredential(value) {
@@ -1458,7 +1690,10 @@ function compareTeamNameToNumber(submittedName, officialName) {
     const normalizedSubmitted = normalizeTeamName(submittedName);
     const normalizedOfficial = normalizeTeamName(officialName);
     if (!normalizedSubmitted || !normalizedOfficial) return false;
-    return normalizedSubmitted === normalizedOfficial;
+    if (normalizedSubmitted === normalizedOfficial) return true;
+    const withoutGenericTeamPrefix = value => value.replace(/^team\s+/, '').trim();
+    return Boolean(withoutGenericTeamPrefix(normalizedSubmitted))
+        && withoutGenericTeamPrefix(normalizedSubmitted) === withoutGenericTeamPrefix(normalizedOfficial);
 }
 
 function extractTeamLocation(details) {
@@ -1950,120 +2185,147 @@ router.get("/teams-nearby", async function(req, res){
     }
 });
 
-router.post('/team-register/firstauth', requireAccountForTeamRegister, async function(req, res) {
+router.post('/team-register/email-verification', requireAccountForTeamRegister, async function(req, res) {
     const values = { ...(req.body || {}) };
     const program = normalizeProgram(values.program);
     const teamNumber = parsePositiveTeamNumber(values.teamNumber);
-
-    if (!isFirstAuthConfigured()) {
-        return res.render('pages/team-register', {
-            error: 'FirstAuth is not configured yet. Add FIRSTAUTH_CLIENT_ID and FIRSTAUTH_CLIENT_SECRET to the server environment.',
-            message: null,
-            values,
-            firstAuthConfigured: false,
-            firstAuthVerification: null
-        });
-    }
-    const validationError = validateFirstAuthRegistration(values);
+    const validationError = validateTeamEmailRegistration(values);
     if (validationError) {
         return res.render('pages/team-register', {
             error: validationError,
             message: null,
-            values,
-            firstAuthConfigured: true,
-            firstAuthVerification: null
+            values
         });
     }
+    try {
+        if (!(await waitForDatabase())) {
+            return res.render('pages/team-register', { error: databaseErrorMessage(), message: null, values });
+        }
+        const alreadyRegistered = await Team.findOne({ program, teamNumber }).select('_id').lean().exec();
+        if (alreadyRegistered) {
+            return res.render('pages/team-register', {
+                error: 'This team is already registered. Manage the existing listing from My Team.',
+                message: null,
+                values
+            });
+        }
+        if (program === 'FTC' || program === 'FRC') {
+            const officialVerification = await verifyTeamWithApi(teamNumber, program, values.name);
+            if (!officialVerification.ok || !officialVerification.nameMatched) {
+                return res.render('pages/team-register', {
+                    error: officialVerification.ok ? 'Team is unable to be verified.' : officialVerification.error,
+                    message: null,
+                    values
+                });
+            }
+            const officialLocation = extractTeamLocation(officialVerification.details || officialVerification.team);
+            const submittedLocation = await geocodeAddress({
+                address: values.address,
+                city: officialLocation.city,
+                state: officialLocation.state,
+                country: officialLocation.country
+            }, { requireAddress: true });
+            if (!submittedLocation || !locationMatchesOfficialRecord(submittedLocation, officialLocation)) {
+                return res.render('pages/team-register', {
+                    error: submittedLocation ? 'Team is unable to be verified.' : 'We could not find that address. Enter a complete team address before verifying ownership.',
+                    message: null,
+                    values
+                });
+            }
+        }
 
-    const alreadyRegistered = await Team.findOne({ program, teamNumber })
-        .select('_id')
-        .lean()
-        .exec();
-    if (alreadyRegistered) {
+        const dashboardTeam = await fetchDashboardTeamWithPublicEmail(program, teamNumber);
+        const publicEmail = normalizeEmail(dashboardTeam && dashboardTeam.ff_team_public_email);
+        if (!dashboardTeam || !publicEmail) {
+            return res.render('pages/team-register', {
+                error: 'This team does not have a public email on its FIRST Dashboard profile. Add one there before verifying ownership.',
+                message: null,
+                values,
+                showPublicEmailTutorial: true
+            });
+        }
+        if (!TEAM_VERIFICATION_EMAIL_DELIVERY_ENABLED) {
+            delete req.session.pendingTeamEmailVerification;
+            delete req.session.teamEmailVerification;
+            return res.render('pages/team-register', {
+                error: null,
+                message: `Preview only — the FIRST Dashboard public email for ${program} team ${teamNumber} is ${publicEmail}. No email was sent.`,
+                values,
+                dashboardPublicEmail: publicEmail,
+                teamEmailDeliveryDisabled: true
+            });
+        }
+        const verification = buildPendingTeamEmailVerification({
+            kind: 'registration',
+            program,
+            teamNumber,
+            publicEmail,
+            values: { ...values, program, teamNumber: String(teamNumber) }
+        });
+        await sendTeamVerificationEmail({ to: publicEmail, code: verification.code, program, teamNumber });
+        req.session.pendingTeamEmailVerification = verification.pending;
+        delete req.session.teamEmailVerification;
+        await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+        return res.redirect('/team-register?verification=sent');
+    } catch (error) {
+        console.error('Unable to send team verification email:', error.message);
         return res.render('pages/team-register', {
-            error: 'This team is already registered. Manage the existing listing from My Team.',
+            error: 'We could not send a verification code right now. Please try again.',
             message: null,
-            values,
-            firstAuthConfigured: true,
-            firstAuthVerification: null
+            values
         });
     }
-
-    let officialRecord = null;
-    if (program === 'FTC' || program === 'FRC') {
-        const officialVerification = await verifyTeamWithApi(teamNumber, program, values.name);
-        if (!officialVerification.ok) {
-            return res.render('pages/team-register', {
-                error: officialVerification.error,
-                message: null,
-                values,
-                firstAuthConfigured: true,
-                firstAuthVerification: null
-            });
-        }
-        if (!officialVerification.nameMatched) {
-            return res.render('pages/team-register', {
-                error: 'Team is unable to be verified.',
-                message: null,
-                values,
-                firstAuthConfigured: true,
-                firstAuthVerification: null
-            });
-        }
-
-        const officialLocation = extractTeamLocation(officialVerification.details || officialVerification.team);
-        const submittedLocation = await geocodeAddress({ address: values.address });
-        if (!submittedLocation) {
-            return res.render('pages/team-register', {
-                error: 'We could not find that address. Enter a complete team address before verifying ownership.',
-                message: null,
-                values,
-                firstAuthConfigured: true,
-                firstAuthVerification: null
-            });
-        }
-        if (!locationMatchesOfficialRecord(submittedLocation, officialLocation)) {
-            return res.render('pages/team-register', {
-                error: 'Team is unable to be verified.',
-                message: null,
-                values,
-                firstAuthConfigured: true,
-                firstAuthVerification: null
-            });
-        }
-
-        officialRecord = {
-            source: officialVerification.source,
-            name: officialVerification.officialName,
-            city: officialLocation.city,
-            state: officialLocation.state,
-            country: officialLocation.country
-        };
-    }
-
-    const state = crypto.randomBytes(32).toString('hex');
-    const redirectUri = getFirstAuthRedirectUri(req);
-    req.session.pendingFirstAuthTeamRegistration = {
-        state,
-        redirectUri,
-        createdAt: Date.now(),
-        values: { ...values, program, teamNumber: String(teamNumber) },
-        officialRecord
-    };
-    await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
-
-    const authorizeUrl = new URL(FIRSTAUTH_AUTHORIZE_URL);
-    authorizeUrl.searchParams.set('client_id', FIRSTAUTH_CLIENT_ID);
-    authorizeUrl.searchParams.set('redirect_uri', redirectUri);
-    authorizeUrl.searchParams.set('response_type', 'code');
-    authorizeUrl.searchParams.set('state', state);
-    return res.redirect(authorizeUrl.toString());
 });
 
-router.post('/manage-team/firstauth', ensureAuthenticated, async function(req, res) {
+router.post('/team-register/email-verification/confirm', requireAccountForTeamRegister, async function(req, res) {
+    if (!TEAM_VERIFICATION_EMAIL_DELIVERY_ENABLED) {
+        return res.redirect('/team-register?verification=delivery_disabled');
+    }
+    const pending = req.session.pendingTeamEmailVerification;
+    const error = getTeamEmailVerificationError(pending, 'registration', req.body.verificationCode);
+    if (error) {
+        if (pending && pending.kind === 'registration') pending.attempts = Number(pending.attempts || 0) + 1;
+        return res.redirect(`/team-register?verification=${encodeURIComponent(error.includes('expired') || error.includes('Too many') ? 'expired' : 'incorrect')}`);
+    }
+    req.session.teamEmailVerification = {
+        program: pending.program,
+        teamNumber: pending.teamNumber,
+        verifiedAt: new Date().toISOString(),
+        expiresAt: Date.now() + TEAM_EMAIL_VERIFICATION_TTL_MS
+    };
+    delete pending.codeHash;
+    delete pending.codeSalt;
+    return res.redirect('/team-register?verification=verified');
+});
+
+router.post('/team-register/email-verification/resend', requireAccountForTeamRegister, async function(req, res) {
+    if (!TEAM_VERIFICATION_EMAIL_DELIVERY_ENABLED) {
+        return res.redirect('/team-register?verification=delivery_disabled');
+    }
+    const current = req.session.pendingTeamEmailVerification;
+    if (!current || current.kind !== 'registration') return res.redirect('/team-register?verification=missing');
+    if (Date.now() - Number(current.sentAt || 0) < TEAM_EMAIL_VERIFICATION_RESEND_INTERVAL_MS) {
+        return res.redirect('/team-register?verification=wait');
+    }
     try {
-        if (!(await waitForDatabase())) return res.redirect('/manage-team?error=firstauth_failed');
-        if (!isFirstAuthConfigured()) return res.redirect('/manage-team?error=firstauth_failed');
+        const verification = buildPendingTeamEmailVerification(current);
+        await sendTeamVerificationEmail({
+            to: current.publicEmail,
+            code: verification.code,
+            program: current.program,
+            teamNumber: current.teamNumber
+        });
+        req.session.pendingTeamEmailVerification = verification.pending;
+        return res.redirect('/team-register?verification=resent');
+    } catch (error) {
+        console.error('Unable to resend team verification email:', error.message);
+        return res.redirect('/team-register?verification=failed');
+    }
+});
+
+router.post('/manage-team/email-verification', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!(await waitForDatabase())) return res.redirect('/manage-team?error=verification_failed');
 
         const user = await User.findById(req.session.userId).lean().exec();
         if (!user) return res.redirect('/logout');
@@ -2085,8 +2347,8 @@ router.post('/manage-team/firstauth', ensureAuthenticated, async function(req, r
         req.session.teamUpgradeDraft = { teamId, values };
 
         const contactIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.contact);
-        if (!teamId || !teamNumber || !values.name || !contactIsValid || !values.address || !values.city || !values.country) {
-            return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=firstauth_invalid`);
+        if (!teamId || !teamNumber || !values.name || !contactIsValid || !isUsableTeamAddress(values.address) || !values.city || !values.country) {
+            return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=verification_invalid`);
         }
 
         const team = await Team.findOne({
@@ -2097,231 +2359,292 @@ router.post('/manage-team/firstauth', ensureAuthenticated, async function(req, r
                 { managers: user._id }
             ]
         }).lean().exec();
-        if (!team) return res.redirect('/manage-team?error=firstauth_not_new');
+        if (!team) return res.redirect('/manage-team?error=verification_not_new');
 
         const duplicate = await Team.findOne({
             _id: { $ne: team._id },
             program: 'FTC',
             teamNumber
         }).select('_id').lean().exec();
-        if (duplicate) return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=firstauth_duplicate`);
+        if (duplicate) return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=verification_duplicate`);
 
         const officialVerification = await verifyTeamWithApi(teamNumber, 'FTC');
         if (!officialVerification.ok) {
-            return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=firstauth_unverified`);
+            return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=verification_unverified`);
         }
 
-        const submittedCoordinates = await geocodeAddress(values);
+        const officialLocation = extractTeamLocation(officialVerification.details || officialVerification.team);
+        const submittedCoordinates = await geocodeAddress({
+            ...values,
+            city: officialLocation.city || values.city,
+            state: officialLocation.state || values.state,
+            country: officialLocation.country || values.country
+        }, { requireAddress: true });
         if (!submittedCoordinates) {
-            return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=firstauth_address`);
+            return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=verification_address`);
         }
-
-        const state = crypto.randomBytes(32).toString('hex');
-        const redirectUri = getFirstAuthRedirectUri(req);
-        req.session.pendingFirstAuthTeamUpgrade = {
-            state,
-            redirectUri,
-            createdAt: Date.now(),
-            teamId,
+        if (!locationMatchesOfficialRecord(submittedCoordinates, officialLocation)) {
+            return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=verification_unverified`);
+        }
+        const dashboardTeam = await fetchDashboardTeamWithPublicEmail('FTC', teamNumber);
+        const publicEmail = normalizeEmail(dashboardTeam && dashboardTeam.ff_team_public_email);
+        if (!dashboardTeam || !publicEmail) {
+            return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=verification_no_email`);
+        }
+        if (!TEAM_VERIFICATION_EMAIL_DELIVERY_ENABLED) {
+            delete req.session.pendingTeamEmailVerification;
+            req.session.teamEmailPreview = { teamId, program: 'FTC', teamNumber, publicEmail };
+            await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+            return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&success=verification_preview`);
+        }
+        const verification = buildPendingTeamEmailVerification({
+            kind: 'upgrade',
             program: 'FTC',
             teamNumber,
+            publicEmail,
             values,
+            teamId,
             submittedCoordinates
-        };
+        });
+        await sendTeamVerificationEmail({ to: publicEmail, code: verification.code, program: 'FTC', teamNumber });
+        req.session.pendingTeamEmailVerification = verification.pending;
         await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
-
-        const authorizeUrl = new URL(FIRSTAUTH_AUTHORIZE_URL);
-        authorizeUrl.searchParams.set('client_id', FIRSTAUTH_CLIENT_ID);
-        authorizeUrl.searchParams.set('redirect_uri', redirectUri);
-        authorizeUrl.searchParams.set('response_type', 'code');
-        authorizeUrl.searchParams.set('state', state);
-        return res.redirect(authorizeUrl.toString());
+        return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&success=verification_sent`);
     } catch (error) {
-        console.error('Unable to start FirstAuth team upgrade:', error.message);
-        return res.redirect('/manage-team?error=firstauth_failed');
+        console.error('Unable to start team email verification:', error.message);
+        return res.redirect('/manage-team?error=verification_failed');
     }
 });
 
-router.get('/auth/firstauth/callback', requireAccountForTeamRegister, async function(req, res) {
-    const returnedState = String(req.query.state || '');
-    const pendingUpgrade = req.session.pendingFirstAuthTeamUpgrade;
-    const pendingRegistration = req.session.pendingFirstAuthTeamRegistration;
-    const isUpgrade = firstAuthStateMatches(pendingUpgrade, returnedState);
-    const pending = isUpgrade ? pendingUpgrade : pendingRegistration;
-    const stateMatches = firstAuthStateMatches(pending, returnedState);
-    const isFresh = pending && Date.now() - Number(pending.createdAt || 0) <= FIRSTAUTH_VERIFICATION_TTL_MS;
-    const failurePath = isUpgrade
-        ? `/manage-team?team=${encodeURIComponent(String(pendingUpgrade && pendingUpgrade.teamId || ''))}`
-        : '/team-register';
-
-    if (!pending || !stateMatches || !isFresh) {
-        if (isUpgrade) delete req.session.pendingFirstAuthTeamUpgrade;
-        else {
-            delete req.session.pendingFirstAuthTeamRegistration;
-            delete req.session.firstAuthTeamVerification;
-        }
-        return res.redirect(`${failurePath}${failurePath.includes('?') ? '&' : '?'}${isUpgrade ? 'error=firstauth_invalid' : 'firstauth=invalid'}`);
+router.post('/manage-team/email-verification/resend', ensureAuthenticated, async function(req, res) {
+    if (!TEAM_VERIFICATION_EMAIL_DELIVERY_ENABLED) {
+        return res.redirect('/manage-team?error=verification_delivery_disabled');
     }
-    if (req.query.error || !req.query.code) {
-        return res.redirect(`${failurePath}${failurePath.includes('?') ? '&' : '?'}${isUpgrade ? 'error=firstauth_denied' : 'firstauth=denied'}`);
+    const current = req.session.pendingTeamEmailVerification;
+    const teamId = String(current && current.teamId || '');
+    if (!current || current.kind !== 'upgrade') return res.redirect('/manage-team?error=verification_invalid');
+    if (Date.now() - Number(current.sentAt || 0) < TEAM_EMAIL_VERIFICATION_RESEND_INTERVAL_MS) {
+        return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=verification_wait`);
     }
-
-    let accessToken = '';
     try {
-        const tokenResponse = await fetch(`${FIRSTAUTH_API_BASE}/oauth/token`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            body: JSON.stringify({
-                grant_type: 'authorization_code',
-                code: String(req.query.code),
-                redirect_uri: pending.redirectUri,
-                client_id: FIRSTAUTH_CLIENT_ID,
-                client_secret: FIRSTAUTH_CLIENT_SECRET
-            })
+        const verification = buildPendingTeamEmailVerification(current);
+        await sendTeamVerificationEmail({
+            to: current.publicEmail,
+            code: verification.code,
+            program: current.program,
+            teamNumber: current.teamNumber
         });
-        const tokenPayload = await tokenResponse.json().catch(() => ({}));
-        if (!tokenResponse.ok || !tokenPayload.access_token) {
-            throw new Error(tokenPayload.error_description || tokenPayload.error || 'FirstAuth token exchange failed.');
-        }
-        accessToken = String(tokenPayload.access_token);
-
-        const userInfoResponse = await fetch(`${FIRSTAUTH_API_BASE}/oauth/userinfo`, {
-            headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' }
-        });
-        const userInfo = await userInfoResponse.json().catch(() => ({}));
-        if (!userInfoResponse.ok) throw new Error(userInfo.error || 'FirstAuth verification failed.');
-
-        const values = isUpgrade ? pending : (pending.values || {});
-        const verifiedTeam = findFirstAuthTeam(userInfo.teams, values.program, values.teamNumber);
-        if (!verifiedTeam) {
-            if (isUpgrade) delete req.session.pendingFirstAuthTeamUpgrade;
-            else delete req.session.firstAuthTeamVerification;
-            return res.redirect(`${failurePath}${failurePath.includes('?') ? '&' : '?'}${isUpgrade ? 'error=firstauth_unverified' : 'firstauth=team_mismatch'}`);
-        }
-
-        if (isUpgrade) {
-            const user = await User.findById(req.session.userId).lean().exec();
-            const team = user ? await Team.findOne({
-                _id: pending.teamId,
-                isNewTeam: true,
-                $or: [
-                    { contact: buildContactEmailQuery(user.email) },
-                    { managers: user._id }
-                ]
-            }).exec() : null;
-            if (!team) {
-                delete req.session.pendingFirstAuthTeamUpgrade;
-                return res.redirect(`${failurePath}&error=firstauth_not_new`);
-            }
-
-            const duplicate = await Team.findOne({
-                _id: { $ne: team._id },
-                program: 'FTC',
-                teamNumber: pending.teamNumber
-            }).select('_id').lean().exec();
-            if (duplicate) {
-                delete req.session.pendingFirstAuthTeamUpgrade;
-                return res.redirect(`${failurePath}&error=firstauth_duplicate`);
-            }
-
-            const officialVerification = await verifyTeamWithApi(pending.teamNumber, 'FTC');
-            if (!officialVerification.ok || !officialVerification.details) {
-                delete req.session.pendingFirstAuthTeamUpgrade;
-                return res.redirect(`${failurePath}&error=firstauth_unverified`);
-            }
-
-            const details = officialVerification.details;
-            const officialLocation = extractTeamLocation(details);
-            const officialCoordinates = await geocodeAddress(officialLocation).catch(() => null);
-            const officialName = officialVerification.officialName || team.name;
-            const organization = getTeamOrganizationFromApiProfile(details.profile) || team.organization || '';
-            const submittedValues = pending.values || {};
-            const firstAuthVerifiedAt = new Date(verifiedTeam.last_reverified_at || verifiedTeam.verified_at || Date.now());
-            const verifiedAt = Number.isNaN(firstAuthVerifiedAt.getTime()) ? new Date() : firstAuthVerifiedAt;
-
-            team.program = 'FTC';
-            team.teamNumber = pending.teamNumber;
-            team.registrationKey = buildTeamRegistrationKey({ program: 'FTC', teamNumber: pending.teamNumber, isNewTeam: false });
-            team.isNewTeam = false;
-            team.name = officialName;
-            team.organization = organization;
-            team.contact = normalizeEmail(submittedValues.contact) || team.contact;
-            team.address = String(submittedValues.address || team.address).trim();
-            team.city = officialLocation.city || String(submittedValues.city || team.city).trim();
-            team.state = officialLocation.state || String(submittedValues.state || team.state).trim();
-            team.country = officialLocation.country || String(submittedValues.country || team.country).trim();
-            const resolvedCoordinates = officialCoordinates || pending.submittedCoordinates;
-            if (resolvedCoordinates) {
-                team.lat = resolvedCoordinates.lat;
-                team.lon = resolvedCoordinates.lon;
-            }
-            team.notes = String(submittedValues.notes || '').trim();
-            team.recruiting = Boolean(submittedValues.recruiting);
-            team.awards = details.awards || '';
-            team.awardHistory = sortHistoryEntriesMostRecent(details.awardHistory || []);
-            team.yearsInProgram = details.yearsInProgram;
-            team.advancementLevels = details.advancementLevels || [];
-            team.advancementHistory = sortHistoryEntriesMostRecent(details.advancementHistory || []);
-            team.verified = true;
-            team.verifiedAt = verifiedAt;
-            team.verificationSource = 'FirstAuth OAuth + FTC Scout';
-            team.updatedAt = new Date();
-            await team.save();
-
-            const managerIds = Array.from(new Set([
-                String(req.session.userId),
-                ...(Array.isArray(team.managers) ? team.managers.map(String) : [])
-            ])).filter(mongoose.Types.ObjectId.isValid);
-            if (managerIds.length) {
-                await User.updateMany({ _id: { $in: managerIds } }, { $set: { teamNumber: pending.teamNumber } }).exec();
-            }
-
-            delete req.session.pendingFirstAuthTeamUpgrade;
-            delete req.session.teamUpgradeDraft;
-            req.session.activeTeamId = String(team._id);
-            return res.redirect(`/manage-team?team=${encodeURIComponent(String(team._id))}&success=team_verified`);
-        }
-
-        req.session.firstAuthTeamVerification = {
-            subject: String(userInfo.sub || ''),
-            displayName: String(userInfo.display_name || ''),
-            program: normalizeFirstAuthProgram(verifiedTeam.program),
-            teamNumber: parsePositiveTeamNumber(verifiedTeam.team_number),
-            verifiedAt: verifiedTeam.last_reverified_at || verifiedTeam.verified_at || new Date().toISOString(),
-            expiresAt: Date.now() + FIRSTAUTH_VERIFICATION_TTL_MS
-        };
-        return res.redirect('/team-register?firstauth=verified');
+        req.session.pendingTeamEmailVerification = verification.pending;
+        return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&success=verification_sent`);
     } catch (error) {
-        console.error('FirstAuth team verification failed:', error.message);
-        if (isUpgrade) delete req.session.pendingFirstAuthTeamUpgrade;
-        else delete req.session.firstAuthTeamVerification;
-        return res.redirect(`${failurePath}${failurePath.includes('?') ? '&' : '?'}${isUpgrade ? 'error=firstauth_failed' : 'firstauth=failed'}`);
-    } finally {
-        await revokeFirstAuthToken(accessToken);
+        console.error('Unable to resend team verification email:', error.message);
+        return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=verification_failed`);
     }
+});
+
+router.post('/manage-team/email-verification/cancel', ensureAuthenticated, function(req, res) {
+    const pending = req.session.pendingTeamEmailVerification;
+    const teamId = String(pending && pending.teamId || '');
+    if (pending && pending.kind === 'upgrade') delete req.session.pendingTeamEmailVerification;
+    return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}`);
+});
+
+router.post('/manage-team/email-verification/confirm', ensureAuthenticated, async function(req, res) {
+    if (!TEAM_VERIFICATION_EMAIL_DELIVERY_ENABLED) {
+        return res.redirect('/manage-team?error=verification_delivery_disabled');
+    }
+    const pending = req.session.pendingTeamEmailVerification;
+    const teamId = String(pending && pending.teamId || '');
+    const failurePath = `/manage-team?team=${encodeURIComponent(teamId)}`;
+    const codeError = getTeamEmailVerificationError(pending, 'upgrade', req.body.verificationCode);
+    if (codeError) {
+        if (pending && pending.kind === 'upgrade') pending.attempts = Number(pending.attempts || 0) + 1;
+        return res.redirect(`${failurePath}&error=${codeError.includes('expired') || codeError.includes('Too many') ? 'verification_expired' : 'verification_code'}`);
+    }
+    try {
+        const user = await User.findById(req.session.userId).lean().exec();
+        const team = user ? await Team.findOne({
+            _id: pending.teamId,
+            isNewTeam: true,
+            $or: [
+                { contact: buildContactEmailQuery(user.email) },
+                { managers: user._id }
+            ]
+        }).exec() : null;
+        if (!team) {
+            delete req.session.pendingTeamEmailVerification;
+            return res.redirect(`${failurePath}&error=verification_not_new`);
+        }
+
+        const duplicate = await Team.findOne({
+            _id: { $ne: team._id },
+            program: 'FTC',
+            teamNumber: pending.teamNumber
+        }).select('_id').lean().exec();
+        if (duplicate) {
+            delete req.session.pendingTeamEmailVerification;
+            return res.redirect(`${failurePath}&error=verification_duplicate`);
+        }
+
+        const officialVerification = await verifyTeamWithApi(pending.teamNumber, 'FTC');
+        if (!officialVerification.ok || !officialVerification.details) {
+            delete req.session.pendingTeamEmailVerification;
+            return res.redirect(`${failurePath}&error=verification_unverified`);
+        }
+
+        const details = officialVerification.details;
+        const officialLocation = extractTeamLocation(details);
+        const officialCoordinates = await geocodeAddress(officialLocation).catch(() => null);
+        const officialName = officialVerification.officialName || team.name;
+        const organization = getTeamOrganizationFromApiProfile(details.profile) || team.organization || '';
+        const submittedValues = pending.values || {};
+
+        team.program = 'FTC';
+        team.teamNumber = pending.teamNumber;
+        team.registrationKey = buildTeamRegistrationKey({ program: 'FTC', teamNumber: pending.teamNumber, isNewTeam: false });
+        team.isNewTeam = false;
+        team.name = officialName;
+        team.organization = organization;
+        team.contact = normalizeEmail(submittedValues.contact) || team.contact;
+        team.address = String(submittedValues.address || team.address).trim();
+        team.city = officialLocation.city || String(submittedValues.city || team.city).trim();
+        team.state = officialLocation.state || String(submittedValues.state || team.state).trim();
+        team.country = officialLocation.country || String(submittedValues.country || team.country).trim();
+        const resolvedCoordinates = officialCoordinates || pending.submittedCoordinates;
+        if (resolvedCoordinates) {
+            team.lat = resolvedCoordinates.lat;
+            team.lon = resolvedCoordinates.lon;
+        }
+        team.notes = String(submittedValues.notes || '').trim();
+        team.recruiting = Boolean(submittedValues.recruiting);
+        team.awards = details.awards || '';
+        team.awardHistory = sortHistoryEntriesMostRecent(details.awardHistory || []);
+        team.yearsInProgram = details.yearsInProgram;
+        team.advancementLevels = details.advancementLevels || [];
+        team.advancementHistory = sortHistoryEntriesMostRecent(details.advancementHistory || []);
+        team.verified = true;
+        team.verifiedAt = new Date();
+        team.verificationSource = 'FIRST Dashboard public email + FTC Scout';
+        team.updatedAt = new Date();
+        await team.save();
+
+        const managerIds = Array.from(new Set([
+            String(req.session.userId),
+            ...(Array.isArray(team.managers) ? team.managers.map(String) : [])
+        ])).filter(mongoose.Types.ObjectId.isValid);
+        if (managerIds.length) {
+            await User.updateMany({ _id: { $in: managerIds } }, { $set: { teamNumber: pending.teamNumber } }).exec();
+        }
+
+        delete req.session.pendingTeamEmailVerification;
+        delete req.session.teamUpgradeDraft;
+        req.session.activeTeamId = String(team._id);
+        return res.redirect(`/manage-team?team=${encodeURIComponent(String(team._id))}&success=team_verified`);
+    } catch (error) {
+        console.error('Team email verification failed:', error.message);
+        return res.redirect(`${failurePath}&error=verification_failed`);
+    }
+});
+
+router.get('/team-email-directory', ensureAuthenticated, async function(req, res) {
+        try {
+            const user = await User.findById(req.session.userId).select('email').lean().exec();
+            if (!canAccessTeamEmailDirectory(user)) return res.redirect('/');
+            const teams = await fetchDashboardTeamEmailDirectory();
+            const query = String(req.query.q || '').trim().toLowerCase();
+            const requestedProgram = String(req.query.program || '').trim();
+            const program = TEAM_EMAIL_DIRECTORY_PROGRAMS.some(item => item.key === requestedProgram) ? requestedProgram : '';
+            const requestedEmailStatus = String(req.query.emailStatus || '').trim();
+            const emailStatus = ['with', 'without'].includes(requestedEmailStatus) ? requestedEmailStatus : '';
+            const filteredTeams = teams.filter(team => {
+                const matchesProgram = !program || team.program === program;
+                const matchesEmail = !emailStatus
+                    || (emailStatus === 'with' && Boolean(team.publicEmail))
+                    || (emailStatus === 'without' && !team.publicEmail);
+                const searchValue = [team.program, team.teamNumber, team.name, team.city, team.state, team.country, team.publicEmail]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLowerCase();
+                return matchesProgram && matchesEmail && (!query || searchValue.includes(query));
+            });
+            const pageSize = 100;
+            const totalPages = Math.max(1, Math.ceil(filteredTeams.length / pageSize));
+            const requestedPage = Number.parseInt(req.query.page, 10);
+            const currentPage = Number.isInteger(requestedPage) ? Math.min(Math.max(requestedPage, 1), totalPages) : 1;
+            const pageStart = (currentPage - 1) * pageSize;
+            const paginationParams = new URLSearchParams();
+            if (query) paginationParams.set('q', String(req.query.q || '').trim());
+            if (program) paginationParams.set('program', program);
+            if (emailStatus) paginationParams.set('emailStatus', emailStatus);
+            return res.render('pages/team-register-directory', {
+                teams: filteredTeams.slice(pageStart, pageStart + pageSize),
+                totalTeamCount: teams.length,
+                filteredTeamCount: filteredTeams.length,
+                pageStart,
+                currentPage,
+                totalPages,
+                paginationQuery: paginationParams.toString(),
+                filters: { query: String(req.query.q || '').trim(), program, emailStatus },
+                emailCount: teams.filter(team => team.publicEmail).length,
+                missingEmailCount: teams.filter(team => !team.publicEmail).length,
+                programCounts: Object.fromEntries(TEAM_EMAIL_DIRECTORY_PROGRAMS.map(program => [
+                    program.key,
+                    teams.filter(team => team.program === program.key).length
+                ])),
+                error: null
+            });
+        } catch (error) {
+            console.error('Unable to load the FIRST team email directory:', error.message);
+            return res.render('pages/team-register-directory', {
+                teams: [],
+                totalTeamCount: 0,
+                filteredTeamCount: 0,
+                pageStart: 0,
+                currentPage: 1,
+                totalPages: 1,
+                paginationQuery: '',
+                filters: { query: '', program: '', emailStatus: '' },
+                emailCount: 0,
+                missingEmailCount: 0,
+                programCounts: {},
+                error: 'The FIRST team directory could not be loaded right now. Please refresh and try again.'
+            });
+        }
 });
 
 router.get('/team-register', requireAccountForTeamRegister, async function(req, res) {
-    const pendingValues = req.session.pendingFirstAuthTeamRegistration && req.session.pendingFirstAuthTeamRegistration.values;
+    if (!TEAM_VERIFICATION_EMAIL_DELIVERY_ENABLED) {
+        delete req.session.pendingTeamEmailVerification;
+        delete req.session.teamEmailVerification;
+    }
+    const pendingVerification = req.session.pendingTeamEmailVerification;
+    const pendingRegistration = pendingVerification && pendingVerification.kind === 'registration' ? pendingVerification : null;
+    const pendingValues = pendingRegistration && pendingRegistration.values;
     const registrationMode = pendingValues
         ? 'existing'
         : (String(req.query.mode || '').toLowerCase() === 'new' ? 'new' : 'existing');
     const user = await User.findById(req.session.userId).select('email').lean().exec().catch(() => null);
     if (!user) return res.redirect('/login');
-    const firstAuthMessages = {
-        verified: 'FirstAuth verified your membership. Review the details and save the team.',
-        denied: 'FirstAuth authorization was cancelled. No team was registered.',
-        invalid: 'The FirstAuth verification request expired or was invalid. Please try again.',
-        team_mismatch: 'FirstAuth did not return the selected team. Verify that team in FirstAuth, then try again.',
-        failed: 'FirstAuth could not verify the team right now. Please try again.'
+    const verificationMessages = {
+        sent: 'We sent a verification code to the public email on this team’s FIRST Dashboard profile.',
+        resent: 'A new verification code was sent to the team’s public email.',
+        verified: 'The team email was verified. Review the details and save the team.',
+        wait: 'Please wait one minute before requesting another code.'
     };
-    const firstAuthStatus = String(req.query.firstauth || '');
+    const verificationErrors = {
+        incorrect: 'That verification code is incorrect. Please try again.',
+        expired: 'That verification code expired or had too many incorrect attempts. Request a new code.',
+        missing: 'No email verification is pending. Complete the form to request a code.',
+        failed: 'We could not send a verification code right now. Please try again.',
+        delivery_disabled: 'Team verification email delivery is temporarily disabled for public-email preview testing.'
+    };
+    const verificationStatus = String(req.query.verification || '');
     res.render('pages/team-register', {
-        error: firstAuthStatus && firstAuthStatus !== 'verified' ? firstAuthMessages[firstAuthStatus] || null : null,
-        message: firstAuthStatus === 'verified' ? firstAuthMessages.verified : null,
+        error: verificationErrors[verificationStatus] || null,
+        message: verificationMessages[verificationStatus] || null,
         values: pendingValues || { registrationMode, contact: normalizeEmail(user.email) },
-        firstAuthConfigured: isFirstAuthConfigured(),
-        firstAuthVerification: req.session.firstAuthTeamVerification || null
+        teamEmailVerification: req.session.teamEmailVerification || null,
+        pendingTeamEmailVerification: pendingRegistration
     });
 });
 
@@ -2348,17 +2671,24 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         const isNewTeam = registrationMode === 'new';
         const isFllProgram = program === 'FLL Challenge';
         const isOfficialTeam = !isNewTeam && !isFllProgram;
+        if (!isUsableTeamAddress(values.address)) {
+            return res.render('pages/team-register', {
+                error: 'Enter a complete team address, meeting location, or recognizable landmark.',
+                message: null,
+                values
+            });
+        }
         const contact = normalizeEmail(values.contact);
         values.contact = contact;
         const teamNumber = isNewTeam ? null : parsePositiveTeamNumber(values.teamNumber);
 
-        if (!isNewTeam && !firstAuthProofMatches(req.session.firstAuthTeamVerification, program, teamNumber)) {
+        if (!isNewTeam && !teamEmailProofMatches(req.session.teamEmailVerification, program, teamNumber)) {
             return res.render('pages/team-register', {
-                error: 'Verify your membership in this team with FirstAuth before saving it.',
+                error: 'Verify team ownership through the public email on the FIRST Dashboard before saving it.',
                 message: null,
                 values,
-                firstAuthConfigured: isFirstAuthConfigured(),
-                firstAuthVerification: req.session.firstAuthTeamVerification || null
+                teamEmailVerification: req.session.teamEmailVerification || null,
+                pendingTeamEmailVerification: req.session.pendingTeamEmailVerification || null
             });
         }
 
@@ -2397,12 +2727,17 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         const apiTeamDetails = isOfficialTeam && shouldUseTeamApi(program, teamNumber)
             ? (verification.details || await fetchTeamDetailsViaApi(program, teamNumber).catch(() => null))
             : null;
-        const geocodedAddress = await geocodeAddress(isOfficialTeam ? { address: values.address } : {
+        const geocodedAddress = await geocodeAddress(isOfficialTeam ? {
+            address: values.address,
+            city: officialLocation.city,
+            state: officialLocation.state,
+            country: officialLocation.country
+        } : {
             address: values.address,
             city: String(values.city || '').trim(),
             state: String(values.state || '').trim(),
             country: String(values.country || '').trim()
-        });
+        }, { requireAddress: true });
         if (!geocodedAddress) {
             return res.render('pages/team-register', {
                 error: isOfficialTeam
@@ -2531,8 +2866,8 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             verificationSource: isNewTeam
                 ? 'Self-reported new team'
                 : isFllProgram
-                    ? 'FirstAuth OAuth'
-                    : `FirstAuth OAuth + ${verification.source || (program === 'FRC' ? 'Blue Alliance' : 'FTC Scout')} lookup`,
+                    ? 'FIRST Dashboard public email'
+                    : `FIRST Dashboard public email + ${verification.source || (program === 'FRC' ? 'Blue Alliance' : 'FTC Scout')} lookup`,
             updatedAt: new Date()
         };
 
@@ -2559,8 +2894,8 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
             }
         }
 
-        delete req.session.firstAuthTeamVerification;
-        delete req.session.pendingFirstAuthTeamRegistration;
+        delete req.session.teamEmailVerification;
+        delete req.session.pendingTeamEmailVerification;
 
         res.render('pages/team-register', {
             error: null,
@@ -2817,19 +3152,27 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             errorMessage = 'You do not have permission to clear pending invitations.';
         } else if (queryError === 'pending_invites_clear_failed') {
             errorMessage = 'Unable to clear pending invitations. Please try again.';
-        } else if (queryError === 'firstauth_invalid') {
+        } else if (queryError === 'verification_invalid') {
             errorMessage = 'Complete every required team field before verifying.';
-        } else if (queryError === 'firstauth_address') {
+        } else if (queryError === 'verification_address') {
             errorMessage = 'We could not find that address. Enter a complete team address before verifying.';
-        } else if (queryError === 'firstauth_not_new') {
+        } else if (queryError === 'verification_not_new') {
             errorMessage = 'Only a new-team listing can be upgraded from this page.';
-        } else if (queryError === 'firstauth_duplicate') {
+        } else if (queryError === 'verification_duplicate') {
             errorMessage = 'That official team is already registered.';
-        } else if (queryError === 'firstauth_denied') {
-            errorMessage = 'FirstAuth authorization was cancelled.';
-        } else if (queryError === 'firstauth_unverified') {
+        } else if (queryError === 'verification_unverified') {
             errorMessage = 'Team is unable to be verified.';
-        } else if (queryError === 'firstauth_failed') {
+        } else if (queryError === 'verification_no_email') {
+            errorMessage = 'This team has no public email on its FIRST Dashboard profile. Add one there before verifying ownership.';
+        } else if (queryError === 'verification_code') {
+            errorMessage = 'That verification code is incorrect.';
+        } else if (queryError === 'verification_expired') {
+            errorMessage = 'That verification code expired or had too many incorrect attempts. Request a new code.';
+        } else if (queryError === 'verification_wait') {
+            errorMessage = 'Please wait one minute before requesting another verification code.';
+        } else if (queryError === 'verification_delivery_disabled') {
+            errorMessage = 'Team verification email delivery is temporarily disabled for public-email preview testing.';
+        } else if (queryError === 'verification_failed') {
             errorMessage = 'Team is unable to be verified. Please try again.';
         }
 
@@ -2862,6 +3205,14 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             successMessage = 'Pending invitations cleared successfully.';
         } else if (querySuccess === 'team_verified') {
             successMessage = 'Team ownership verified. The listing was updated with official FTC Scout information.';
+        } else if (querySuccess === 'verification_sent') {
+            successMessage = 'A verification code was sent to the public email on the team’s FIRST Dashboard profile.';
+        } else if (querySuccess === 'verification_preview') {
+            const preview = req.session.teamEmailPreview;
+            successMessage = preview && preview.publicEmail
+                ? `Preview only — the FIRST Dashboard public email for FTC team ${preview.teamNumber} is ${preview.publicEmail}. No email was sent.`
+                : 'Preview only. No verification email was sent.';
+            delete req.session.teamEmailPreview;
         }
 
         const teamOptions = await getAccessibleTeamsForUser(user);
@@ -2883,7 +3234,9 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
         const currentTeamRole = team ? getTeamManagerRole(team, user._id) : '';
         const isCaptainForTeam = Boolean(currentTeamRole);
         const savedUpgradeDraft = req.session.teamUpgradeDraft;
-        const pendingUpgrade = req.session.pendingFirstAuthTeamUpgrade;
+        const pendingUpgrade = req.session.pendingTeamEmailVerification && req.session.pendingTeamEmailVerification.kind === 'upgrade'
+            ? req.session.pendingTeamEmailVerification
+            : null;
         const matchingUpgradeDraft = team && savedUpgradeDraft && String(savedUpgradeDraft.teamId) === String(team._id)
             ? savedUpgradeDraft.values
             : team && pendingUpgrade && String(pendingUpgrade.teamId) === String(team._id)
@@ -3032,6 +3385,8 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             rejectedCount,
             teamTenureLabel,
             teamVerificationDraft: matchingUpgradeDraft,
+            pendingTeamEmailVerification: pendingUpgrade,
+            showPublicEmailTutorial: queryError === 'verification_no_email',
             error: errorMessage,
             success: successMessage
         });
@@ -4124,8 +4479,8 @@ router.post('/signup', async function(req, res){
             return res.render(`pages/signup-${mode}`, { error: 'Age must be a whole number from 13 to 18.', values: req.body, inviteToken: inviteToken || null, nextPath });
         }
 
-        delete req.session.firstAuthTeamVerification;
-        delete req.session.pendingFirstAuthTeamRegistration;
+        delete req.session.teamEmailVerification;
+        delete req.session.pendingTeamEmailVerification;
         const existing = await User.findOne({ email: normalizedEmail }).exec();
         if (existing && existing.emailVerified !== false) {
             return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body, inviteToken: inviteToken || null, nextPath });
@@ -4852,6 +5207,7 @@ router.get('/logout', function(req, res){
 
 module.exports = router;
 module.exports.__test = {
+    canAccessTeamEmailDirectory,
     compareTeamNameToNumber,
     attachContactTeamsToUser,
     getTeamNameFromApiProfile,
@@ -4862,13 +5218,16 @@ module.exports.__test = {
     parsePositiveTeamNumber,
     buildTeamRegistrationAddress,
     buildTeamRegistrationKey,
+    isUsableTeamAddress,
     extractTeamLocation,
     locationMatchesOfficialRecord,
-    normalizeFirstAuthProgram,
-    findFirstAuthTeam,
-    firstAuthStateMatches,
-    firstAuthProofMatches,
-    validateFirstAuthRegistration,
+    normalizeDashboardProgram,
+    findDashboardTeam,
+    fetchDashboardTeamEmailDirectory,
+    maskEmailAddress,
+    teamEmailCodeMatches,
+    teamEmailProofMatches,
+    validateTeamEmailRegistration,
     geocodeAddress,
     verifySubmittedTeamDetails,
     verifyTeamWithApi

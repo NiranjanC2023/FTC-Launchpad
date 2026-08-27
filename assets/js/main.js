@@ -1719,7 +1719,7 @@ function loadSiteShells() {
 
   const headerReady = document.querySelector('header .navbar, body > .navbar')
     ? Promise.resolve()
-    : fetch('/assets/partial/header.html')
+    : fetch('/assets/partial/header.html?v=45')
       .then(r => r.text())
       .then(html => {
         const header = document.querySelector('header');
@@ -1836,6 +1836,10 @@ function loadSiteShells() {
           const signOutLink = accountDropdown ? accountDropdown.querySelector('a[data-href="/logout"]') : null;
           let notifications = Array.isArray(data.notifications) ? data.notifications : [];
           let unreadCount = Number.isFinite(Number(data.unreadCount)) ? Number(data.unreadCount) : 0;
+          const canViewTeamEmailDirectory = Boolean(user && (
+            user.canViewTeamEmailDirectory
+            || String(user.email || '').trim().toLowerCase() === 'evergreentechatrons.contact@gmail.com'
+          ));
 
           function formatNotificationDate(value) {
             const date = value ? new Date(value) : null;
@@ -2051,6 +2055,10 @@ function loadSiteShells() {
               const canViewStats = Boolean(user && user.canViewStats);
               navItem.style.display = canViewStats ? '' : 'none';
               if (canViewStats) a.setAttribute('href', target);
+            } else if (target === '/team-email-directory') {
+              navItem.hidden = !canViewTeamEmailDirectory;
+              navItem.style.display = canViewTeamEmailDirectory ? '' : 'none';
+              if (canViewTeamEmailDirectory) a.setAttribute('href', target);
             } else if (target === '/my-applications' || target === '/join-form') {
               // Show applications/join form only for students.
               // If the user is focused on registering a team, keep the header focused on that path instead.

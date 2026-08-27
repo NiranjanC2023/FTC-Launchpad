@@ -11,6 +11,7 @@ const { countriesMatch } = require('../lib/country');
 const { isRecruitingTeam } = require('../lib/team-status');
 const { isDatabaseConnected, waitForDatabase } = require('../lib/database');
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
+const TEAM_EMAIL_DIRECTORY_ACCESS_EMAIL = 'evergreentechatrons.contact@gmail.com';
 
 function publicUser(user) {
 	return {
@@ -552,7 +553,12 @@ router.get('/users/me', async function(req, res) {
 		const unreadCount = await countUnreadNotifications(normalizedEmail);
 		res.json({
 			ok: true,
-			user: { ...publicUser(user), hasTeam: !!team, canViewStats: normalizedEmail === normalizeEmail(SUPPORT_EMAIL) },
+			user: {
+				...publicUser(user),
+				hasTeam: !!team,
+				canViewStats: normalizedEmail === normalizeEmail(SUPPORT_EMAIL),
+				canViewTeamEmailDirectory: normalizedEmail === normalizeEmail(TEAM_EMAIL_DIRECTORY_ACCESS_EMAIL)
+			},
 			notifications: notifications.map(serializeNotification),
 			unreadCount
 		});
