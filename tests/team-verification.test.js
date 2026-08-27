@@ -3,6 +3,12 @@ const webRoutes = require('../routes/web');
 
 async function run() {
   const helpers = webRoutes.__test;
+  const directoryRoute = webRoutes.stack.find(layer => (
+    layer.route
+    && layer.route.path === '/team-email-directory'
+    && layer.route.methods.get
+  ));
+  assert.ok(directoryRoute, 'team email directory GET route should be registered');
   assert.strictEqual(helpers.canAccessTeamEmailDirectory({ email: 'evergreentechatrons.contact@gmail.com' }), true);
   assert.strictEqual(helpers.canAccessTeamEmailDirectory({ email: 'other@example.com' }), false);
   assert.strictEqual(helpers.parsePositiveTeamNumber('25690'), 25690);

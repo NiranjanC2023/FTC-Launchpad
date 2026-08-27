@@ -1719,7 +1719,7 @@ function loadSiteShells() {
 
   const headerReady = document.querySelector('header .navbar, body > .navbar')
     ? Promise.resolve()
-    : fetch('/assets/partial/header.html?v=45')
+    : fetch('/assets/partial/header.html?v=46')
       .then(r => r.text())
       .then(html => {
         const header = document.querySelector('header');

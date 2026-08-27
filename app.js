@@ -262,7 +262,7 @@ app.engine("ejs", function(filePath, data, callback) {
             if (!needsFullClientBundle) {
                 html = html.replace(
                     /\/assets\/js\/main(?:\.min)?\.js(?:\?v=\d+)?/g,
-                    '/assets/js/site-shell.min.js?v=3'
+                    '/assets/js/site-shell.min.js?v=4'
                 );
             }
 

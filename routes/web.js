@@ -16,6 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
+const TEAM_EMAIL_DIRECTORY_ACCESS_EMAIL = 'evergreentechatrons.contact@gmail.com';
 const LOCALHOST_HOST_PATTERN = /^(localhost|127(?:\.\d{1,3}){3}|\[?::1\]?)(?::\d+)?$/i;
 const LOCAL_PRIVACY_POLICY_HTML = fs.readFileSync(path.join(__dirname, '..', 'views', 'partial', 'privacy-policy.html'), 'utf8');
 const SIGNUP_VERIFICATION_RESEND_INTERVAL_MS = 5 * 60 * 1000;
@@ -342,6 +343,10 @@ function isManagerRole(role) {
 
 function isStatsAccessUser(user) {
     return Boolean(user && normalizeEmail(user.email) === normalizeEmail(SUPPORT_EMAIL));
+}
+
+function canAccessTeamEmailDirectory(user) {
+    return Boolean(user && normalizeEmail(user.email) === normalizeEmail(TEAM_EMAIL_DIRECTORY_ACCESS_EMAIL));
 }
 
 function getMonthKey(date) {
@@ -705,11 +710,18 @@ const FIRST_SEARCH_API_URL = 'https://3dl2fnsh51.execute-api.us-east-1.amazonaws
 const TEAM_EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000;
 const TEAM_EMAIL_VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000;
 const TEAM_EMAIL_VERIFICATION_MAX_ATTEMPTS = 5;
+const TEAM_EMAIL_DIRECTORY_CACHE_TTL_MS = 5 * 60 * 1000;
+const TEAM_EMAIL_DIRECTORY_PROGRAMS = [
+    { key: 'FLL Challenge', names: ['FIRST LEGO League Challenge'], monikers: ['FLL', 'FLL Challenge'] },
+    { key: 'FTC', names: ['FIRST Tech Challenge'], monikers: ['FTC'] },
+    { key: 'FRC', names: ['FIRST Robotics Competition'], monikers: ['FRC'] }
+];
 const FTC_SCOUT_API_BASE = 'https://api.ftcscout.org/rest/v1';
 const FTC_SCOUT_GRAPHQL_ENDPOINT = 'https://api.ftcscout.org/graphql';
 const BLUE_ALLIANCE_API_BASE = 'https://www.thebluealliance.com/api/v3';
 const BLUE_ALLIANCE_AUTH_KEY = process.env.TBA_AUTH_KEY || process.env.BLUE_ALLIANCE_API_KEY || process.env.BLUE_ALLIANCE_AUTH_KEY || '';
 const teamApiDetailsCache = new Map();
+let teamEmailDirectoryCache = { expiresAt: 0, teams: [] };
 const FTC_AWARD_TYPE_LABELS = {};
 
 function normalizeProgram(program) {
@@ -845,6 +857,111 @@ async function fetchDashboardTeamWithPublicEmail(program, teamNumber) {
         return Number(right.profile_year || 0) - Number(left.profile_year || 0);
     });
     return exactMatches[0] || null;
+}
+
+async function fetchDashboardTeamDirectoryPage(programConfig, profileYear, offset = 0) {
+    const response = await fetch(FIRST_SEARCH_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+            index: 'teams_*',
+            query: {
+                size: 2000,
+                from: offset,
+                query: {
+                    bool: {
+                        must: [
+                            {
+                                bool: {
+                                    should: [{ match: { profile_year: String(profileYear) } }],
+                                    minimum_should_match: 1
+                                }
+                            },
+                            {
+                                bool: {
+                                    should: [
+                                        { terms: { team_country: ['United States', 'USA', 'US', 'United States of America'] } },
+                                        { terms: { event_country: ['United States', 'USA', 'US', 'United States of America'] } }
+                                    ],
+                                    minimum_should_match: 1
+                                }
+                            },
+                            {
+                                bool: {
+                                    should: [
+                                        { terms: { ff_program_name: programConfig.names } },
+                                        { terms: { program_name: programConfig.names } },
+                                        { terms: { ff_team_type: programConfig.monikers } },
+                                        { terms: { ff_program_moniker: programConfig.monikers } }
+                                    ],
+                                    minimum_should_match: 1
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        })
+    });
+    if (!response.ok) throw new Error(`FIRST team directory search returned ${response.status}.`);
+    const payload = await response.json().catch(() => ({}));
+    return (Array.isArray(payload.results) ? payload.results : []).map(record => ({
+        record,
+        program: programConfig.key
+    }));
+}
+
+async function fetchDashboardTeamEmailDirectory() {
+    if (teamEmailDirectoryCache.expiresAt > Date.now()) return teamEmailDirectoryCache.teams;
+    const directoryQueries = TEAM_EMAIL_DIRECTORY_PROGRAMS.flatMap(programConfig => (
+        ['2026', '2025'].map(profileYear => ({ programConfig, profileYear }))
+    ));
+    const programPages = await Promise.all(directoryQueries.map(async ({ programConfig, profileYear }) => {
+        const results = [];
+        let offset = 0;
+        while (offset < 10000) {
+            const page = await fetchDashboardTeamDirectoryPage(programConfig, profileYear, offset);
+            results.push(...page);
+            if (page.length < 2000) break;
+            offset += 2000;
+        }
+        return results;
+    }));
+    const byTeam = new Map();
+    for (const result of programPages.flat()) {
+        const record = result.record;
+        const program = result.program;
+        const teamNumber = parsePositiveTeamNumber(record && (record.team_number_yearly || record.team_number));
+        const publicEmail = normalizeEmail(record && record.ff_team_public_email);
+        if (!teamNumber) continue;
+        const team = {
+            program,
+            teamNumber,
+            name: String(record.team_nickname || record.team_name_calc || record.team_name || `FIRST Team ${teamNumber}`).trim(),
+            city: String(record.team_city || '').trim(),
+            state: String(record.team_stateprov || '').trim(),
+            country: String(record.team_country || '').trim(),
+            publicEmail,
+            profileYear: Number(record.profile_year || 0),
+            modifiedAt: String(record.modified_when || '')
+        };
+        const teamKey = `${program}:${teamNumber}`;
+        const existing = byTeam.get(teamKey);
+        const shouldReplace = !existing
+            || (!existing.publicEmail && team.publicEmail)
+            || (Boolean(existing.publicEmail) === Boolean(team.publicEmail) && team.profileYear > existing.profileYear)
+            || (Boolean(existing.publicEmail) === Boolean(team.publicEmail)
+                && team.profileYear === existing.profileYear
+                && team.modifiedAt > existing.modifiedAt);
+        if (shouldReplace) byTeam.set(teamKey, team);
+    }
+    const programOrder = new Map(TEAM_EMAIL_DIRECTORY_PROGRAMS.map((program, index) => [program.key, index]));
+    const teams = Array.from(byTeam.values()).sort((left, right) => (
+        (programOrder.get(left.program) - programOrder.get(right.program))
+        || (left.teamNumber - right.teamNumber)
+    ));
+    teamEmailDirectoryCache = { expiresAt: Date.now() + TEAM_EMAIL_DIRECTORY_CACHE_TTL_MS, teams };
+    return teams;
 }
 
 async function sendTeamVerificationEmail({ to, code, program, teamNumber }) {
@@ -2390,6 +2507,74 @@ router.post('/manage-team/email-verification/confirm', ensureAuthenticated, asyn
     } catch (error) {
         console.error('Team email verification failed:', error.message);
         return res.redirect(`${failurePath}&error=verification_failed`);
+    }
+});
+
+router.get('/team-email-directory', ensureAuthenticated, async function(req, res) {
+    try {
+        const user = await User.findById(req.session.userId).select('email').lean().exec();
+        if (!canAccessTeamEmailDirectory(user)) return res.redirect('/');
+
+        const teams = await fetchDashboardTeamEmailDirectory();
+        const query = String(req.query.q || '').trim().toLowerCase();
+        const requestedProgram = String(req.query.program || '').trim();
+        const program = TEAM_EMAIL_DIRECTORY_PROGRAMS.some(item => item.key === requestedProgram) ? requestedProgram : '';
+        const requestedEmailStatus = String(req.query.emailStatus || '').trim();
+        const emailStatus = ['with', 'without'].includes(requestedEmailStatus) ? requestedEmailStatus : '';
+        const filteredTeams = teams.filter(team => {
+            const matchesProgram = !program || team.program === program;
+            const matchesEmail = !emailStatus
+                || (emailStatus === 'with' && Boolean(team.publicEmail))
+                || (emailStatus === 'without' && !team.publicEmail);
+            const searchValue = [team.program, team.teamNumber, team.name, team.city, team.state, team.country, team.publicEmail]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+            return matchesProgram && matchesEmail && (!query || searchValue.includes(query));
+        });
+        const pageSize = 100;
+        const totalPages = Math.max(1, Math.ceil(filteredTeams.length / pageSize));
+        const requestedPage = Number.parseInt(req.query.page, 10);
+        const currentPage = Number.isInteger(requestedPage) ? Math.min(Math.max(requestedPage, 1), totalPages) : 1;
+        const pageStart = (currentPage - 1) * pageSize;
+        const paginationParams = new URLSearchParams();
+        if (query) paginationParams.set('q', String(req.query.q || '').trim());
+        if (program) paginationParams.set('program', program);
+        if (emailStatus) paginationParams.set('emailStatus', emailStatus);
+
+        return res.render('pages/team-register-directory', {
+            teams: filteredTeams.slice(pageStart, pageStart + pageSize),
+            totalTeamCount: teams.length,
+            filteredTeamCount: filteredTeams.length,
+            pageStart,
+            currentPage,
+            totalPages,
+            paginationQuery: paginationParams.toString(),
+            filters: { query: String(req.query.q || '').trim(), program, emailStatus },
+            emailCount: teams.filter(team => team.publicEmail).length,
+            missingEmailCount: teams.filter(team => !team.publicEmail).length,
+            programCounts: Object.fromEntries(TEAM_EMAIL_DIRECTORY_PROGRAMS.map(programConfig => [
+                programConfig.key,
+                teams.filter(team => team.program === programConfig.key).length
+            ])),
+            error: null
+        });
+    } catch (error) {
+        console.error('Unable to load the FIRST team email directory:', error.message);
+        return res.render('pages/team-register-directory', {
+            teams: [],
+            totalTeamCount: 0,
+            filteredTeamCount: 0,
+            pageStart: 0,
+            currentPage: 1,
+            totalPages: 1,
+            paginationQuery: '',
+            filters: { query: '', program: '', emailStatus: '' },
+            emailCount: 0,
+            missingEmailCount: 0,
+            programCounts: {},
+            error: 'The FIRST team directory could not be loaded right now. Please refresh and try again.'
+        });
     }
 });
 
@@ -4975,6 +5160,7 @@ router.get('/logout', function(req, res){
 
 module.exports = router;
 module.exports.__test = {
+    canAccessTeamEmailDirectory,
     compareTeamNameToNumber,
     attachContactTeamsToUser,
     getTeamNameFromApiProfile,
@@ -4990,6 +5176,7 @@ module.exports.__test = {
     locationMatchesOfficialRecord,
     normalizeDashboardProgram,
     findDashboardTeam,
+    fetchDashboardTeamEmailDirectory,
     maskEmailAddress,
     teamEmailCodeMatches,
     teamEmailProofMatches,
