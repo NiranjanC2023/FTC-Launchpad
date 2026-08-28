@@ -38,9 +38,10 @@ const GZIP_CONTENT_TYPES = {
     ".xml": "application/xml; charset=utf-8"
 };
 
-const MAIN_CSS_VERSION = "35";
-const MAIN_JS_VERSION = "44";
+const MAIN_CSS_VERSION = "36";
+const MAIN_JS_VERSION = "45";
 const HOME_JS_VERSION = "13";
+const SITE_SHELL_JS_VERSION = "4";
 const BOOTSTRAP_STYLESHEET = '<link rel="stylesheet" href="/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6">';
 const EXTERNAL_ASSET_REPLACEMENTS = [
     [
@@ -262,7 +263,7 @@ app.engine("ejs", function(filePath, data, callback) {
             if (!needsFullClientBundle) {
                 html = html.replace(
                     /\/assets\/js\/main(?:\.min)?\.js(?:\?v=\d+)?/g,
-                    '/assets/js/site-shell.min.js?v=4'
+                    `/assets/js/site-shell.min.js?v=${SITE_SHELL_JS_VERSION}`
                 );
             }
 

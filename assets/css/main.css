@@ -299,7 +299,7 @@ header::after {
   padding: 0 20px;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1280px) {
   .navbar .container {
     padding: 0 14px;
   }
@@ -1159,7 +1159,7 @@ h3 {
   }
 }
 
-@media (min-width: 1121px) {
+@media (min-width: 1281px) {
   .navbar-collapse[hidden] {
     display: flex !important;
   }
@@ -3981,7 +3981,7 @@ textarea.form-control {
   }
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1280px) {
   header,
   .navbar,
   .site-messages,
@@ -4238,13 +4238,13 @@ header > .theme-toggle {
   justify-content: flex-end;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1280px) {
   .navbar-nav:not(.navbar-right) {
     margin-left: 0;
   }
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1280px) {
   header {
     text-align: left;
   }
@@ -4742,7 +4742,7 @@ header > .theme-toggle {
     }
 }
 
-@media (max-width: 1440px) and (min-width: 1121px) {
+@media (max-width: 1440px) and (min-width: 1281px) {
   .navbar .container {
     flex-wrap: nowrap;
     align-items: center;
@@ -5212,7 +5212,7 @@ header .navbar-nav > li > a {
   display: block;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1280px) {
   header .navbar .container {
     min-height: 84px;
   }
@@ -5227,7 +5227,7 @@ header .navbar-nav > li > a {
   }
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1280px) {
   header,
   header .navbar,
   header .navbar-default,

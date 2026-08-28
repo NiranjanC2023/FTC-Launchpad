@@ -1753,7 +1753,7 @@ function loadSiteShells() {
         const drawer = document.querySelector('[data-navbar-collapse]');
         if (!toggle || !drawer) return;
 
-        const mobileQuery = window.matchMedia ? window.matchMedia('(max-width: 1120px)') : null;
+        const mobileQuery = window.matchMedia ? window.matchMedia('(max-width: 1280px)') : null;
 
         function syncDrawerState() {
           const isMobile = mobileQuery ? mobileQuery.matches : window.innerWidth <= 1120;

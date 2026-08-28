@@ -812,6 +812,15 @@ function validateTeamEmailRegistration(values = {}) {
     return '';
 }
 
+function buildVerifiedTeamRegistrationValues(pending = {}) {
+    return {
+        ...(pending.values || {}),
+        registrationMode: 'existing',
+        program: normalizeProgram(pending.program),
+        teamNumber: String(parsePositiveTeamNumber(pending.teamNumber) || '')
+    };
+}
+
 
 async function fetchDashboardTeamWithPublicEmail(program, teamNumber) {
     const expectedProgram = normalizeProgram(program);
@@ -2275,7 +2284,8 @@ router.post('/team-register/email-verification/confirm', requireAccountForTeamRe
     };
     delete pending.codeHash;
     delete pending.codeSalt;
-    return res.redirect('/team-register?verification=verified');
+    req.body = buildVerifiedTeamRegistrationValues(pending);
+    return saveRegisteredTeam(req, res);
 });
 
 router.post('/team-register/email-verification/resend', requireAccountForTeamRegister, async function(req, res) {
@@ -2610,7 +2620,7 @@ router.get('/team-register', requireAccountForTeamRegister, async function(req, 
     });
 });
 
-router.post('/team-register', requireAccountForTeamRegister, async function(req, res) {
+async function saveRegisteredTeam(req, res) {
     const values = req.body;
 
     try {
@@ -2858,14 +2868,8 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
 
         delete req.session.teamEmailVerification;
         delete req.session.pendingTeamEmailVerification;
-
-        res.render('pages/team-register', {
-            error: null,
-            message: isNewTeam
-                ? `${program} new team saved. It will appear on the map as a new team. Recruiting is ${recruiting ? 'on' : 'off'}.`
-                : `${PROGRAM_LABELS[program]} team ${teamNumber} verified and saved. Recruiting is ${recruiting ? 'on' : 'off'}.`,
-            values: { registrationMode: 'existing' }
-        });
+        req.session.activeTeamId = String(savedTeam._id);
+        return res.redirect('/my-team?success=team_saved');
     } catch (err) {
         console.error('Team registration failed:', err);
         if (err && err.code === 11000) {
@@ -2877,7 +2881,9 @@ router.post('/team-register', requireAccountForTeamRegister, async function(req,
         }
         res.render('pages/team-register', { error: 'Unable to verify and save the team right now.', message: null, values });
     }
-});
+}
+
+router.post('/team-register', requireAccountForTeamRegister, saveRegisteredTeam);
 
 router.get('/stats', ensureAuthenticated, async function(req, res) {
     try {
@@ -3161,6 +3167,8 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             successMessage = 'Manager role removed successfully.';
         } else if (querySuccess === 'left_team') {
             successMessage = 'You left the team successfully.';
+        } else if (querySuccess === 'team_saved') {
+            successMessage = 'Team verified and saved successfully.';
         } else if (querySuccess === 'pending_invitations_cleared') {
             successMessage = 'Pending invitations cleared successfully.';
         } else if (querySuccess === 'team_verified') {
@@ -4252,8 +4260,10 @@ router.get('/my-team', ensureAuthenticated, async function(req, res) {
         if (!isDatabaseConnected()) return res.redirect('/manage-team');
 
         const selectedTeamId = String(req.query.team || req.session.activeTeamId || '').trim();
-        const query = selectedTeamId ? `?team=${encodeURIComponent(selectedTeamId)}` : '';
-        return res.redirect(`/manage-team${query}`);
+        const params = new URLSearchParams();
+        if (selectedTeamId) params.set('team', selectedTeamId);
+        if (req.query.success) params.set('success', String(req.query.success));
+        return res.redirect(`/manage-team${params.toString() ? `?${params.toString()}` : ''}`);
     } catch (err) {
         res.redirect('/manage-team');
     }
@@ -5182,6 +5192,7 @@ module.exports.__test = {
     teamEmailCodeMatches,
     teamEmailProofMatches,
     validateTeamEmailRegistration,
+    buildVerifiedTeamRegistrationValues,
     geocodeAddress,
     verifySubmittedTeamDetails,
     verifyTeamWithApi

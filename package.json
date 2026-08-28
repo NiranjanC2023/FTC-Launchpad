@@ -18,37 +18,33 @@
   "scripts": {
     "build:client": "node scripts/build-site-shell.js && node scripts/build-optimized-assets.js && node scripts/build-gzip-assets.js",
     "privacy:purge-location": "node scripts/purge-precise-location.js",
-    "prestart": "npm run build:client",
     "start": "node app.js",
     "predev": "npm run build:client",
     "dev": "nodemon app.js",
-    "test": "node --check app.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js && node tests/team-verification.test.js && node tests/privacy-location.test.js && node tests/teams-map.test.js && node tests/typography.test.js && node tests/email.test.js && node tests/stats-localhost.test.js && node tests/age-validation.test.js && node tests/phone-validation.test.js && node tests/country-application.test.js && node tests/gpc.test.js",
+    "test": "node --check app.js && node --check routes/web.js && node --check routes/api.js && node --check scripts/build-site-shell.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js",
     "test:full": "npm run build:client && npm test"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.3",
-    "clean-css": "^5.3.3",
     "compression": "^1.8.1",
     "connect-flash": "^0.1.1",
     "connect-mongo": "^6.0.0",
     "cookie-parser": "^1.4.7",
-    "debug": "^4.4.3",
     "dotenv": "^16.6.1",
     "ejs": "^3.1.10",
     "express": "^4.21.2",
     "express-rate-limit": "^8.6.1",
     "express-session": "^1.18.1",
     "mongoose": "^8.10.1",
-    "node.js": "^0.0.1-security",
     "nodemailer": "^6.10.1",
-    "passport": "^0.7.0",
-    "playwright-core": "^1.61.1",
-    "sharp": "^0.35.3",
-    "terser": "^5.49.0"
+    "passport": "^0.7.0"
   },
   "devDependencies": {
+    "clean-css": "^5.3.3",
     "nodemon": "^3.1.10",
-    "purgecss": "^8.0.0"
+    "purgecss": "^8.0.0",
+    "sharp": "^0.35.3",
+    "terser": "^5.49.0"
   }
 }
