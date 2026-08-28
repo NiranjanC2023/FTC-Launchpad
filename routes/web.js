@@ -812,6 +812,7 @@ function validateTeamEmailRegistration(values = {}) {
     return '';
 }
 
+
 async function fetchDashboardTeamWithPublicEmail(program, teamNumber) {
     const expectedProgram = normalizeProgram(program);
     const expectedTeamNumber = parsePositiveTeamNumber(teamNumber);
