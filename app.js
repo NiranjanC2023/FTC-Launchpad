@@ -38,8 +38,8 @@ const GZIP_CONTENT_TYPES = {
     ".xml": "application/xml; charset=utf-8"
 };
 
-const MAIN_CSS_VERSION = "36";
-const MAIN_JS_VERSION = "45";
+const MAIN_CSS_VERSION = "37";
+const MAIN_JS_VERSION = "46";
 const HOME_JS_VERSION = "13";
 const SITE_SHELL_JS_VERSION = "4";
 const BOOTSTRAP_STYLESHEET = '<link rel="stylesheet" href="/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6">';

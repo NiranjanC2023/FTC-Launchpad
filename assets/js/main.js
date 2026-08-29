@@ -864,8 +864,13 @@ function getTeamRecruitingLabel(team) {
       <div class="team-card-head">
         <div class="team-card-heading">
           <h3 class="team-card-title">${escapeHTML(teamName)}</h3>
-          <span class="team-card-label${isNewTeam ? ' team-card-label--new-team' : ''}${isRecruiting ? '' : ' team-card-label--not-recruiting'}">${escapeHTML(teamNumber)}${regionLabel ? ` · ${escapeHTML(regionLabel)}` : ''}${isNewTeam ? ' · new team' : (team.verified ? ' · verified' : '')}${isRecruiting ? '' : ' · not recruiting'}</span>
-          <span class="team-card-status-pill${isRecruiting ? ' team-card-status-pill--recruiting' : ' team-card-status-pill--not-recruiting'}">${escapeHTML(getTeamRecruitingLabel(team))}</span>
+          <span class="team-card-label${isRecruiting ? '' : ' team-card-label--not-recruiting'}">${escapeHTML(teamNumber)}${regionLabel ? ` · ${escapeHTML(regionLabel)}` : ''}</span>
+          <span class="team-card-status-row">
+            <span class="team-card-status-pill${isRecruiting ? ' team-card-status-pill--recruiting' : ' team-card-status-pill--not-recruiting'}"><i class="fa-solid ${isRecruiting ? 'fa-people-group' : 'fa-ban'}" aria-hidden="true"></i>${escapeHTML(getTeamRecruitingLabel(team))}</span>
+            ${isNewTeam
+              ? '<span class="team-card-status-pill team-card-status-pill--new-team"><i class="fa-solid fa-seedling" aria-hidden="true"></i>New team</span>'
+              : (team.verified ? '<span class="team-card-status-pill team-card-status-pill--verified"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>Verified</span>' : '')}
+          </span>
         </div>
         <div class="team-card-toolbar">
           <button class="btn btn-link goto-marker team-card-icon-button" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-map-pin"></i></button>

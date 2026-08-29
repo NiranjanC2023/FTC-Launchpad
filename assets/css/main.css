@@ -2279,6 +2279,14 @@ h3 {
   line-height: 1.45;
 }
 
+.registration-site-notice {
+  max-width: 690px;
+  margin: -18px 0 30px;
+  color: #c2410c;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
 .form-grid label {
   color: var(--text-primary);
   font-weight: 800;
@@ -2681,7 +2689,7 @@ textarea.form-control {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-top: 8px;
+  gap: 5px;
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 0.72rem;
@@ -2689,6 +2697,13 @@ textarea.form-control {
   letter-spacing: 0.08em;
   line-height: 1.2;
   text-transform: uppercase;
+}
+
+.team-card-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
 }
 
 .team-card-status-pill--recruiting {
@@ -2699,6 +2714,16 @@ textarea.form-control {
 .team-card-status-pill--not-recruiting {
   background: rgba(107, 114, 128, 0.12);
   color: #4b5563;
+}
+
+.team-card-status-pill--verified {
+  background: rgba(37, 99, 235, 0.11);
+  color: #1d4ed8;
+}
+
+.team-card-status-pill--new-team {
+  background: rgba(194, 65, 12, 0.11);
+  color: #9a3412;
 }
 
 .team-card-status-pill--not-registered {
