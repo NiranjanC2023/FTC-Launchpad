@@ -806,10 +806,6 @@ function validateTeamEmailRegistration(values = {}) {
         return 'Enter a valid contact email before requesting a verification code.';
     }
     if (!isUsableTeamAddress(values.address)) return 'Enter a complete team address before requesting a verification code.';
-    if (normalizeProgram(values.program) === 'FLL Challenge'
-        && (!String(values.city || '').trim() || !isValidCountryRegion(values.country, values.state))) {
-        return 'Enter a city, country, and matching state, province, or region before verifying a FIRST LEGO League Challenge team.';
-    }
     return '';
 }
 
@@ -867,7 +863,31 @@ async function fetchDashboardTeamWithPublicEmail(program, teamNumber) {
         if (emailDifference) return emailDifference;
         return Number(right.profile_year || 0) - Number(left.profile_year || 0);
     });
-    return exactMatches[0] || null;
+    if (!exactMatches.length) return null;
+    const profileYears = new Set(exactMatches
+        .map(team => Number(team.profile_year || 0))
+        .filter(year => Number.isInteger(year) && year > 0));
+    return {
+        ...exactMatches[0],
+        dashboardYearsInProgram: profileYears.size || null
+    };
+}
+
+function getDashboardTeamProfile(record) {
+    if (!record) return null;
+    const name = String(record.team_nickname || record.team_name_calc || record.team_name || '').trim();
+    const city = String(record.team_city || '').trim();
+    const state = String(record.team_stateprov || record.team_state || '').trim();
+    const country = String(record.team_country || '').trim();
+    if (!name || !city || !state || !country) return null;
+    const yearsInProgram = Number(record.dashboardYearsInProgram);
+    return {
+        name,
+        city,
+        state,
+        country,
+        yearsInProgram: Number.isInteger(yearsInProgram) && yearsInProgram > 0 ? yearsInProgram : null
+    };
 }
 
 async function fetchDashboardTeamDirectoryPage(programConfig, profileYear, offset = 0) {
@@ -2286,12 +2306,25 @@ router.post('/team-register/email-verification', requireAccountForTeamRegister, 
                 showPublicEmailTutorial: true
             });
         }
+        const dashboardProfile = program === 'FLL Challenge' ? getDashboardTeamProfile(dashboardTeam) : null;
+        if (program === 'FLL Challenge' && !dashboardProfile) {
+            return res.render('pages/team-register', {
+                error: 'This FIRST Dashboard record is missing a team name or complete location.',
+                message: null,
+                values
+            });
+        }
         const verification = buildPendingTeamEmailVerification({
             kind: 'registration',
             program,
             teamNumber,
             publicEmail,
-            values: { ...values, program, teamNumber: String(teamNumber) }
+            values: {
+                ...values,
+                ...(dashboardProfile || {}),
+                program,
+                teamNumber: String(teamNumber)
+            }
         });
         await sendTeamVerificationEmail({ to: publicEmail, code: verification.code, program, teamNumber });
         req.session.pendingTeamEmailVerification = verification.pending;
@@ -2684,6 +2717,19 @@ async function saveRegisteredTeam(req, res) {
         const isNewTeam = registrationMode === 'new';
         const isFllProgram = program === 'FLL Challenge';
         const isOfficialTeam = !isNewTeam && !isFllProgram;
+        let dashboardProfile = null;
+        if (isFllProgram) {
+            const dashboardTeam = await fetchDashboardTeamWithPublicEmail(program, values.teamNumber);
+            dashboardProfile = getDashboardTeamProfile(dashboardTeam);
+            if (!dashboardProfile) {
+                return res.render('pages/team-register', {
+                    error: 'We could not load a complete team profile from the FIRST Dashboard.',
+                    message: null,
+                    values
+                });
+            }
+            Object.assign(values, dashboardProfile);
+        }
         if ((isNewTeam || isFllProgram) && !isValidCountryRegion(values.country, values.state)) {
             return res.render('pages/team-register', {
                 error: 'Choose a state, province, or region that belongs to the selected country.',
@@ -2744,11 +2790,14 @@ async function saveRegisteredTeam(req, res) {
         }
 
         const official = verification.team;
-        const officialLocation = isOfficialTeam ? extractTeamLocation(verification.details || verification.team || verification) : {};
+        const officialLocation = isOfficialTeam
+            ? extractTeamLocation(verification.details || verification.team || verification)
+            : (dashboardProfile || {});
+        const usesDashboardLocation = isOfficialTeam || isFllProgram;
         const apiTeamDetails = isOfficialTeam && shouldUseTeamApi(program, teamNumber)
             ? (verification.details || await fetchTeamDetailsViaApi(program, teamNumber).catch(() => null))
             : null;
-        const geocodedAddress = await geocodeAddress(isOfficialTeam ? {
+        const geocodedAddress = await geocodeAddress(usesDashboardLocation ? {
             address: values.address,
             city: officialLocation.city,
             state: officialLocation.state,
@@ -2769,7 +2818,7 @@ async function saveRegisteredTeam(req, res) {
             });
         }
 
-        if (isOfficialTeam && !locationMatchesOfficialRecord(geocodedAddress, officialLocation)) {
+        if (usesDashboardLocation && !locationMatchesOfficialRecord(geocodedAddress, officialLocation)) {
             return res.render('pages/team-register', {
                 error: 'Team is unable to be verified.',
                 message: null,
@@ -2778,10 +2827,10 @@ async function saveRegisteredTeam(req, res) {
         }
 
         const coords = geocodedAddress;
-        const resolvedCity = isOfficialTeam ? String(officialLocation.city || geocodedAddress.city || '').trim() : String(values.city || '').trim();
-        const resolvedState = isOfficialTeam ? String(officialLocation.state || geocodedAddress.state || '').trim() : String(values.state || '').trim();
-        const resolvedCountry = isOfficialTeam ? String(officialLocation.country || geocodedAddress.country || '').trim() : String(values.country || '').trim();
-        const hasLocation = Boolean(values.address && (isOfficialTeam ? geocodedAddress : [resolvedCity, resolvedState, resolvedCountry].some(value => (value || '').trim())));
+        const resolvedCity = usesDashboardLocation ? String(officialLocation.city || geocodedAddress.city || '').trim() : String(values.city || '').trim();
+        const resolvedState = usesDashboardLocation ? String(officialLocation.state || geocodedAddress.state || '').trim() : String(values.state || '').trim();
+        const resolvedCountry = usesDashboardLocation ? String(officialLocation.country || geocodedAddress.country || '').trim() : String(values.country || '').trim();
+        const hasLocation = Boolean(values.address && (usesDashboardLocation ? geocodedAddress : [resolvedCity, resolvedState, resolvedCountry].some(value => (value || '').trim())));
 
         if ((!isNewTeam && !teamNumber) || !values.name || !contact || !hasLocation || (isNewTeam && !values.country)) {
             return res.render('pages/team-register', {
@@ -2795,8 +2844,10 @@ async function saveRegisteredTeam(req, res) {
             });
         }
 
-        const officialName = isNewTeam || isFllProgram
+        const officialName = isNewTeam
             ? String(values.name || '').trim()
+            : isFllProgram
+                ? dashboardProfile.name
             : (verification.officialName
                 || extractTeamDisplayName(official)
                 || (official && (official.team_nickname || official.team_name_calc || official.team_name))
@@ -2805,8 +2856,7 @@ async function saveRegisteredTeam(req, res) {
             ? getTeamOrganizationFromApiProfile(apiTeamDetails && apiTeamDetails.profile ? apiTeamDetails.profile : official)
             : '';
         const recruiting = values.recruiting === 'on';
-        const allowFllExtras = program === 'FLL Challenge';
-        const canUseTeamApiAwards = program === 'FTC' || program === 'FRC' || allowFllExtras;
+        const canUseTeamApiAwards = program === 'FTC' || program === 'FRC';
         if (isOfficialTeam && !resolvedCountry) {
             return res.render('pages/team-register', {
                 error: 'We could not determine the team country from the API. Please enter it manually and try again.',
@@ -2878,7 +2928,7 @@ async function saveRegisteredTeam(req, res) {
             awardHistory: apiTeamDetails && apiTeamDetails.awardHistory ? sortHistoryEntriesMostRecent(apiTeamDetails.awardHistory) : [],
             yearsInProgram: apiTeamDetails && apiTeamDetails.yearsInProgram !== null
                 ? apiTeamDetails.yearsInProgram
-                : (allowFllExtras ? toNumber(values.yearsInProgram) : null),
+                : (isFllProgram ? dashboardProfile.yearsInProgram : null),
             advancementLevels: apiTeamDetails && apiTeamDetails.advancementLevels ? apiTeamDetails.advancementLevels : [],
             advancementHistory: apiTeamDetails && apiTeamDetails.advancementHistory ? sortHistoryEntriesMostRecent(apiTeamDetails.advancementHistory) : [],
             recruiting,

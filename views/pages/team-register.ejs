@@ -47,7 +47,7 @@
       <form method="POST" action="/team-register" class="form-grid" data-team-register-form>
         <% const selectedMode = values.registrationMode || 'existing'; %>
         <% const selectedProgram = values.program || 'FTC'; %>
-        <% const showRegistrationExtras = selectedMode !== 'new' && selectedProgram === 'FLL Challenge'; %>
+        <% const showRegistrationExtras = false; %>
 
         <div class="registration-choice form-grid-full">
           <p class="registration-choice-question">Choose how you want to register</p>
@@ -94,11 +94,8 @@
 
         <label for="address">Address</label>
         <input id="address" name="address" required placeholder="Street address, meeting area, or landmark" value="<%= values.address || '' %>" />
-        <% if (!(selectedMode !== 'new' && (selectedProgram === 'FTC' || selectedProgram === 'FRC'))) { %>
-          <small class="text-muted form-note form-grid-full">For team privacy, the map marker is offset from the exact address and shown inside a 1000 meter bubble.</small>
-        <% } %>
 
-        <% const showLocationFields = selectedMode === 'new' || selectedProgram === 'FLL Challenge'; %>
+        <% const showLocationFields = selectedMode === 'new'; %>
         <div class="registration-location-grid form-grid-full <%= showLocationFields ? '' : 'registration-hidden' %>" data-team-location-fields>
           <label for="city">City</label>
           <input id="city" name="city" required value="<%= values.city || '' %>" />
@@ -179,8 +176,8 @@
         const isNew = selected && selected.value === 'new';
         const programValue = String(form.querySelector('#program')?.value || '').trim();
         const isOfficial = !isNew && (programValue === 'FTC' || programValue === 'FRC');
-        const showExtras = !isNew && programValue === 'FLL Challenge';
-        const showLocation = !isOfficial;
+        const showExtras = false;
+        const showLocation = isNew;
 
         if (teamNumberField) teamNumberField.classList.toggle('registration-hidden', isNew);
         if (teamNumberInput) {

@@ -36,7 +36,7 @@ const COMPRESSED_CONTENT_TYPES = {
     ".xml": "application/xml; charset=utf-8"
 };
 
-const MAIN_CSS_VERSION = "52";
+const MAIN_CSS_VERSION = "53";
 const MAIN_JS_VERSION = "73";
 const HOME_CSS_VERSION = "2";
 const HOME_JS_VERSION = "13";
