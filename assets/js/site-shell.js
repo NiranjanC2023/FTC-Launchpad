@@ -246,11 +246,13 @@ function normalizeCountryName(value) {
 
 function getCountryApplicationState(team) {
   const user = getCurrentUser();
-  if (!user) return { needsCountry: false, outsideCountry: false };
+  if (!user) return { hasTeam: false, needsCountry: false, needsRegion: false, outsideCountry: false };
   const userCountry = normalizeCountryName(user.country);
   const teamCountry = normalizeCountryName(team && team.country);
   return {
+    hasTeam: Boolean(user.hasTeam),
     needsCountry: !userCountry,
+    needsRegion: Boolean(userCountry && !String(user.state || '').trim()),
     outsideCountry: Boolean(userCountry && (!teamCountry || userCountry !== teamCountry))
   };
 }

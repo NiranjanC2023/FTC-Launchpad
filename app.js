@@ -20,16 +20,13 @@ var setUpPassport = require("./setuppassport");
 var Team = require("./models/team");
 var hasGlobalPrivacyControl = require("./lib/gpc").hasGlobalPrivacyControl;
 var countryHelpers = require("./lib/country");
+var countryRegionHelpers = require("./lib/country-regions");
 //var routes = require("./routes");
 
 var app = express();
 
 const ASSETS_ROOT = path.join(__dirname, "assets");
-const HOME_STYLESHEET_PATH = path.join(ASSETS_ROOT, "css", "home.min.css");
-const HOME_STYLESHEET = fs.existsSync(HOME_STYLESHEET_PATH)
-    ? fs.readFileSync(HOME_STYLESHEET_PATH, "utf8")
-    : "";
-const GZIP_CONTENT_TYPES = {
+const COMPRESSED_CONTENT_TYPES = {
     ".css": "text/css; charset=utf-8",
     ".html": "text/html; charset=utf-8",
     ".js": "application/javascript; charset=utf-8",
@@ -39,8 +36,9 @@ const GZIP_CONTENT_TYPES = {
     ".xml": "application/xml; charset=utf-8"
 };
 
-const MAIN_CSS_VERSION = "37";
-const MAIN_JS_VERSION = "49";
+const MAIN_CSS_VERSION = "52";
+const MAIN_JS_VERSION = "73";
+const HOME_CSS_VERSION = "2";
 const HOME_JS_VERSION = "13";
 const SITE_SHELL_JS_VERSION = "4";
 const BOOTSTRAP_STYLESHEET = '<link rel="stylesheet" href="/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6">';
@@ -87,16 +85,13 @@ function formatAwardHistoryDisplayEntry(entry) {
     });
 }
 
-function acceptsGzip(req) {
-    return req.acceptsEncodings("gzip") === "gzip";
-}
-
 function servePrecompressedAsset(req, res, next) {
     if (req.method !== "GET" && req.method !== "HEAD") return next();
-    if (!acceptsGzip(req)) return next();
+    const encoding = req.acceptsEncodings("br", "gzip");
+    if (encoding !== "br" && encoding !== "gzip") return next();
 
     const extension = path.extname(req.path).toLowerCase();
-    const contentType = GZIP_CONTENT_TYPES[extension];
+    const contentType = COMPRESSED_CONTENT_TYPES[extension];
     if (!contentType) return next();
 
     let decodedPath;
@@ -110,14 +105,14 @@ function servePrecompressedAsset(req, res, next) {
     const relativePath = path.relative(ASSETS_ROOT, assetPath);
     if (relativePath.startsWith(".." + path.sep) || path.isAbsolute(relativePath)) return next();
 
-    const gzipPath = assetPath + ".gz";
-    fs.stat(gzipPath, function(error, stats) {
+    const compressedPath = assetPath + (encoding === "br" ? ".br" : ".gz");
+    fs.stat(compressedPath, function(error, stats) {
         if (error || !stats.isFile()) return next();
 
-        res.set("Content-Encoding", "gzip");
+        res.set("Content-Encoding", encoding);
         res.set("Content-Type", contentType);
         res.set("Vary", "Accept-Encoding");
-        res.sendFile(gzipPath, {
+        res.sendFile(compressedPath, {
             acceptRanges: false,
             immutable: true,
             maxAge: "1y"
@@ -133,6 +128,19 @@ app.set("view cache", process.env.NODE_ENV === "production");
 app.disable("x-powered-by");
 if (process.env.NODE_ENV === "production") app.set("trust proxy", 1);
 
+const perimeterLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 1200,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    ipv6Subnet: 56,
+    message: "Too many requests. Please try again shortly.",
+    handler: function(req, res, next, options) {
+        res.set({ "Retry-After": "60", "Connection": "close" });
+        return res.status(options.statusCode || 429).type("text/plain").send(options.message);
+    }
+});
+app.use(perimeterLimiter);
 app.use(compression());
 
 app.use(function setSecurityHeaders(req, res, next) {
@@ -141,11 +149,13 @@ app.use(function setSecurityHeaders(req, res, next) {
     res.set({
         "Content-Security-Policy": [
             "default-src 'self'",
-            `script-src 'self' 'nonce-${nonce}'`,
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com",
-            "font-src 'self' data:",
-            "connect-src 'self' https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com",
+            `script-src 'self' 'nonce-${nonce}' blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com`,
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.googleapis.com https://*.gstatic.com",
+            "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com",
+            "font-src 'self' data: https://fonts.gstatic.com",
+            "connect-src 'self' data: blob: https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com",
+            "worker-src 'self' blob:",
+            "frame-src https://*.google.com",
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self' https://accorid.com",
@@ -164,6 +174,13 @@ app.use(function setSecurityHeaders(req, res, next) {
 app.use(function recognizeGlobalPrivacyControl(req, res, next) {
     req.globalPrivacyControl = hasGlobalPrivacyControl(req.get("Sec-GPC"));
     res.locals.globalPrivacyControl = req.globalPrivacyControl;
+    next();
+});
+
+app.use(function preloadHomepageStyles(req, res, next) {
+    if ((req.method === "GET" || req.method === "HEAD") && req.path === "/") {
+        res.set("Link", `</assets/css/home.min.css?v=${HOME_CSS_VERSION}>; rel=preload; as=style`);
+    }
     next();
 });
 
@@ -218,6 +235,9 @@ app.set("view engine", "ejs");
 app.locals.formatAwardHistoryDisplayEntry = formatAwardHistoryDisplayEntry;
 app.locals.unitedNationsCountries = countryHelpers.UNITED_NATIONS_COUNTRIES;
 app.locals.countriesMatch = countryHelpers.countriesMatch;
+app.locals.countryRegionsFor = countryRegionHelpers.getCountryRegions;
+app.locals.canonicalizeCountryRegion = countryRegionHelpers.canonicalizeCountryRegion;
+app.locals.googleMapsApiKey = String(process.env.GOOGLE_MAPS_API_KEY || '').trim();
 
 const sharedHeaderHtml = fs.readFileSync(path.join(__dirname, "assets", "partial", "header.html"), "utf8");
 const sharedFooterHtml = fs.readFileSync(path.join(__dirname, "assets", "partial", "footer.html"), "utf8");
@@ -248,21 +268,16 @@ app.engine("ejs", function(filePath, data, callback) {
 
             if (/\bhome-page\b/.test(html)) {
                 html = html
-                    .replace(/\/assets\/css\/main\.min\.css(?:\?v=\d+)?/g, '/assets/css/home.min.css?v=1')
+                    .replace(/\/assets\/css\/main\.min\.css(?:\?v=\d+)?/g, `/assets/css/home.min.css?v=${HOME_CSS_VERSION}`)
                     .replace(/\s*<link[^>]+href=["']\/assets\/css\/first-start\.css(?:\?v=\d+)?["'][^>]*>/gi, '');
-                if (HOME_STYLESHEET) {
-                    html = html.replace(
-                        /<link[^>]+href=["']\/assets\/css\/home\.min\.css(?:\?v=\d+)?["'][^>]*>/i,
-                        `<style data-home-styles="3">${HOME_STYLESHEET}</style>`
-                    );
-                    html = html.replace(
-                        /(<style data-home-styles="3">[\s\S]*?<\/style>)/i,
-                        `$1<style data-home-header-tweak="1">@media (max-width: 1120px) {.home-page .creator-badge { display: none !important; }}</style>`
-                    );
-                }
             }
 
-            const needsFullClientBundle = /\bid=["']teamsContainer["']/.test(html);
+            // Pages with dependent country/region fields need the full client
+            // bundle; the lightweight shell does not initialize their change
+            // handlers or hydrate the region options.
+            const needsFullClientBundle = /\bid=["']teamsContainer["']/.test(html)
+                || /data-country-select/.test(html)
+                || /data-region-select/.test(html);
             if (!needsFullClientBundle) {
                 html = html.replace(
                     /\/assets\/js\/main(?:\.min)?\.js(?:\?v=\d+)?/g,
@@ -312,8 +327,129 @@ mongoose.connect(params.DATABASECONNECTION, {
 
 setUpPassport();
 
-app.use(bodyParser.urlencoded({extended:false, limit:'512kb'}));
-app.use(express.json({ limit: '512kb' }));
+const MAX_REQUEST_BODY_BYTES = 512 * 1024;
+const MAX_REQUEST_URL_LENGTH = 4096;
+const activeRequestsByIp = new Map();
+let activeDynamicRequests = 0;
+
+function rateLimitResponse(req, res, next, options) {
+    const statusCode = options.statusCode || 429;
+    res.set("Retry-After", String(Math.ceil(options.windowMs / 1000)));
+    if (req.path.startsWith("/api/")) {
+        return res.status(statusCode).json({ ok: false, error: options.message });
+    }
+    return res.status(statusCode).type("text/plain").send(options.message);
+}
+
+app.use(function rejectOversizedRequests(req, res, next) {
+    if (req.originalUrl.length > MAX_REQUEST_URL_LENGTH) {
+        return res.status(414).type("text/plain").send("Request URL is too long.");
+    }
+
+    const contentLengthHeader = req.get("Content-Length");
+    if (contentLengthHeader) {
+        const contentLength = Number(contentLengthHeader);
+        if (!Number.isSafeInteger(contentLength) || contentLength < 0) {
+            return res.status(400).type("text/plain").send("Invalid Content-Length header.");
+        }
+        if (contentLength > MAX_REQUEST_BODY_BYTES) {
+            return res.status(413).type("text/plain").send("Request body is too large.");
+        }
+    }
+    next();
+});
+
+app.use(function shedExcessLoad(req, res, next) {
+    const requestIp = req.ip || req.socket.remoteAddress || "unknown";
+    const activeForIp = activeRequestsByIp.get(requestIp) || 0;
+    const maxGlobal = Number(process.env.MAX_CONCURRENT_REQUESTS) || 200;
+    const maxPerIp = Number(process.env.MAX_CONCURRENT_REQUESTS_PER_IP) || 24;
+
+    if (activeDynamicRequests >= maxGlobal || activeForIp >= maxPerIp) {
+        res.set({ "Retry-After": "5", "Connection": "close" });
+        return res.status(503).type("text/plain").send("Server is busy. Please try again shortly.");
+    }
+
+    activeDynamicRequests += 1;
+    activeRequestsByIp.set(requestIp, activeForIp + 1);
+    let released = false;
+    const release = function() {
+        if (released) return;
+        released = true;
+        activeDynamicRequests = Math.max(0, activeDynamicRequests - 1);
+        const remainingForIp = (activeRequestsByIp.get(requestIp) || 1) - 1;
+        if (remainingForIp <= 0) activeRequestsByIp.delete(requestIp);
+        else activeRequestsByIp.set(requestIp, remainingForIp);
+    };
+    res.once("finish", release);
+    res.once("close", release);
+    next();
+});
+
+const dynamicRequestLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    limit: 600,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    ipv6Subnet: 56,
+    message: "Too many requests. Please try again shortly.",
+    handler: rateLimitResponse
+});
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 300,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    ipv6Subnet: 56,
+    message: "Too many API requests. Please try again later.",
+    handler: rateLimitResponse
+});
+const writeLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 80,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    ipv6Subnet: 56,
+    skip: function(req) { return !["POST", "PUT", "PATCH", "DELETE"].includes(req.method); },
+    message: "Too many changes were submitted. Please wait and try again.",
+    handler: rateLimitResponse
+});
+const authenticationLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    ipv6Subnet: 56,
+    message: "Too many attempts. Please wait and try again.",
+    handler: rateLimitResponse
+});
+const geocodingLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    ipv6Subnet: 56,
+    message: "Too many location searches. Please wait and try again.",
+    handler: rateLimitResponse
+});
+
+app.use(dynamicRequestLimiter);
+app.use(writeLimiter);
+app.use("/api", apiLimiter);
+app.use([
+    "/api/users/login",
+    "/api/users/signup",
+    "/login",
+    "/signup",
+    "/forgot-password",
+    "/reset-password",
+    "/team-register/email-verification",
+    "/manage-team/email-verification"
+], authenticationLimiter);
+app.use(["/api/geocode-zip", "/api/geocode-location"], geocodingLimiter);
+
+app.use(bodyParser.urlencoded({ extended: false, limit: "512kb", parameterLimit: 100 }));
+app.use(express.json({ limit: "512kb", strict: true }));
 app.use(cookieParser());
 const isProduction = process.env.NODE_ENV === "production";
 const sessionSecret = process.env.SESSION_SECRET || (!isProduction ? crypto.randomBytes(32).toString("hex") : "");
@@ -361,39 +497,6 @@ app.use(function blockCrossSiteWrites(req, res, next) {
     next();
 });
 
-const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 300,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: { ok: false, error: "Too many requests. Please try again later." }
-});
-const authenticationLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 20,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: { ok: false, error: "Too many attempts. Please wait and try again." }
-});
-const geocodingLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 30,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: { ok: false, error: "Too many location searches. Please wait and try again." }
-});
-app.use("/api", apiLimiter);
-app.use([
-    "/api/users/login",
-    "/api/users/signup",
-    "/login",
-    "/signup",
-    "/forgot-password",
-    "/reset-password",
-    "/team-register/email-verification",
-    "/manage-team/email-verification"
-], authenticationLimiter);
-app.use(["/api/geocode-zip", "/api/geocode-location"], geocodingLimiter);
 app.use("/api", function preventPrivateApiCaching(req, res, next) {
     res.set("Cache-Control", "no-store");
     res.set("Pragma", "no-cache");
@@ -417,6 +520,15 @@ const host = app.get("host");
 const server = app.listen(port, host, function(){
     console.log(`Server started at http://${host}:${port}`);
 });
+
+// Bound slow or abusive connections so they cannot hold server resources
+// indefinitely. Keep headersTimeout lower than requestTimeout as required by
+// Node's HTTP server.
+server.headersTimeout = 10 * 1000;
+server.requestTimeout = 30 * 1000;
+server.keepAliveTimeout = 5 * 1000;
+server.maxHeadersCount = 100;
+server.maxRequestsPerSocket = 100;
 
 server.on("error", function(err){
     if (err && err.code === "EADDRINUSE") {

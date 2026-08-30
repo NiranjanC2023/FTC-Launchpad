@@ -18,10 +18,11 @@
   "scripts": {
     "build:client": "node scripts/build-site-shell.js && node scripts/build-optimized-assets.js && node scripts/build-gzip-assets.js",
     "privacy:purge-location": "node scripts/purge-precise-location.js",
+    "locations:refresh-teams": "node scripts/restore-team-precise-coordinates.js",
     "start": "node app.js",
     "predev": "npm run build:client",
     "dev": "nodemon app.js",
-    "test": "node --check app.js && node --check routes/web.js && node --check routes/api.js && node --check scripts/build-site-shell.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js",
+    "test": "node --check app.js && node --check routes/web.js && node --check routes/api.js && node --check scripts/build-site-shell.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js && node --check scripts/restore-team-precise-coordinates.js && node tests/country-regions.test.js",
     "test:full": "npm run build:client && npm test"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
     "connect-flash": "^0.1.1",
     "connect-mongo": "^6.0.0",
     "cookie-parser": "^1.4.7",
+    "country-region-data": "^3.0.0",
     "dotenv": "^16.6.1",
     "ejs": "^3.1.10",
     "express": "^4.21.2",

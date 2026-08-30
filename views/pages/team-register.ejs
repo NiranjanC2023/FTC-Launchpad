@@ -103,14 +103,19 @@
           <label for="city">City</label>
           <input id="city" name="city" required value="<%= values.city || '' %>" />
 
-          <label for="state">State</label>
-          <input id="state" name="state" value="<%= values.state || '' %>" />
-
           <label for="country">Country</label>
-          <select id="country" name="country" autocomplete="country-name" required>
+          <select id="country" name="country" autocomplete="country-name" data-country-select required>
             <option value="">Select a country</option>
             <% unitedNationsCountries.forEach(function(countryName) { %>
               <option value="<%= countryName %>" <%= countriesMatch(values.country, countryName) ? 'selected' : '' %>><%= countryName %></option>
+            <% }); %>
+          </select>
+
+          <label for="state">State, province, or region</label>
+          <select id="state" name="state" autocomplete="address-level1" data-region-select required>
+            <option value="">Select a state, province, or region</option>
+            <% countryRegionsFor(values.country).forEach(function(regionName) { %>
+              <option value="<%= regionName %>" <%= canonicalizeCountryRegion(values.country, values.state) === regionName ? 'selected' : '' %>><%= regionName %></option>
             <% }); %>
           </select>
         </div>
@@ -189,7 +194,7 @@
           const input = form.querySelector(`#${fieldName}`);
           if (!input) return;
           input.disabled = !showLocation;
-          input.required = showLocation && (fieldName === 'city' || fieldName === 'country');
+          input.required = showLocation && (fieldName === 'city' || fieldName === 'state' || fieldName === 'country');
           if (!showLocation) input.value = '';
         });
 

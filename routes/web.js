@@ -10,6 +10,7 @@ const Notification = require('../models/notification');
 const SiteVisit = require('../models/siteVisit');
 const { DEFAULT_FROM, sendTransactionalEmail, buildTransactionalEmailTemplate } = require('../lib/email');
 const { validatePhoneNumber } = require('../lib/phone');
+const { canonicalizeCountryRegion, isValidCountryRegion } = require('../lib/country-regions');
 const { isRecruitingTeam } = require('../lib/team-status');
 const { isDatabaseConnected, waitForDatabase } = require('../lib/database');
 const fs = require('fs');
@@ -334,11 +335,6 @@ function getSignupInfoBackTarget(back) {
     return 'account';
 }
 
-function getPendingApplicationTeamId(teamId) {
-    const value = String(teamId || '').trim();
-    return mongoose.Types.ObjectId.isValid(value) ? value : '';
-}
-
 function getSignupInfoBackUrl(backTarget) {
     if (backTarget === 'applications') return '/my-applications';
     if (backTarget === 'teams') return '/teams-nearby';
@@ -581,13 +577,6 @@ function parsePositiveTeamNumber(value) {
     return Number.isInteger(number) && number > 0 ? number : null;
 }
 
-function publicAreaCoords(lat, lon) {
-    return {
-        lat: Math.round(lat * 10) / 10,
-        lon: Math.round(lon * 10) / 10
-    };
-}
-
 var sortHistoryEntriesMostRecent = function(entries) {
     const seen = new Set();
     const normalized = Array.isArray(entries)
@@ -619,7 +608,7 @@ function mapTeam(team) {
     const lat = Number(team.lat);
     const lon = Number(team.lon);
     const displayCoords = Number.isFinite(lat) && Number.isFinite(lon)
-        ? publicAreaCoords(lat, lon)
+        ? { lat, lon }
         : { lat: null, lon: null };
 
     return {
@@ -640,7 +629,6 @@ function mapTeam(team) {
         advancementHistory: sortHistoryEntriesMostRecent(team.advancementHistory || []),
         recruiting: isRecruitingTeam(team),
         verified: team.verified,
-        radiusMeters: 10000,
         location
     };
 }
@@ -819,8 +807,8 @@ function validateTeamEmailRegistration(values = {}) {
     }
     if (!isUsableTeamAddress(values.address)) return 'Enter a complete team address before requesting a verification code.';
     if (normalizeProgram(values.program) === 'FLL Challenge'
-        && (!String(values.city || '').trim() || !String(values.country || '').trim())) {
-        return 'Enter the city and country before verifying a FIRST LEGO League Challenge team.';
+        && (!String(values.city || '').trim() || !isValidCountryRegion(values.country, values.state))) {
+        return 'Enter a city, country, and matching state, province, or region before verifying a FIRST LEGO League Challenge team.';
     }
     return '';
 }
@@ -1672,10 +1660,17 @@ function verifySubmittedTeamDetails(verification, submitted) {
 
     if (!official.name || !compareTeamNameToNumber(provided.name, official.name)) mismatches.push('team name');
     if (!official.city || normalizeTeamName(provided.city) !== normalizeTeamName(official.city)) mismatches.push('city');
-    if (official.state && normalizeRegion(provided.state) !== normalizeRegion(official.state)) mismatches.push('state/province');
+    if (official.state && !countryRegionsMatch(official.country, provided.state, official.state)) mismatches.push('state/province');
     if (!official.country || normalizeCountry(provided.country) !== normalizeCountry(official.country)) mismatches.push('country');
 
     return { ok: mismatches.length === 0, mismatches, official };
+}
+
+function countryRegionsMatch(country, left, right) {
+    const canonicalLeft = canonicalizeCountryRegion(country, left);
+    const canonicalRight = canonicalizeCountryRegion(country, right);
+    if (canonicalLeft && canonicalRight) return canonicalLeft === canonicalRight;
+    return normalizeRegion(left) === normalizeRegion(right);
 }
 
 function buildTeamRegistrationAddress(values, city, state, country) {
@@ -1730,13 +1725,13 @@ function extractTeamLocation(details) {
 function locationMatchesOfficialRecord(geocodedLocation, officialLocation) {
     const geocodedCity = normalizeTeamName(geocodedLocation && geocodedLocation.city || '');
     const officialCity = normalizeTeamName(officialLocation && officialLocation.city || '');
-    const geocodedState = normalizeRegion(geocodedLocation && geocodedLocation.state || '');
-    const officialState = normalizeRegion(officialLocation && officialLocation.state || '');
+    const geocodedState = String(geocodedLocation && geocodedLocation.state || '').trim();
+    const officialState = String(officialLocation && officialLocation.state || '').trim();
     const geocodedCountry = normalizeCountry(geocodedLocation && geocodedLocation.country || '');
     const officialCountry = normalizeCountry(officialLocation && officialLocation.country || '');
 
     if (!geocodedCity || !officialCity || geocodedCity !== officialCity) return false;
-    if (officialState && (!geocodedState || geocodedState !== officialState)) return false;
+    if (officialState && (!geocodedState || !countryRegionsMatch(officialLocation && officialLocation.country, geocodedState, officialState))) return false;
     if (officialCountry && (!geocodedCountry || geocodedCountry !== officialCountry)) return false;
     return true;
 }
@@ -1759,6 +1754,14 @@ function resolveBestCarouselImageFile(dir, fileName) {
     }
 
     return fileName;
+}
+
+const carouselAssetSizeCache = new Map();
+function cachedAssetSize(filePath) {
+    if (!carouselAssetSizeCache.has(filePath)) {
+        carouselAssetSizeCache.set(filePath, fs.existsSync(filePath) ? fs.statSync(filePath).size : null);
+    }
+    return carouselAssetSizeCache.get(filePath);
 }
 
 // Home page
@@ -1806,8 +1809,18 @@ router.get("/", async function(req, res){
                     srcset = `${src} 1x, ${hi} 2x`;
                 }
                 const responsiveAvifSources = [480, 640, 768, 960, 1280, 1600, 1920]
-                    .map(width => ({ width, fileName: `${base}.w${width}.avif` }))
-                    .filter(item => fs.existsSync(path.join(dir, item.fileName)))
+                    .map(width => ({
+                        width,
+                        fileName: `${base}.w${width}.avif`,
+                        webpFileName: `${base}.w${width}.webp`
+                    }))
+                    .filter(item => {
+                        const avifPath = path.join(dir, item.fileName);
+                        const webpPath = path.join(dir, item.webpFileName);
+                        const avifSize = cachedAssetSize(avifPath);
+                        const webpSize = cachedAssetSize(webpPath);
+                        return avifSize !== null && (webpSize === null || avifSize < webpSize);
+                    })
                     .map(item => `/assets/img/carousel/${encodeURIComponent(item.fileName)}?v=3 ${item.width}w`);
                 if (responsiveAvifSources.length) {
                     avifSrcset = responsiveAvifSources.join(', ');
@@ -1842,7 +1855,8 @@ router.get("/", async function(req, res){
                     league: team.program || 'FTC',
                     teamNumber: team.teamNumber,
                     name: team.name,
-                    ...publicAreaCoords(Number(team.lat), Number(team.lon)),
+                    lat: Number(team.lat),
+                    lon: Number(team.lon),
                     location: [team.city, team.state, team.country].filter(Boolean).join(', ') || 'Location not listed',
                     description: team.notes || (team.isNewTeam
                         ? 'A new team forming and looking for students nearby.'
@@ -1923,18 +1937,20 @@ router.get("/join-form", ensureAuthenticated, async function(req, res){
             return res.render("pages/join-form", { values: {} });
         }
 
-        const user = await User.findById(req.session.userId).select('name age country experience email phone interests').lean().exec();
+        const user = await User.findById(req.session.userId).select('name age country state experience email phone interests').lean().exec();
         if (!user) {
             return res.render("pages/join-form", { values: {} });
         }
 
         const studentProfile = user.email
-            ? await Student.findOne({ email: normalizeEmail(user.email) }).select('name age country experience email phone interests').lean().exec()
+            ? await Student.findOne({ email: normalizeEmail(user.email) }).select('name age country state experience email phone interests').lean().exec()
             : null;
 
         const values = {
             name: (studentProfile && studentProfile.name) || user.name || '',
             age: (studentProfile && studentProfile.age) || user.age || '',
+            country: (studentProfile && studentProfile.country) || user.country || '',
+            state: (studentProfile && studentProfile.state) || user.state || '',
             experience: (studentProfile && studentProfile.experience) || user.experience || '',
             email: (studentProfile && studentProfile.email) || user.email || '',
             phone: (studentProfile && studentProfile.phone) || user.phone || '',
@@ -2180,9 +2196,19 @@ router.get("/teams-nearby", async function(req, res){
         let studentApp = null;
         let currentUser = null;
         if (req.session && req.session.userId) {
-            currentUser = await User.findById(req.session.userId).select('name age country experience email phone interests').lean().exec();
+            currentUser = await User.findById(req.session.userId).select('name age country state experience email phone interests').lean().exec();
             if (currentUser && currentUser.email) {
-                const student = await Student.findOne({ email: normalizeEmail(currentUser.email) }).lean().exec();
+                const normalizedEmail = normalizeEmail(currentUser.email);
+                const [student, existingTeam] = await Promise.all([
+                    Student.findOne({ email: normalizedEmail }).lean().exec(),
+                    Team.findOne({
+                        $or: [
+                            { contact: normalizedEmail },
+                            { managers: currentUser._id }
+                        ]
+                    }).select('_id').lean().exec()
+                ]);
+                currentUser.hasTeam = Boolean(existingTeam);
                 if (student) {
                     studentApp = {
                         applicationStatus: student.applicationStatus || null,
@@ -2344,10 +2370,12 @@ router.post('/manage-team/email-verification', ensureAuthenticated, async functi
             notes: String(req.body.notes || '').trim(),
             recruiting: ['1', 'on', 'true'].includes(String(req.body.recruiting || '').toLowerCase())
         };
+        const canonicalState = canonicalizeCountryRegion(values.country, values.state);
+        if (canonicalState) values.state = canonicalState;
         req.session.teamUpgradeDraft = { teamId, values };
 
         const contactIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.contact);
-        if (!teamId || !teamNumber || !values.name || !contactIsValid || !isUsableTeamAddress(values.address) || !values.city || !values.country) {
+        if (!teamId || !teamNumber || !values.name || !contactIsValid || !isUsableTeamAddress(values.address) || !values.city || !isValidCountryRegion(values.country, values.state)) {
             return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=verification_invalid`);
         }
 
@@ -2656,6 +2684,14 @@ async function saveRegisteredTeam(req, res) {
         const isNewTeam = registrationMode === 'new';
         const isFllProgram = program === 'FLL Challenge';
         const isOfficialTeam = !isNewTeam && !isFllProgram;
+        if ((isNewTeam || isFllProgram) && !isValidCountryRegion(values.country, values.state)) {
+            return res.render('pages/team-register', {
+                error: 'Choose a state, province, or region that belongs to the selected country.',
+                message: null,
+                values
+            });
+        }
+        if (isNewTeam || isFllProgram) values.state = canonicalizeCountryRegion(values.country, values.state);
         if (!isUsableTeamAddress(values.address)) {
             return res.render('pages/team-register', {
                 error: 'Enter a complete team address, meeting location, or recognizable landmark.',
@@ -2833,8 +2869,8 @@ async function saveRegisteredTeam(req, res) {
             city: resolvedCity,
             state: resolvedState,
             country: resolvedCountry || (isNewTeam ? 'USA' : ''),
-            lat: Math.round(coords.lat * 10) / 10,
-            lon: Math.round(coords.lon * 10) / 10,
+            lat: coords.lat,
+            lon: coords.lon,
             notes: values.notes,
             awards: canUseTeamApiAwards
                 ? (apiTeamDetails && apiTeamDetails.awards ? apiTeamDetails.awards : values.awards)
@@ -3113,6 +3149,8 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             errorMessage = 'You do not have permission to invite managers for this team.';
         } else if (queryError === 'update_failed') {
             errorMessage = 'Failed to update team details.';
+        } else if (queryError === 'update_address') {
+            errorMessage = 'We could not find that address. Enter a complete street address and try again.';
         } else if (queryError === 'manager_invalid') {
             errorMessage = 'Selected member is not eligible to become a manager.';
         } else if (queryError === 'manager_remove_invalid') {
@@ -3455,21 +3493,16 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
         if (!user) return res.redirect('/logout');
 
         const { notes, recruiting } = req.body;
+        const address = String(req.body.address || '').trim();
         
         // Ensure the user actually has management access on this team
-        const team = await Team.findOneAndUpdate(
+        const team = await Team.findOne(
             {
                 $or: [
                     { contact: buildContactEmailQuery(user.email) },
                     { managers: user._id }
                 ]
-            },
-            { 
-                notes: notes,
-                recruiting: recruiting === 'on',
-                updatedAt: new Date()
-            },
-            { new: true }
+            }
         ).exec();
 
         if (!team) {
@@ -3478,6 +3511,23 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
                 user, team: null, recruits: [], pendingInvitations: [], currentTeamRole: '', teamOptions: [], teamSelectionOnly: false, teamManagers: [], waitlisted: [], acceptedRecruits: [], acceptedCount: 0, waitlistCount: 0, rejectedCount: 0
             });
         }
+
+        team.notes = notes;
+        team.recruiting = recruiting === 'on';
+        if (address && address !== String(team.address || '').trim()) {
+            const coords = await geocodeAddress({
+                address,
+                city: team.city,
+                state: team.state,
+                country: team.country
+            }, { requireAddress: true });
+            if (!coords) return res.redirect('/manage-team?error=update_address');
+            team.address = address;
+            team.lat = coords.lat;
+            team.lon = coords.lon;
+        }
+        team.updatedAt = new Date();
+        await team.save();
 
         res.redirect('/manage-team');
     } catch (err) {
@@ -4413,7 +4463,7 @@ router.post('/signup', async function(req, res){
     const mode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
     try {
         if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
-        const { name, email, password, age, country, phone, profilePicture, interests, experience, inviteToken, policyAccepted } = req.body;
+        const { name, email, password, age, country, state, phone, profilePicture, interests, experience, inviteToken, policyAccepted } = req.body;
         const nextPath = sanitizeNextPath(req.body.next, '');
         const normalizedEmail = normalizeEmail(email);
         const phoneCheck = mode === 'seeker'
@@ -4433,6 +4483,7 @@ router.post('/signup', async function(req, res){
             password,
             age,
             country,
+            state,
             interests,
             experience
         };
@@ -4456,6 +4507,16 @@ router.post('/signup', async function(req, res){
             return res.render(`pages/signup-${mode}`, { error: 'Age must be a whole number from 13 to 18.', values: req.body, inviteToken: inviteToken || null, nextPath });
         }
 
+        const canonicalState = mode === 'seeker' ? canonicalizeCountryRegion(country, state) : '';
+        if (mode === 'seeker' && !canonicalState) {
+            return res.render(`pages/signup-${mode}`, {
+                error: 'Choose a state, province, or region that belongs to the selected country.',
+                values: req.body,
+                inviteToken: inviteToken || null,
+                nextPath
+            });
+        }
+
         delete req.session.teamEmailVerification;
         delete req.session.pendingTeamEmailVerification;
         const existing = await User.findOne({ email: normalizedEmail }).exec();
@@ -4474,6 +4535,7 @@ router.post('/signup', async function(req, res){
         user.email = normalizedEmail;
         user.age = mode === 'seeker' && Number.isInteger(numericAge) ? numericAge : undefined;
         user.country = mode === 'seeker' ? String(country || '').trim() : undefined;
+        user.state = mode === 'seeker' ? canonicalState : undefined;
         user.phone = phoneCheck.normalized ? String(phoneCheck.normalized).trim() : undefined;
         user.profilePicture = String(profilePicture || '').trim();
         user.interests = mode === 'seeker' ? String(interests || '').trim() : undefined;
@@ -4491,6 +4553,7 @@ router.post('/signup', async function(req, res){
                 password: String(password || ''),
                 age: String(age || '').trim(),
                 country: String(country || '').trim(),
+                state: canonicalState,
                 phone: phoneCheck.normalized,
                 profilePicture: String(profilePicture || '').trim(),
                 interests: String(interests || '').trim(),
@@ -4658,7 +4721,7 @@ router.post('/signup/verify', async function(req, res){
         });
     }
 
-    const { name, email, password, age, country, phone, profilePicture, interests, experience, inviteToken, nextPath } = pending.data;
+    const { name, email, password, age, country, state, phone, profilePicture, interests, experience, inviteToken, nextPath } = pending.data;
     const mode = pending.mode === 'manager' ? 'manager' : 'seeker';
     clearPendingSignupVerification(req);
 
@@ -4684,6 +4747,7 @@ router.post('/signup/verify', async function(req, res){
                 email,
                 age: mode === 'seeker' && Number.isInteger(numericAge) ? numericAge : undefined,
                 country: mode === 'seeker' ? String(country || '').trim() : undefined,
+                state: mode === 'seeker' ? String(state || '').trim() : undefined,
                 phone: String(phone || '').trim(),
                 profilePicture: String(profilePicture || '').trim(),
                 interests: mode === 'seeker' ? String(interests || '').trim() : undefined,
@@ -4698,6 +4762,7 @@ router.post('/signup/verify', async function(req, res){
         user.email = email;
         user.age = mode === 'seeker' && age ? Number(age) : undefined;
         user.country = mode === 'seeker' ? String(country || '').trim() : undefined;
+        user.state = mode === 'seeker' ? String(state || '').trim() : undefined;
         user.phone = String(phone || '').trim();
         user.profilePicture = String(profilePicture || '').trim();
         user.interests = mode === 'seeker' ? String(interests || '').trim() : undefined;
@@ -4772,8 +4837,8 @@ router.post('/account', ensureAuthenticated, async function(req, res) {
 
 router.get('/account/signup-info', ensureAuthenticated, async function(req, res) {
     try {
-        const pendingTeamId = getPendingApplicationTeamId(req.query.apply);
-        const backTarget = pendingTeamId ? 'teams' : getSignupInfoBackTarget(req.query.back);
+        const pendingTeamId = '';
+        const backTarget = getSignupInfoBackTarget(req.query.back);
         const backUrl = getSignupInfoBackUrl(backTarget);
         if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: {}, backTarget, backUrl, pendingTeamId });
 
@@ -4784,6 +4849,7 @@ router.get('/account/signup-info', ensureAuthenticated, async function(req, res)
             name: user.name || '',
             age: user.age || '',
             country: user.country || '',
+            state: user.state || '',
             experience: user.experience || '',
             email: user.email || '',
             phone: user.phone || '',
@@ -4793,8 +4859,8 @@ router.get('/account/signup-info', ensureAuthenticated, async function(req, res)
         res.render('pages/account-signup-info', { error: null, success: null, values, backTarget, backUrl, pendingTeamId });
     } catch (err) {
         console.error('Signup info page error:', err);
-        const pendingTeamId = getPendingApplicationTeamId(req.query.apply);
-        const backTarget = pendingTeamId ? 'teams' : getSignupInfoBackTarget(req.query.back);
+        const pendingTeamId = '';
+        const backTarget = getSignupInfoBackTarget(req.query.back);
         const backUrl = getSignupInfoBackUrl(backTarget);
         res.render('pages/account-signup-info', { error: 'Unable to load your signup info.', success: null, values: {}, backTarget, backUrl, pendingTeamId });
     }
@@ -4802,8 +4868,8 @@ router.get('/account/signup-info', ensureAuthenticated, async function(req, res)
 
 router.post('/account/signup-info', ensureAuthenticated, async function(req, res) {
     try {
-        const pendingTeamId = getPendingApplicationTeamId(req.body.applyTeamId);
-        const backTarget = pendingTeamId ? 'teams' : getSignupInfoBackTarget(req.body.back);
+        const pendingTeamId = '';
+        const backTarget = getSignupInfoBackTarget(req.body.back);
         const backUrl = getSignupInfoBackUrl(backTarget);
         if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: req.body || {}, backTarget, backUrl, pendingTeamId });
 
@@ -4813,6 +4879,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
         const name = String(req.body.name || '').trim();
         const age = String(req.body.age || '').trim();
         const country = String(req.body.country || '').trim();
+        const state = String(req.body.state || '').trim();
         const experience = String(req.body.experience || '').trim();
         const email = String(req.body.email || '').trim();
         const phone = String(req.body.phone || '').trim();
@@ -4831,9 +4898,10 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
         }
 
         const normalizedEmail = normalizeEmail(email);
-        if (!name || !normalizedEmail || !country) {
+        const canonicalState = canonicalizeCountryRegion(country, state);
+        if (!name || !normalizedEmail || !country || !canonicalState) {
             return res.render('pages/account-signup-info', {
-                error: 'Name, country, and valid email are required.',
+                error: 'Name, country, matching state or region, and valid email are required.',
                 success: null,
                 values: req.body || {},
                 backTarget,
@@ -4870,6 +4938,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             name,
             age: numericAge,
             country,
+            state: canonicalState,
             email: normalizedEmail,
             phone: phoneCheck.normalized,
             interests,
@@ -4881,6 +4950,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             student.name = name;
             student.age = numericAge;
             student.country = country;
+            student.state = canonicalState;
             student.experience = experience;
             student.interests = interests;
             student.phone = phoneCheck.normalized;
@@ -4894,14 +4964,14 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
                 if (sessionErr) {
                     console.error('Failed to destroy session after email change:', sessionErr);
                 }
-                const nextPath = pendingTeamId ? `/teams-nearby?apply=${encodeURIComponent(pendingTeamId)}` : '';
+                const nextPath = backTarget === 'teams' ? '/teams-nearby' : '';
                 const nextQuery = nextPath ? `&next=${encodeURIComponent(nextPath)}` : '';
                 return res.redirect(`/login?notice=${encodeURIComponent('Your email was updated. Please sign in again.')}${nextQuery}`);
             });
         }
 
-        if (pendingTeamId) {
-            return res.redirect(`/teams-nearby?apply=${encodeURIComponent(pendingTeamId)}`);
+        if (backTarget === 'teams') {
+            return res.redirect('/teams-nearby');
         }
 
         res.render('pages/account-signup-info', {
@@ -4911,6 +4981,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
                 name,
                 age,
                 country,
+                state: canonicalState,
                 experience,
                 email: normalizedEmail,
                 phone: phoneCheck.normalized,
@@ -4922,8 +4993,8 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
         });
     } catch (err) {
         console.error('Failed to save signup info:', err);
-        const pendingTeamId = getPendingApplicationTeamId(req.body && req.body.applyTeamId);
-        const backTarget = pendingTeamId ? 'teams' : getSignupInfoBackTarget(req.body && req.body.back);
+        const pendingTeamId = '';
+        const backTarget = getSignupInfoBackTarget(req.body && req.body.back);
         const backUrl = getSignupInfoBackUrl(backTarget);
         res.render('pages/account-signup-info', {
             error: err.message || 'Failed to save signup info.',

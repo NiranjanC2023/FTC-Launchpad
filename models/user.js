@@ -8,6 +8,7 @@ const UserSchema = new mongoose.Schema({
   passwordHash: { type: String, required: true },
   age: { type: Number, min: 13, max: 18 },
   country: { type: String, trim: true },
+  state: { type: String, trim: true },
   phone: { type: String, trim: true },
   profilePicture: { type: String, trim: true },
   interests: { type: String, trim: true },

@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function(){
       }
       nearest.sort((left, right) => distanceFrom(origin, left) - distanceFrom(origin, right));
       recruitingGrid.replaceChildren(...nearest.map(createTeamCard));
-      proximityStatus.textContent = 'Showing the recruiting teams nearest to your current area. Your precise location stays on this device.';
+      proximityStatus.textContent = 'Showing the recruiting teams nearest to your current area.';
     };
 
     if (recruitingTeams.length && navigator.geolocation) {

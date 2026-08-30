@@ -696,14 +696,19 @@
                         <label for="verifyCity">City</label>
                         <input id="verifyCity" class="form-control" name="city" required value="<%= verificationValues.city || '' %>">
 
-                        <label for="verifyState">State or province</label>
-                        <input id="verifyState" class="form-control" name="state" value="<%= verificationValues.state || '' %>">
-
                         <label for="verifyCountry">Country</label>
-                        <select id="verifyCountry" class="form-control" name="country" autocomplete="country-name" required>
+                        <select id="verifyCountry" class="form-control" name="country" autocomplete="country-name" data-country-select required>
                             <option value="">Select a country</option>
                             <% unitedNationsCountries.forEach(function(countryName) { %>
                                 <option value="<%= countryName %>" <%= countriesMatch(verificationValues.country, countryName) ? 'selected' : '' %>><%= countryName %></option>
+                            <% }); %>
+                        </select>
+
+                        <label for="verifyState">State, province, or region</label>
+                        <select id="verifyState" class="form-control" name="state" autocomplete="address-level1" data-region-select required>
+                            <option value="">Select a state, province, or region</option>
+                            <% countryRegionsFor(verificationValues.country).forEach(function(regionName) { %>
+                                <option value="<%= regionName %>" <%= canonicalizeCountryRegion(verificationValues.country, verificationValues.state) === regionName ? 'selected' : '' %>><%= regionName %></option>
                             <% }); %>
                         </select>
 
@@ -783,6 +788,11 @@
                                     <label class="form-label">Recruiting Bio</label>
                                     <textarea name="notes" class="form-control" rows="8" placeholder="Tell students about your team culture..."><%= team.notes %></textarea>
                                     <small class="text-muted">This bio appears on the public map.</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label" for="teamMeetingAddress">Exact meeting address</label>
+                                    <input id="teamMeetingAddress" name="address" class="form-control" autocomplete="street-address" value="<%= team.address || '' %>" placeholder="Street address, building, or meeting location">
+                                    <small class="text-muted">Used to place your red map marker and calculate distances accurately.</small>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Awards Achieved</label>

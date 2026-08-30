@@ -40,10 +40,19 @@
         </div>
         <div class="mb-3">
           <label class="form-label" for="country">Country</label>
-          <select name="country" id="country" class="form-control" autocomplete="country-name" required>
+          <select name="country" id="country" class="form-control" autocomplete="country-name" data-country-select required>
             <option value="">Select a country</option>
             <% unitedNationsCountries.forEach(function(countryName) { %>
               <option value="<%= countryName %>" <%= values && countriesMatch(values.country, countryName) ? 'selected' : '' %>><%= countryName %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="state">State, province, or region</label>
+          <select name="state" id="state" class="form-control" autocomplete="address-level1" data-region-select required>
+            <option value="">Select a state, province, or region</option>
+            <% countryRegionsFor(values && values.country).forEach(function(regionName) { %>
+              <option value="<%= regionName %>" <%= values && canonicalizeCountryRegion(values.country, values.state) === regionName ? 'selected' : '' %>><%= regionName %></option>
             <% }); %>
           </select>
         </div>

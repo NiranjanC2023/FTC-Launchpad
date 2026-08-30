@@ -4,6 +4,7 @@ const StudentSchema = new mongoose.Schema({
   name: { type: String, required: true },
   age: { type: Number, min: 13, max: 18 },
   country: { type: String, trim: true },
+  state: { type: String, trim: true },
   experience: { type: String },
   email: { type: String },
   phone: { type: String },

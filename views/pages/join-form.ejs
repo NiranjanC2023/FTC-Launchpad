@@ -44,6 +44,15 @@
         </select>
         <input type="hidden" name="country" value="<%= values && values.country ? values.country : '' %>">
 
+        <label for="state">State, province, or region</label>
+        <select id="state" autocomplete="address-level1" disabled>
+          <option value="">State or region not set</option>
+          <% countryRegionsFor(values && values.country).forEach(function(regionName) { %>
+            <option value="<%= regionName %>" <%= values && canonicalizeCountryRegion(values.country, values.state) === regionName ? 'selected' : '' %>><%= regionName %></option>
+          <% }); %>
+        </select>
+        <input type="hidden" name="state" value="<%= values && values.state ? values.state : '' %>">
+
         <label for="experience">Experience (brief)</label>
         <textarea id="experience" name="experience" rows="4" placeholder="e.g., none, some Java, built RC car"><%= values && values.experience ? values.experience : '' %></textarea>
 

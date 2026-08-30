@@ -8,10 +8,19 @@ const { createNotification, listNotifications, countUnreadNotifications, markNot
 const { DEFAULT_FROM, buildTransactionalEmailTemplate, sendTransactionalEmail } = require('../lib/email');
 const { validatePhoneNumber } = require('../lib/phone');
 const { countriesMatch } = require('../lib/country');
+const { canonicalizeCountryRegion, getCountryRegions } = require('../lib/country-regions');
 const { isRecruitingTeam } = require('../lib/team-status');
 const { isDatabaseConnected, waitForDatabase } = require('../lib/database');
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
 const TEAM_EMAIL_DIRECTORY_ACCESS_EMAIL = 'evergreentechatrons.contact@gmail.com';
+
+router.get('/country-regions', function(req, res) {
+	const country = String(req.query && req.query.country || '').trim();
+	if (!country) return res.status(400).json({ ok: false, error: 'country required', regions: [] });
+	const regions = getCountryRegions(country);
+	if (!regions.length) return res.status(400).json({ ok: false, error: 'valid country required', regions: [] });
+	res.json({ ok: true, regions });
+});
 
 function publicUser(user) {
 	return {
@@ -20,6 +29,7 @@ function publicUser(user) {
 		email: user.email,
 		age: user.age,
 		country: user.country,
+		state: user.state,
 		phone: user.phone,
 		profilePicture: user.profilePicture,
 		interests: user.interests,
@@ -80,7 +90,7 @@ async function requireAuthenticatedApi(req, res, next) {
 		}
 
 		const user = await User.findById(req.session.userId)
-			.select('_id name email age country phone interests experience')
+			.select('_id name email age country state phone interests experience')
 			.lean()
 			.exec();
 		if (!user) {
@@ -93,19 +103,11 @@ async function requireAuthenticatedApi(req, res, next) {
 	}
 }
 
-function publicAreaCoords(lat, lon) {
-	// City-level precision only (roughly a 5-11 km area).
-	return {
-		lat: Math.round(lat * 10) / 10,
-		lon: Math.round(lon * 10) / 10
-	};
-}
-
 function publicTeam(team) {
 	const lat = parseCoordinate(team.lat);
 	const lon = parseCoordinate(team.lon);
 	const coords = lat !== null && lon !== null
-		? publicAreaCoords(lat, lon)
+		? { lat, lon }
 		: { lat: null, lon: null };
 	return {
 		...team,
@@ -241,16 +243,35 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 		const normalizedEmail = normalizeEmail(account.email);
 		const age = account.age;
 		const country = String(account.country || '').trim();
+		const state = canonicalizeCountryRegion(country, account.state);
 		const experience = account.experience;
 		const phone = account.phone;
 		const interests = account.interests;
 		if (!name || !normalizedEmail) return res.status(400).json({ ok: false, error: 'Complete your account profile before applying.' });
 		const normalizedTeamId = String(teamId || '').trim();
 		const shouldApplyToTeam = Boolean(normalizedTeamId && mongoose.Types.ObjectId.isValid(normalizedTeamId));
-		const team = shouldApplyToTeam ? await Team.findById(normalizedTeamId).select('_id name teamNumber contact recruiting country').lean().exec() : null;
+		const [team, existingTeam] = await Promise.all([
+			shouldApplyToTeam
+				? Team.findById(normalizedTeamId).select('_id name teamNumber contact recruiting country').lean().exec()
+				: null,
+			shouldApplyToTeam
+				? Team.findOne({
+					$or: [
+						{ contact: normalizedEmail },
+						{ managers: account._id }
+					]
+				}).select('_id').lean().exec()
+				: null
+		]);
 		if (normalizedTeamId && !team) return res.status(400).json({ ok: false, error: 'valid team required' });
+		if (team && existingTeam) {
+			return res.status(403).json({ ok: false, error: 'Accounts that already belong to or manage a team cannot apply to another team.' });
+		}
 		if (team && !country) {
 			return res.status(400).json({ ok: false, error: 'Add your country to your account before applying to a team.' });
+		}
+		if (team && !state) {
+			return res.status(400).json({ ok: false, error: 'Add a state, province, or region that matches your country before applying to a team.' });
 		}
 		if (team && !String(team.country || '').trim()) {
 			return res.status(403).json({ ok: false, error: 'This team does not have a country listed and cannot receive applications.' });
@@ -276,6 +297,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 			student.name = name;
 			student.age = age;
 			student.country = country;
+			student.state = state;
 			student.experience = experience;
 			student.phone = phone;
 			student.interests = interests;
@@ -329,6 +351,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 							{ label: 'Email', value: normalizedEmail },
 							{ label: 'Phone', value: phone || 'Not provided' },
 							{ label: 'Age', value: age || 'Not provided' },
+							{ label: 'Location', value: [state, country].filter(Boolean).join(', ') || 'Not provided' },
 							{ label: 'Experience', value: experience || 'Not provided' },
 							{ label: 'Interests', value: interests || 'Not provided' }
 						],
@@ -350,6 +373,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 							`Email: ${normalizedEmail}`,
 							`Phone: ${phone || 'Not provided'}`,
 							`Age: ${age || 'Not provided'}`,
+							`Location: ${[state, country].filter(Boolean).join(', ') || 'Not provided'}`,
 							`Experience: ${experience || 'Not provided'}`,
 							`Interests: ${interests || 'Not provided'}`,
 							'',
@@ -365,6 +389,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 			name,
 			age,
 			country,
+			state,
 			experience,
 			email: normalizedEmail,
 			phone,
@@ -399,6 +424,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 						{ label: 'Email', value: normalizedEmail },
 						{ label: 'Phone', value: phone || 'Not provided' },
 						{ label: 'Age', value: age || 'Not provided' },
+						{ label: 'Location', value: [state, country].filter(Boolean).join(', ') || 'Not provided' },
 						{ label: 'Experience', value: experience || 'Not provided' },
 						{ label: 'Interests', value: interests || 'Not provided' }
 					],
@@ -420,6 +446,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 						`Email: ${normalizedEmail}`,
 						`Phone: ${phone || 'Not provided'}`,
 						`Age: ${age || 'Not provided'}`,
+						`Location: ${[state, country].filter(Boolean).join(', ') || 'Not provided'}`,
 						`Experience: ${experience || 'Not provided'}`,
 						`Interests: ${interests || 'Not provided'}`,
 						'',
@@ -443,7 +470,7 @@ router.get('/signups', function(req, res) {
 router.post('/users/signup', async function(req, res) {
 	try {
 		if (!requireDatabase(res)) return;
-		const { name, email, password, age, country, phone, profilePicture, interests, experience } = req.body;
+		const { name, email, password, age, country, state, phone, profilePicture, interests, experience } = req.body;
 		const normalizedEmail = normalizeEmail(email);
 		if (!name || !normalizedEmail || !password) return res.status(400).json({ ok: false, error: 'name/email/password required' });
 		if (String(password).length < 8) return res.status(400).json({ ok: false, error: 'password must be at least 8 characters' });
@@ -451,6 +478,8 @@ router.post('/users/signup', async function(req, res) {
 		if (!parsedAge.valid) return res.status(400).json({ ok: false, error: 'age must be a whole number from 13 to 18' });
 		const phoneCheck = validatePhoneNumber(phone, { required: false });
 		if (!phoneCheck.valid) return res.status(400).json({ ok: false, error: phoneCheck.error || 'phone must be valid' });
+		const canonicalState = country ? canonicalizeCountryRegion(country, state) : '';
+		if (country && !canonicalState) return res.status(400).json({ ok: false, error: 'state must belong to country' });
 		const existing = await User.findOne({ email: normalizedEmail }).exec();
 		if (existing) return res.status(400).json({ ok: false, error: 'email already registered' });
 		const user = new User({
@@ -458,6 +487,7 @@ router.post('/users/signup', async function(req, res) {
 			email: normalizedEmail,
 			age: parsedAge.value,
 			country: String(country || '').trim() || undefined,
+			state: canonicalState || undefined,
 			phone: phoneCheck.normalized,
 			profilePicture,
 			interests,
@@ -539,7 +569,7 @@ router.get('/users/me', async function(req, res) {
 	try {
 		if (!req.session.userId) return res.json({ ok: true, user: null });
 		if (!requireDatabase(res)) return;
-		const user = await User.findById(req.session.userId).select('name email age phone profilePicture interests experience teamNumber createdAt').exec();
+		const user = await User.findById(req.session.userId).select('name email age country state phone profilePicture interests experience teamNumber createdAt').exec();
 		if (!user) return res.json({ ok: true, user: null });
 
 		const normalizedEmail = normalizeEmail(user.email);

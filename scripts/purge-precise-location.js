@@ -10,11 +10,6 @@ function localityAddress(team) {
     .join(', ');
 }
 
-function coarseCoordinate(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.round(number * 10) / 10 : null;
-}
-
 async function run() {
   await mongoose.connect(params.DATABASECONNECTION, {
     dbName: params.DATABASENAME,
@@ -42,21 +37,11 @@ async function run() {
   const teamDocs = await teams.find({}, {
     projection: { _id: 1, address: 1, city: 1, state: 1, country: 1, lat: 1, lon: 1 }
   }).toArray();
-  const operations = teamDocs.map(team => {
-    const set = { address: localityAddress(team) || 'Location withheld' };
-    const lat = coarseCoordinate(team.lat);
-    const lon = coarseCoordinate(team.lon);
-    if (lat !== null) set.lat = lat;
-    if (lon !== null) set.lon = lon;
-    return { updateOne: { filter: { _id: team._id }, update: { $set: set } } };
-  });
-  const teamCleanup = operations.length ? await teams.bulkWrite(operations) : null;
-
   console.log(JSON.stringify({
     applicantRecordsScanned: applicantCleanup.matchedCount,
     applicantRecordsChanged: applicantCleanup.modifiedCount,
     teamRecordsScanned: teamDocs.length,
-    teamRecordsChanged: teamCleanup ? teamCleanup.modifiedCount : 0
+    teamRecordsChanged: 0
   }));
 }
 

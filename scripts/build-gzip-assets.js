@@ -16,9 +16,11 @@ const sourceFiles = walk(assetsRoot).filter((filePath) => {
   return compressibleExtensions.has(path.extname(filePath).toLowerCase());
 });
 
-let compressedCount = 0;
+let gzipCount = 0;
+let brotliCount = 0;
 let originalBytes = 0;
-let compressedBytes = 0;
+let gzipBytes = 0;
+let brotliBytes = 0;
 
 for (const sourcePath of sourceFiles) {
   const source = fs.readFileSync(sourcePath);
@@ -29,10 +31,22 @@ for (const sourcePath of sourceFiles) {
 
   if (compressed.length < source.length) {
     fs.writeFileSync(gzipPath, compressed);
-    compressedCount += 1;
-    originalBytes += source.length;
-    compressedBytes += compressed.length;
+    gzipCount += 1;
+    gzipBytes += compressed.length;
   }
+
+  const brotli = zlib.brotliCompressSync(source, {
+    params: {
+      [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
+      [zlib.constants.BROTLI_PARAM_QUALITY]: zlib.constants.BROTLI_MAX_QUALITY
+    }
+  });
+  if (brotli.length < source.length) {
+    fs.writeFileSync(sourcePath + '.br', brotli);
+    brotliCount += 1;
+    brotliBytes += brotli.length;
+  }
+  originalBytes += source.length;
 }
 
-console.log(`Precompressed ${compressedCount} assets: ${originalBytes} -> ${compressedBytes} bytes`);
+console.log(`Precompressed ${gzipCount} gzip and ${brotliCount} Brotli assets: ${originalBytes} -> gzip ${gzipBytes}, Brotli ${brotliBytes} bytes`);

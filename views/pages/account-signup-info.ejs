@@ -29,7 +29,6 @@
 
       <form id="accountSignupForm" class="form-grid" method="POST" action="/account/signup-info">
         <input type="hidden" name="back" value="<%= backTarget || 'account' %>">
-        <input type="hidden" name="applyTeamId" value="<%= typeof pendingTeamId !== 'undefined' ? pendingTeamId : '' %>">
         <label for="name">Full name</label>
         <input id="name" name="name" value="<%= values && values.name ? values.name : '' %>" required>
 
@@ -37,10 +36,18 @@
         <input id="age" name="age" type="number" min="13" max="18" step="1" value="<%= values && values.age ? values.age : '' %>">
 
         <label for="country">Country</label>
-        <select id="country" name="country" autocomplete="country-name" required>
+        <select id="country" name="country" autocomplete="country-name" data-country-select required>
           <option value="">Select a country</option>
           <% unitedNationsCountries.forEach(function(countryName) { %>
             <option value="<%= countryName %>" <%= values && countriesMatch(values.country, countryName) ? 'selected' : '' %>><%= countryName %></option>
+          <% }); %>
+        </select>
+
+        <label for="state">State, province, or region</label>
+        <select id="state" name="state" autocomplete="address-level1" data-region-select required>
+          <option value="">Select a state, province, or region</option>
+          <% countryRegionsFor(values && values.country).forEach(function(regionName) { %>
+            <option value="<%= regionName %>" <%= values && canonicalizeCountryRegion(values.country, values.state) === regionName ? 'selected' : '' %>><%= regionName %></option>
           <% }); %>
         </select>
 
@@ -58,7 +65,7 @@
 
         <div></div>
         <div>
-          <button type="submit" class="btn btn-primary"><%= typeof pendingTeamId !== 'undefined' && pendingTeamId ? 'Save & Send My Info' : 'Save Signup Info' %></button>
+          <button type="submit" class="btn btn-primary"><%= backTarget === 'teams' ? 'Save & Return to Teams' : 'Save Signup Info' %></button>
         </div>
       </form>
     </div>
