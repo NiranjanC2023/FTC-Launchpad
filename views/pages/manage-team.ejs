@@ -700,7 +700,12 @@
                         <input id="verifyState" class="form-control" name="state" value="<%= verificationValues.state || '' %>">
 
                         <label for="verifyCountry">Country</label>
-                        <input id="verifyCountry" class="form-control" name="country" required value="<%= verificationValues.country || '' %>">
+                        <select id="verifyCountry" class="form-control" name="country" autocomplete="country-name" required>
+                            <option value="">Select a country</option>
+                            <% unitedNationsCountries.forEach(function(countryName) { %>
+                                <option value="<%= countryName %>" <%= countriesMatch(verificationValues.country, countryName) ? 'selected' : '' %>><%= countryName %></option>
+                            <% }); %>
+                        </select>
 
                         <label for="verifyNotes">Recruiting info</label>
                         <textarea id="verifyNotes" class="form-control" name="notes" placeholder="Meeting days, grades accepted, application link, or what students should include."><%= verificationValues.notes || '' %></textarea>

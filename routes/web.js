@@ -329,7 +329,20 @@ function sanitizeNextPath(nextPath, fallback = '/') {
 }
 
 function getSignupInfoBackTarget(back) {
-    return String(back || '').trim() === 'applications' ? 'applications' : 'account';
+    const value = String(back || '').trim();
+    if (value === 'applications' || value === 'teams') return value;
+    return 'account';
+}
+
+function getPendingApplicationTeamId(teamId) {
+    const value = String(teamId || '').trim();
+    return mongoose.Types.ObjectId.isValid(value) ? value : '';
+}
+
+function getSignupInfoBackUrl(backTarget) {
+    if (backTarget === 'applications') return '/my-applications';
+    if (backTarget === 'teams') return '/teams-nearby';
+    return '/account';
 }
 
 function normalizeManagerRole(role) {
@@ -4759,9 +4772,10 @@ router.post('/account', ensureAuthenticated, async function(req, res) {
 
 router.get('/account/signup-info', ensureAuthenticated, async function(req, res) {
     try {
-        const backTarget = getSignupInfoBackTarget(req.query.back);
-        const backUrl = backTarget === 'applications' ? '/my-applications' : '/account';
-        if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: {}, backTarget, backUrl });
+        const pendingTeamId = getPendingApplicationTeamId(req.query.apply);
+        const backTarget = pendingTeamId ? 'teams' : getSignupInfoBackTarget(req.query.back);
+        const backUrl = getSignupInfoBackUrl(backTarget);
+        if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: {}, backTarget, backUrl, pendingTeamId });
 
         const user = await User.findById(req.session.userId).lean().exec();
         if (!user) return res.redirect('/logout');
@@ -4776,20 +4790,22 @@ router.get('/account/signup-info', ensureAuthenticated, async function(req, res)
             interests: user.interests || ''
         };
 
-        res.render('pages/account-signup-info', { error: null, success: null, values, backTarget, backUrl });
+        res.render('pages/account-signup-info', { error: null, success: null, values, backTarget, backUrl, pendingTeamId });
     } catch (err) {
         console.error('Signup info page error:', err);
-        const backTarget = getSignupInfoBackTarget(req.query.back);
-        const backUrl = backTarget === 'applications' ? '/my-applications' : '/account';
-        res.render('pages/account-signup-info', { error: 'Unable to load your signup info.', success: null, values: {}, backTarget, backUrl });
+        const pendingTeamId = getPendingApplicationTeamId(req.query.apply);
+        const backTarget = pendingTeamId ? 'teams' : getSignupInfoBackTarget(req.query.back);
+        const backUrl = getSignupInfoBackUrl(backTarget);
+        res.render('pages/account-signup-info', { error: 'Unable to load your signup info.', success: null, values: {}, backTarget, backUrl, pendingTeamId });
     }
 });
 
 router.post('/account/signup-info', ensureAuthenticated, async function(req, res) {
     try {
-        const backTarget = getSignupInfoBackTarget(req.body.back);
-        const backUrl = backTarget === 'applications' ? '/my-applications' : '/account';
-        if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: req.body || {}, backTarget, backUrl });
+        const pendingTeamId = getPendingApplicationTeamId(req.body.applyTeamId);
+        const backTarget = pendingTeamId ? 'teams' : getSignupInfoBackTarget(req.body.back);
+        const backUrl = getSignupInfoBackUrl(backTarget);
+        if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: req.body || {}, backTarget, backUrl, pendingTeamId });
 
         const currentUser = await User.findById(req.session.userId).lean().exec();
         if (!currentUser) return res.redirect('/logout');
@@ -4809,7 +4825,8 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
                 success: null,
                 values: req.body || {},
                 backTarget,
-                backUrl
+                backUrl,
+                pendingTeamId
             });
         }
 
@@ -4820,7 +4837,8 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
                 success: null,
                 values: req.body || {},
                 backTarget,
-                backUrl
+                backUrl,
+                pendingTeamId
             });
         }
 
@@ -4831,7 +4849,8 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
                 success: null,
                 values: req.body || {},
                 backTarget,
-                backUrl
+                backUrl,
+                pendingTeamId
             });
         }
 
@@ -4842,7 +4861,8 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
                 success: null,
                 values: req.body || {},
                 backTarget,
-                backUrl
+                backUrl,
+                pendingTeamId
             });
         }
 
@@ -4874,8 +4894,14 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
                 if (sessionErr) {
                     console.error('Failed to destroy session after email change:', sessionErr);
                 }
-                return res.redirect(`/login?notice=${encodeURIComponent('Your email was updated. Please sign in again.')}`);
+                const nextPath = pendingTeamId ? `/teams-nearby?apply=${encodeURIComponent(pendingTeamId)}` : '';
+                const nextQuery = nextPath ? `&next=${encodeURIComponent(nextPath)}` : '';
+                return res.redirect(`/login?notice=${encodeURIComponent('Your email was updated. Please sign in again.')}${nextQuery}`);
             });
+        }
+
+        if (pendingTeamId) {
+            return res.redirect(`/teams-nearby?apply=${encodeURIComponent(pendingTeamId)}`);
         }
 
         res.render('pages/account-signup-info', {
@@ -4891,18 +4917,21 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
                 interests
             },
             backTarget,
-            backUrl
+            backUrl,
+            pendingTeamId
         });
     } catch (err) {
         console.error('Failed to save signup info:', err);
-        const backTarget = getSignupInfoBackTarget(req.body && req.body.back);
-        const backUrl = backTarget === 'applications' ? '/my-applications' : '/account';
+        const pendingTeamId = getPendingApplicationTeamId(req.body && req.body.applyTeamId);
+        const backTarget = pendingTeamId ? 'teams' : getSignupInfoBackTarget(req.body && req.body.back);
+        const backUrl = getSignupInfoBackUrl(backTarget);
         res.render('pages/account-signup-info', {
             error: err.message || 'Failed to save signup info.',
             success: null,
             values: req.body || {},
             backTarget,
-            backUrl
+            backUrl,
+            pendingTeamId
         });
     }
 });

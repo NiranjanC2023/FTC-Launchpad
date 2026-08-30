@@ -19,6 +19,7 @@ var params = require("./params/params");
 var setUpPassport = require("./setuppassport");
 var Team = require("./models/team");
 var hasGlobalPrivacyControl = require("./lib/gpc").hasGlobalPrivacyControl;
+var countryHelpers = require("./lib/country");
 //var routes = require("./routes");
 
 var app = express();
@@ -39,7 +40,7 @@ const GZIP_CONTENT_TYPES = {
 };
 
 const MAIN_CSS_VERSION = "37";
-const MAIN_JS_VERSION = "46";
+const MAIN_JS_VERSION = "49";
 const HOME_JS_VERSION = "13";
 const SITE_SHELL_JS_VERSION = "4";
 const BOOTSTRAP_STYLESHEET = '<link rel="stylesheet" href="/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6">';
@@ -215,6 +216,8 @@ app.get("/.well-known/gpc.json", function(req, res) {
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 app.locals.formatAwardHistoryDisplayEntry = formatAwardHistoryDisplayEntry;
+app.locals.unitedNationsCountries = countryHelpers.UNITED_NATIONS_COUNTRIES;
+app.locals.countriesMatch = countryHelpers.countriesMatch;
 
 const sharedHeaderHtml = fs.readFileSync(path.join(__dirname, "assets", "partial", "header.html"), "utf8");
 const sharedFooterHtml = fs.readFileSync(path.join(__dirname, "assets", "partial", "footer.html"), "utf8");

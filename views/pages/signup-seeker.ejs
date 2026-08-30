@@ -40,7 +40,12 @@
         </div>
         <div class="mb-3">
           <label class="form-label" for="country">Country</label>
-          <input name="country" id="country" class="form-control" autocomplete="country-name" value="<%= values && values.country ? values.country : '' %>" placeholder="Example: United States" required />
+          <select name="country" id="country" class="form-control" autocomplete="country-name" required>
+            <option value="">Select a country</option>
+            <% unitedNationsCountries.forEach(function(countryName) { %>
+              <option value="<%= countryName %>" <%= values && countriesMatch(values.country, countryName) ? 'selected' : '' %>><%= countryName %></option>
+            <% }); %>
+          </select>
         </div>
         <div class="mb-3">
           <label class="form-label">Phone</label>

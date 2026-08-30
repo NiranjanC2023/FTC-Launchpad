@@ -15,7 +15,7 @@
 
   <main>
     <div class="container">
-      <a href="<%= backUrl || '/account' %>" class="btn btn-secondary back-button"><%= backTarget === 'applications' ? '← Back to Applications' : '← Back to Account' %></a>
+      <a href="<%= backUrl || '/account' %>" class="btn btn-secondary back-button"><%= backTarget === 'applications' ? '← Back to Applications' : backTarget === 'teams' ? '← Back to Teams' : '← Back to Account' %></a>
 
       <h1>Edit Signup Info</h1>
       <p class="subtitle">Update the signup details saved on your account.</p>
@@ -29,6 +29,7 @@
 
       <form id="accountSignupForm" class="form-grid" method="POST" action="/account/signup-info">
         <input type="hidden" name="back" value="<%= backTarget || 'account' %>">
+        <input type="hidden" name="applyTeamId" value="<%= typeof pendingTeamId !== 'undefined' ? pendingTeamId : '' %>">
         <label for="name">Full name</label>
         <input id="name" name="name" value="<%= values && values.name ? values.name : '' %>" required>
 
@@ -36,7 +37,12 @@
         <input id="age" name="age" type="number" min="13" max="18" step="1" value="<%= values && values.age ? values.age : '' %>">
 
         <label for="country">Country</label>
-        <input id="country" name="country" autocomplete="country-name" placeholder="Example: United States" value="<%= values && values.country ? values.country : '' %>" required>
+        <select id="country" name="country" autocomplete="country-name" required>
+          <option value="">Select a country</option>
+          <% unitedNationsCountries.forEach(function(countryName) { %>
+            <option value="<%= countryName %>" <%= values && countriesMatch(values.country, countryName) ? 'selected' : '' %>><%= countryName %></option>
+          <% }); %>
+        </select>
 
         <label for="experience">Experience (brief)</label>
         <textarea id="experience" name="experience" rows="4" placeholder="e.g., none, some Java, built RC car"><%= values && values.experience ? values.experience : '' %></textarea>
@@ -52,7 +58,7 @@
 
         <div></div>
         <div>
-          <button type="submit" class="btn btn-primary">Save Signup Info</button>
+          <button type="submit" class="btn btn-primary"><%= typeof pendingTeamId !== 'undefined' && pendingTeamId ? 'Save & Send My Info' : 'Save Signup Info' %></button>
         </div>
       </form>
     </div>

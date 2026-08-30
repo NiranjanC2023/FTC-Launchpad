@@ -107,14 +107,12 @@
           <input id="state" name="state" value="<%= values.state || '' %>" />
 
           <label for="country">Country</label>
-          <input
-            id="country"
-            name="country"
-            type="text"
-            required
-            value="<%= values.country || '' %>"
-            placeholder="Country (for example, USA, Canada, India)"
-          />
+          <select id="country" name="country" autocomplete="country-name" required>
+            <option value="">Select a country</option>
+            <% unitedNationsCountries.forEach(function(countryName) { %>
+              <option value="<%= countryName %>" <%= countriesMatch(values.country, countryName) ? 'selected' : '' %>><%= countryName %></option>
+            <% }); %>
+          </select>
         </div>
 
         <label for="notes">Recruiting info</label>

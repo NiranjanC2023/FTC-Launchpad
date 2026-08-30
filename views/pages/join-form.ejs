@@ -36,7 +36,13 @@
         <input id="age" name="age" type="number" min="13" max="18" step="1" value="<%= values && values.age ? values.age : '' %>">
 
         <label for="country">Country</label>
-        <input id="country" name="country" autocomplete="country-name" value="<%= values && values.country ? values.country : '' %>" readonly>
+        <select id="country" autocomplete="country-name" disabled>
+          <option value="">Country not set</option>
+          <% unitedNationsCountries.forEach(function(countryName) { %>
+            <option value="<%= countryName %>" <%= values && countriesMatch(values.country, countryName) ? 'selected' : '' %>><%= countryName %></option>
+          <% }); %>
+        </select>
+        <input type="hidden" name="country" value="<%= values && values.country ? values.country : '' %>">
 
         <label for="experience">Experience (brief)</label>
         <textarea id="experience" name="experience" rows="4" placeholder="e.g., none, some Java, built RC car"><%= values && values.experience ? values.experience : '' %></textarea>

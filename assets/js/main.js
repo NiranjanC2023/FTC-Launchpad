@@ -565,6 +565,7 @@ function getTeamRecruitingLabel(team) {
 
   function applySearch() {
     const query = searchInput.value.trim().toLowerCase();
+    const searchScope = searchInput.dataset.searchScope || 'all';
     const selectedProgram = programFilter ? programFilter.value : 'All';
     const selectedAwards = awardsFilter ? awardsFilter.value : 'all';
     const selectedYears = yearsFilter ? yearsFilter.value : 'all';
@@ -597,7 +598,8 @@ function getTeamRecruitingLabel(team) {
       const maxDistanceKm = distanceThresholdToKm(Number(selectedDistance), distanceUnitPreference);
       const matchesDistance = selectedDistance === 'all'
         || (Number.isFinite(distanceKm) && Number.isFinite(maxDistanceKm) && distanceKm <= maxDistanceKm);
-      const matches = matchesProgram && matchesAwards && matchesYears && matchesAdvancement && matchesDistance && (!query || card.dataset.search.includes(query));
+      const searchableText = searchScope === 'team' ? card.dataset.teamSearch : card.dataset.search;
+      const matches = matchesProgram && matchesAwards && matchesYears && matchesAdvancement && matchesDistance && (!query || searchableText.includes(query));
       card.hidden = !matches;
       if (matches) visibleCount++;
 
@@ -675,7 +677,10 @@ function getTeamRecruitingLabel(team) {
     }, 150);
   }
 
-  searchInput.addEventListener('input', applySearch);
+  searchInput.addEventListener('input', (event) => {
+    if (event.isTrusted) delete searchInput.dataset.searchScope;
+    applySearch();
+  });
   function closeFilterDropdown() {
     if (!filterButton || !filterDropdown || !filterMenu) return;
     filterButton.setAttribute('aria-expanded', 'false');
@@ -859,6 +864,7 @@ function getTeamRecruitingLabel(team) {
     card.dataset.advancementLevels = advancementLevels.join('|');
     card.dataset.regionLabel = regionLabel;
     card.dataset.distanceKm = Number.isFinite(dist) ? String(dist) : '';
+    card.dataset.teamSearch = `${teamName} ${teamNumber}`.toLowerCase();
     card.dataset.search = `${teamName} ${teamNumber} ${location} ${regionLabel} ${notes} ${awards} ${awardHistory.join(' ')} ${advancementLevels.join(' ')} ${advancementHistory.join(' ')}`.toLowerCase();
     card.innerHTML = firstStartTrustedTypesPolicy.createHTML(`
       <div class="team-card-head">
@@ -1283,7 +1289,9 @@ async function sendToTeam(team) {
 
   const countryApplicationState = getCountryApplicationState(team);
   if (countryApplicationState.needsCountry) {
-    window.location.href = '/account/signup-info';
+    const teamId = String(team && (team.id || team._id) || '').trim();
+    const applyQuery = teamId ? `&apply=${encodeURIComponent(teamId)}` : '';
+    window.location.href = `/account/signup-info?back=teams${applyQuery}`;
     return;
   }
   if (countryApplicationState.outsideCountry) {
@@ -1333,6 +1341,8 @@ function initTeamsPage() {
   const zipInput = document.getElementById('zipLocationInput');
   const zipMessage = document.getElementById('zipLocationMessage');
   const initialQuery = String(new URLSearchParams(window.location.search).get('q') || '').trim();
+  const pendingApplicationTeamId = String(new URLSearchParams(window.location.search).get('apply') || '').trim();
+  let locationRequestVersion = 0;
   if (!teams.length) {
     status.textContent = 'Team listings are temporarily unavailable. Please try again shortly.';
     renderTeams([], null);
@@ -1346,6 +1356,19 @@ function initTeamsPage() {
   }
 
   renderTeams(teams, coords);
+
+  if (pendingApplicationTeamId) {
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('apply');
+    window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+
+    const pendingTeam = teams.find(team => String(team && (team.id || team._id) || '') === pendingApplicationTeamId);
+    if (pendingTeam) {
+      window.setTimeout(() => sendToTeam(pendingTeam), 0);
+    } else {
+      alert('The selected team is no longer available. Please choose another team.');
+    }
+  }
 
   function setZipMessage(message, isError = false) {
     if (!zipMessage) return;
@@ -1368,6 +1391,30 @@ function initTeamsPage() {
     status.textContent = hasTeamWithinMiles(referenceCoords, 100)
       ? nearbyMessage
       : "Sorry, we don't find any registered team at your location";
+  }
+
+  function applyTeamNameSearch(query) {
+    const normalizedQuery = String(query || '').trim().toLowerCase();
+    if (!normalizedQuery) return false;
+
+    const matchingTeams = teams.filter((team) => {
+      const teamName = String(team && team.name || '').trim().toLowerCase();
+      const teamNumber = String(team && team.teamNumber || '').trim().toLowerCase();
+      const programAndNumber = `${String(team && team.program || '').trim()} ${teamNumber}`.trim().toLowerCase();
+      return teamName.includes(normalizedQuery)
+        || Boolean(teamNumber && (teamNumber === normalizedQuery || programAndNumber.includes(normalizedQuery)));
+    });
+
+    if (!matchingTeams.length) return false;
+
+    const teamSearchInput = document.getElementById('teamsSearch');
+    if (!teamSearchInput) return false;
+    teamSearchInput.dataset.searchScope = 'team';
+    teamSearchInput.value = query;
+    teamSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    status.textContent = `Showing ${matchingTeams.length} team${matchingTeams.length === 1 ? '' : 's'} matching “${query}”`;
+    setZipMessage('');
+    return true;
   }
 
   async function lookupLocation(query) {
@@ -1399,16 +1446,67 @@ function initTeamsPage() {
     };
   }
 
+  function useDeviceLocation() {
+    if (!navigator.geolocation) {
+      status.textContent = 'Showing recruiting teams';
+      setZipMessage('Device location is unavailable. Search for a location to sort teams by distance.');
+      return;
+    }
+
+    status.textContent = 'Requesting your device location…';
+    setZipMessage('Allow location access to automatically show the nearest teams.');
+    const requestVersion = ++locationRequestVersion;
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (requestVersion !== locationRequestVersion) return;
+        const deviceCoords = {
+          lat: Number(position && position.coords && position.coords.latitude),
+          lon: Number(position && position.coords && position.coords.longitude)
+        };
+
+        if (!Number.isFinite(deviceCoords.lat) || !Number.isFinite(deviceCoords.lon)) {
+          status.textContent = 'Showing recruiting teams';
+          setZipMessage('Your device did not provide a usable location. Search for a location instead.', true);
+          return;
+        }
+
+        renderTeams(teams, deviceCoords);
+        updateLocationStatus(deviceCoords, 'Showing teams nearest to your device location');
+        setZipMessage('Using your device location. Your precise location stays on this device.');
+      },
+      (error) => {
+        if (requestVersion !== locationRequestVersion) return;
+        status.textContent = 'Showing recruiting teams';
+        const permissionDenied = error && error.code === 1;
+        setZipMessage(
+          permissionDenied
+            ? 'Location access was not allowed. Search for a location to sort teams by distance.'
+            : 'Your device location is unavailable. Search for a location to sort teams by distance.',
+          false
+        );
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: 10000,
+        maximumAge: 300000
+      }
+    );
+  }
+
   if (zipForm && zipInput) {
     zipForm.addEventListener('submit', async (event) => {
       event.preventDefault();
+      locationRequestVersion += 1;
       const query = zipInput.value.trim();
 
       if (!query) {
-        setZipMessage('Enter a city, county, state, country, or ZIP code.', true);
+        setZipMessage('Enter a team name, city, county, state, country, or ZIP code.', true);
         zipInput.focus();
         return;
       }
+
+      if (applyTeamNameSearch(query)) return;
 
       setZipMessage('Looking up location...');
 
@@ -1423,7 +1521,7 @@ function initTeamsPage() {
     });
   }
 
-  if (initialQuery) {
+  if (initialQuery && !applyTeamNameSearch(initialQuery)) {
     lookupLocation(initialQuery)
       .then((location) => {
         renderTeams(teams, location.coords);
@@ -1436,8 +1534,7 @@ function initTeamsPage() {
   }
 
   if (!initialQuery) {
-    status.textContent = 'Showing recruiting teams';
-    setZipMessage('Enter a city, county, state, country, or ZIP code to sort by approximate distance.');
+    useDeviceLocation();
   }
 }
 
