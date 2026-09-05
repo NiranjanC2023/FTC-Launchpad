@@ -148,7 +148,7 @@ function initJoinForm() {
       const response = await fetch('/api/signups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ currentGrade: form.elements.currentGrade.value.trim() })
       });
       const payload = await response.json().catch(() => ({}));
       if (response.status === 401) {
@@ -242,16 +242,29 @@ function normalizeCountryName(value) {
   return aliases[normalized] || normalized;
 }
 
+function normalizeRegionName(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 function getCountryApplicationState(team) {
   const user = getCurrentUser();
-  if (!user) return { hasTeam: false, needsCountry: false, needsRegion: false, outsideCountry: false };
+  if (!user) return { hasTeam: false, needsCountry: false, needsRegion: false, outsideCountry: false, outsideRegion: false };
   const userCountry = normalizeCountryName(user.country);
   const teamCountry = normalizeCountryName(team && team.country);
+  const userRegion = normalizeRegionName(user.canonicalState || user.state);
+  const teamRegion = normalizeRegionName(team && (team.canonicalState || team.state));
   return {
     hasTeam: Boolean(user.hasTeam),
     needsCountry: !userCountry,
-    needsRegion: Boolean(userCountry && !String(user.state || '').trim()),
-    outsideCountry: Boolean(userCountry && (!teamCountry || userCountry !== teamCountry))
+    needsRegion: Boolean(userCountry && !userRegion),
+    outsideCountry: Boolean(userCountry && (!teamCountry || userCountry !== teamCountry)),
+    outsideRegion: Boolean(userCountry && teamCountry && userCountry === teamCountry && userRegion && (!teamRegion || userRegion !== teamRegion))
   };
 }
 
@@ -327,6 +340,25 @@ function formatAwardHistoryDisplayEntry(entry) {
 function distanceThresholdToKm(value, unitPreference) {
   if (!Number.isFinite(value)) return null;
   return unitPreference === 'imperial' ? value / 0.621371 : value;
+}
+
+const TEAM_PRIVACY_RADIUS_METERS = 152.4; // 500 feet
+const TEAM_MARKER_OFFSET_METERS = 60.96; // 200 feet
+
+function getPrivacyOffsetPosition(team, latitude, longitude) {
+  const seed = String((team && (team.id || team._id || team.name || team.teamNumber)) || 'team');
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = ((hash * 31) + seed.charCodeAt(index)) >>> 0;
+  }
+  const angle = (hash % 360) * (Math.PI / 180);
+  const latitudeOffset = (TEAM_MARKER_OFFSET_METERS * Math.cos(angle)) / 111320;
+  const longitudeScale = 111320 * Math.max(0.2, Math.cos(latitude * (Math.PI / 180)));
+  const longitudeOffset = (TEAM_MARKER_OFFSET_METERS * Math.sin(angle)) / longitudeScale;
+  return {
+    lat: latitude + latitudeOffset,
+    lng: longitude + longitudeOffset
+  };
 }
 
 window.initGoogleTeamsMap = function initGoogleTeamsMap() {
@@ -415,6 +447,63 @@ function getGoogleHtmlMarkerClass() {
   return GoogleHtmlMarker;
 }
 
+function getGooglePrivacyOverlayClass() {
+  if (window._GooglePrivacyOverlayClass) return window._GooglePrivacyOverlayClass;
+
+  class GooglePrivacyOverlay extends google.maps.OverlayView {
+    constructor({ map, position, radiusMeters }) {
+      super();
+      this.position = new google.maps.LatLng(position);
+      this.radiusMeters = Number(radiusMeters) || 220;
+      this.visible = false;
+      this.element = null;
+      this.setMap(map);
+    }
+
+    onAdd() {
+      const element = document.createElement('div');
+      element.className = 'google-team-privacy-overlay';
+      element.setAttribute('aria-hidden', 'true');
+      element.hidden = !this.visible;
+      this.element = element;
+      // Keep the privacy visualization in the non-interactive pane so it can
+      // never block clicks intended for the red team marker.
+      this.getPanes().overlayLayer.appendChild(element);
+    }
+
+    draw() {
+      if (!this.element) return;
+      const projection = this.getProjection();
+      const center = projection.fromLatLngToDivPixel(this.position);
+      const north = projection.fromLatLngToDivPixel(new google.maps.LatLng(
+        this.position.lat() + (this.radiusMeters / 111320),
+        this.position.lng()
+      ));
+      if (!center || !north) return;
+      // Size the overlay from its fixed real-world radius rather than a
+      // screen-space minimum or maximum.
+      const diameter = Math.abs(center.y - north.y) * 2;
+      this.element.style.width = `${diameter}px`;
+      this.element.style.height = `${diameter}px`;
+      this.element.style.left = `${center.x - (diameter / 2)}px`;
+      this.element.style.top = `${center.y - (diameter / 2)}px`;
+    }
+
+    onRemove() {
+      if (this.element) this.element.remove();
+      this.element = null;
+    }
+
+    setVisible(visible) {
+      this.visible = Boolean(visible);
+      if (this.element) this.element.hidden = !this.visible;
+    }
+  }
+
+  window._GooglePrivacyOverlayClass = GooglePrivacyOverlay;
+  return GooglePrivacyOverlay;
+}
+
 function createUserLocationMarker(map, userCoords, bounds) {
   if (!map || !userCoords || typeof userCoords.lat !== 'number' || typeof userCoords.lon !== 'number') return null;
 
@@ -479,7 +568,7 @@ function renderTeams(teams, userCoords) {
   }
 
   // create a simple accessible list alongside the map
-  const programOptions = ['All', 'FTC', 'FRC', 'FLL Challenge'];
+  const programOptions = ['All', 'FLL Challenge', 'FTC', 'FRC'];
   const distanceUnitPreference = getDistanceUnitPreference();
   const distanceFilterOptions = distanceUnitPreference === 'imperial'
     ? [
@@ -922,9 +1011,11 @@ function getTeamRecruitingLabel(team) {
     const map = window._teamsMapInstance;
     if (layerSet) {
       layerSet.visible = visible;
-      if (layerSet.notifier && layerSet.notifier.setVisible) layerSet.notifier.setVisible(visible);
-      if (visible && typeof window._updateTeamZoomNotifiers === 'function') {
+      if (typeof window._updateTeamZoomNotifiers === 'function') {
         window._updateTeamZoomNotifiers();
+      } else {
+        if (layerSet.notifier && layerSet.notifier.setVisible) layerSet.notifier.setVisible(visible);
+        if (layerSet.privacyCircle && layerSet.privacyCircle.setVisible) layerSet.privacyCircle.setVisible(false);
       }
       return;
     }
@@ -987,6 +1078,40 @@ function getTeamRecruitingLabel(team) {
     `;
   }
 
+  function renderTeamReportMenu(team, teamName) {
+    const teamId = String((team && (team.id || team._id)) || '');
+    if (!teamId) return '';
+
+    return `
+      <details class="report-menu team-report-menu">
+        <summary class="team-card-icon-button" aria-label="Report ${escapeHTML(teamName)}" title="Report team">
+          <i class="fa-regular fa-flag" aria-hidden="true"></i>
+        </summary>
+        <form class="report-menu-panel" action="/reports" method="POST">
+          <input type="hidden" name="targetType" value="team">
+          <input type="hidden" name="targetId" value="${escapeHTML(teamId)}">
+          <input type="hidden" name="returnTo" value="/teams-nearby">
+          <label>
+            Why are you reporting this team?
+            <select name="reason" required>
+              <option value="">Choose a reason</option>
+              <option value="spam_or_scam">Spam or scam</option>
+              <option value="inappropriate_content">Inappropriate content or behavior</option>
+              <option value="impersonation">Impersonation or false information</option>
+              <option value="privacy_or_safety">Privacy or safety concern</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>
+            Additional details (optional)
+            <textarea name="details" rows="3" maxlength="1000" placeholder="Tell us what happened"></textarea>
+          </label>
+          <button type="submit" class="btn btn-tertiary report-submit-button">Submit report</button>
+        </form>
+      </details>
+    `;
+  }
+
   orderedTeams.forEach(team => {
     const teamLat = Number(team.lat);
     const teamLon = Number(team.lon);
@@ -1045,6 +1170,7 @@ function getTeamRecruitingLabel(team) {
           </span>
         </div>
         <div class="team-card-toolbar">
+          ${renderTeamReportMenu(team, teamName)}
           <button class="btn btn-link goto-marker team-card-icon-button" title="Show on map" aria-label="Show ${escapeHTML(teamName)} on map" data-team="${escapeHTML(teamName)}"><i class="fa-solid fa-map-pin"></i></button>
           <button class="btn btn-link toggle-details team-card-icon-button" aria-expanded="false" aria-label="Toggle details"><i class="fa-solid fa-chevron-down"></i></button>
         </div>
@@ -1096,7 +1222,7 @@ function getTeamRecruitingLabel(team) {
           })}
         ` : ''}
         <div class="team-actions">
-          <button class="btn btn-primary send-btn"${!isRecruiting || countryApplicationState.hasTeam || countryApplicationState.outsideCountry ? ' disabled' : ''}>${!isRecruiting ? 'Not Recruiting' : countryApplicationState.hasTeam ? 'Already on a Team' : countryApplicationState.needsCountry ? 'Add Country to Apply' : countryApplicationState.needsRegion ? 'Add State or Region to Apply' : countryApplicationState.outsideCountry ? 'Outside Your Country' : 'Send My Info'}</button>
+          <button class="btn btn-primary send-btn"${!isRecruiting || countryApplicationState.hasTeam || countryApplicationState.outsideCountry || countryApplicationState.outsideRegion ? ' disabled' : ''}>${!isRecruiting ? 'Not Recruiting' : countryApplicationState.hasTeam ? 'Already on a Team' : countryApplicationState.needsCountry ? 'Add Country to Apply' : countryApplicationState.needsRegion ? 'Add State or Region to Apply' : countryApplicationState.outsideCountry ? 'Outside Your Country' : countryApplicationState.outsideRegion ? 'Outside Your State/Region' : 'Send My Info'}</button>
         </div>
       </div>
     `);
@@ -1104,6 +1230,14 @@ function getTeamRecruitingLabel(team) {
 
     const sendBtn = card.querySelector('.send-btn');
     if (sendBtn) sendBtn.addEventListener('click', (e) => { e.stopPropagation(); sendToTeam(team); });
+
+    const reportMenu = card.querySelector('.report-menu');
+    if (reportMenu) {
+      reportMenu.addEventListener('click', event => event.stopPropagation());
+      reportMenu.addEventListener('toggle', () => {
+        card.classList.toggle('report-menu-open', reportMenu.open);
+      });
+    }
 
     const gotoBtn = card.querySelector('.goto-marker');
     if (gotoBtn) gotoBtn.addEventListener('click', event => {
@@ -1178,7 +1312,7 @@ function getTeamRecruitingLabel(team) {
       const head = card.querySelector('.team-card-head');
       if (head) {
         head.addEventListener('click', (e) => {
-          if (e.target.closest('.goto-marker') || e.target.closest('.toggle-details')) return;
+          if (e.target.closest('.goto-marker') || e.target.closest('.toggle-details') || e.target.closest('.report-menu')) return;
           toggleBtn.click();
         });
       }
@@ -1186,7 +1320,7 @@ function getTeamRecruitingLabel(team) {
 
     let hoverFocusTimer = null;
     card.addEventListener('mouseenter', (event) => {
-      if (event.target.closest('.goto-marker') || event.target.closest('.toggle-details') || event.target.closest('.send-btn')) return;
+      if (event.target.closest('.goto-marker') || event.target.closest('.toggle-details') || event.target.closest('.send-btn') || event.target.closest('.report-menu')) return;
       hoverFocusTimer = setTimeout(() => {
         focusTeamWhenReady(teamName, { openPopup: true, zoom: 14, scroll: true });
       }, 2000);
@@ -1219,7 +1353,7 @@ function getTeamRecruitingLabel(team) {
     }
 
     Object.values(window._teamMapLayers || {}).forEach(layerSet => {
-      [layerSet.notifier].forEach(layer => {
+      [layerSet.notifier, layerSet.privacyCircle].forEach(layer => {
         if (layer && layer.setMap) layer.setMap(null);
       });
     });
@@ -1351,11 +1485,16 @@ function getTeamRecruitingLabel(team) {
     });
     syncMapTypeControl();
     const updateTeamZoomNotifiers = () => {
-      const compact = map.getZoom() <= 7;
+      const zoom = Number(map.getZoom());
+      const compact = zoom <= 7;
+      const showPrivacyCircle = zoom >= 14;
       Object.values(window._teamMapLayers || {}).forEach(layerSet => {
         if (!layerSet.notifier) return;
         layerSet.notifier.setCompact(compact);
         layerSet.notifier.setVisible(layerSet.visible !== false);
+        if (layerSet.privacyCircle) {
+          layerSet.privacyCircle.setVisible(layerSet.visible !== false && showPrivacyCircle);
+        }
       });
     };
     window._updateTeamZoomNotifiers = updateTeamZoomNotifiers;
@@ -1401,11 +1540,11 @@ function getTeamRecruitingLabel(team) {
           <p class="google-team-popup-status${isRecruiting ? '' : ' is-inactive'}">${getTeamRecruitingLabel(team)}</p>
           <p class="google-team-popup-contact"><strong>Contact</strong><span>${teamContact ? `<a href="mailto:${escapeHTML(teamContact)}">${escapeHTML(teamContact)}</a>` : 'Contact email not listed'}</span></p>
           ${distanceData ? `<p class="google-team-popup-distance">${distanceData.label} away</p>` : ''}
-          <button class="popup-send-btn btn btn-primary" data-team="${escapeHTML(teamName)}"${!isRecruiting || countryApplicationState.hasTeam || countryApplicationState.outsideCountry ? ' disabled' : ''}>${!isRecruiting ? 'Not Recruiting' : countryApplicationState.hasTeam ? 'Already on a Team' : countryApplicationState.needsCountry ? 'Add Country to Apply' : countryApplicationState.needsRegion ? 'Add State or Region to Apply' : countryApplicationState.outsideCountry ? 'Outside Your Country' : 'Send My Info'}</button>
+          <button class="popup-send-btn btn btn-primary" data-team="${escapeHTML(teamName)}"${!isRecruiting || countryApplicationState.hasTeam || countryApplicationState.outsideCountry || countryApplicationState.outsideRegion ? ' disabled' : ''}>${!isRecruiting ? 'Not Recruiting' : countryApplicationState.hasTeam ? 'Already on a Team' : countryApplicationState.needsCountry ? 'Add Country to Apply' : countryApplicationState.needsRegion ? 'Add State or Region to Apply' : countryApplicationState.outsideCountry ? 'Outside Your Country' : countryApplicationState.outsideRegion ? 'Outside Your State/Region' : 'Send My Info'}</button>
         </div>
       `;
 
-      const position = { lat: teamLat, lng: teamLon };
+      const position = getPrivacyOffsetPosition(team, teamLat, teamLon);
       let marker;
       const openPopup = () => {
         window._infoWindow.setContent(popupContent);
@@ -1427,12 +1566,18 @@ function getTeamRecruitingLabel(team) {
         if (marker.popupHoverTimer) clearTimeout(marker.popupHoverTimer);
         marker.popupHoverTimer = null;
       };
+      const PrivacyOverlay = getGooglePrivacyOverlayClass();
+      const privacyCircle = new PrivacyOverlay({
+        map,
+        position,
+        radiusMeters: TEAM_PRIVACY_RADIUS_METERS
+      });
       marker = new GoogleHtmlMarker({
         map,
         position,
         title: `${teamName} location`,
         className: 'google-team-marker-overlay',
-        html: `<span class="team-zoom-notifier${isRecruiting ? '' : ' team-zoom-notifier--inactive'}" aria-hidden="true"></span>`,
+        html: '<span class="team-zoom-notifier team-zoom-notifier--team" aria-hidden="true"></span>',
         onClick: () => {
           window._pinnedTeamPopup = { teamName, marker };
           focusTeam(teamName, { scroll: true, openPopup: true, zoom: 12 });
@@ -1454,6 +1599,7 @@ function getTeamRecruitingLabel(team) {
       if (!window._teamMapLayers) window._teamMapLayers = {};
       window._teamMapLayers[teamName] = {
         notifier: marker,
+        privacyCircle,
         visible: true
       };
       bounds.extend(position);
@@ -1467,6 +1613,7 @@ function getTeamRecruitingLabel(team) {
     }
     updateTeamZoomNotifiers();
     map.addListener('zoom_changed', updateTeamZoomNotifiers);
+    map.addListener('idle', updateTeamZoomNotifiers);
     map.addListener('click', () => {
       window._pinnedTeamPopup = null;
       if (window._infoWindowTimer) {
@@ -1522,6 +1669,71 @@ function getTeamRecruitingLabel(team) {
   tryInitMap();
 }
 
+function confirmSendInfoToTeam(team) {
+  const teamName = String((team && team.name) || 'this team').trim() || 'this team';
+  const isNewTeam = Boolean(team && team.isNewTeam);
+
+  return new Promise((resolve) => {
+    const existingModal = document.querySelector('[data-send-info-confirm]');
+    if (existingModal) existingModal.remove();
+
+    const modal = document.createElement('div');
+    modal.className = 'send-info-confirm-backdrop';
+    modal.setAttribute('data-send-info-confirm', 'true');
+    modal.innerHTML = firstStartTrustedTypesPolicy.createHTML(`
+      <section class="send-info-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="sendInfoConfirmTitle" aria-describedby="sendInfoConfirmText">
+        <h2 id="sendInfoConfirmTitle">Send your info?</h2>
+        <p id="sendInfoConfirmText">You are sending your information to <strong>${escapeHTML(teamName)}</strong>.</p>
+        ${isNewTeam ? '<p class="send-info-confirm-warning"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> This is a new team and has not been verified.</p>' : ''}
+        <div class="send-info-confirm-actions">
+          <button type="button" class="btn btn-secondary" data-send-info-cancel>Cancel</button>
+          <button type="button" class="btn btn-primary" data-send-info-confirm-button>Send Info</button>
+        </div>
+      </section>
+    `);
+
+    const finish = (confirmed) => {
+      document.removeEventListener('keydown', handleKeydown);
+      modal.remove();
+      resolve(confirmed);
+    };
+    const handleKeydown = (event) => {
+      if (event.key === 'Escape') finish(false);
+    };
+
+    modal.addEventListener('click', event => {
+      if (event.target === modal) finish(false);
+    });
+    modal.querySelector('[data-send-info-cancel]').addEventListener('click', () => finish(false));
+    modal.querySelector('[data-send-info-confirm-button]').addEventListener('click', () => finish(true));
+    document.addEventListener('keydown', handleKeydown);
+    document.body.appendChild(modal);
+    modal.querySelector('[data-send-info-confirm-button]').focus();
+  });
+}
+
+function initCharacterCounters() {
+  document.querySelectorAll('input[name="interests"], textarea[name="experience"]').forEach(field => {
+    const maxLength = field.name === 'interests' ? 200 : 500;
+    field.maxLength = maxLength;
+    let counter = field.parentElement && field.parentElement.querySelector(`[data-character-count-for="${field.name}"]`);
+    if (!counter) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'character-field';
+      field.replaceWith(wrapper);
+      wrapper.appendChild(field);
+      counter = document.createElement('div');
+      counter.className = 'character-count';
+      counter.dataset.characterCountFor = field.name;
+      counter.setAttribute('aria-live', 'polite');
+      wrapper.appendChild(counter);
+    }
+    const update = () => { counter.textContent = `${field.value.length} / ${maxLength}`; };
+    field.addEventListener('input', update);
+    update();
+  });
+}
+
 async function sendToTeam(team) {
   const currentUser = getCurrentUser();
   if (!currentUser) {
@@ -1542,6 +1754,15 @@ async function sendToTeam(team) {
     alert('You can only apply to teams in your country.');
     return;
   }
+  if (countryApplicationState.outsideRegion) {
+    alert('You can only apply to teams in your state or region.');
+    return;
+  }
+
+  const applicationDetails = await confirmSendInfoToTeam(team);
+  if (!applicationDetails) {
+    return;
+  }
 
   try {
     const response = await fetch('/api/signups', {
@@ -1555,6 +1776,9 @@ async function sendToTeam(team) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       alert(payload && payload.error ? payload.error : 'Unable to save your application right now.');
+      if (payload.code === 'PROFILE_GRADE_REQUIRED') {
+        window.location.href = '/account/signup-info?back=teams';
+      }
       return;
     }
 
@@ -1800,6 +2024,7 @@ function initCountryRegionSelects() {
 
     const loadRegions = async () => {
       const country = String(countrySelect.value || '').trim();
+      const currentRegion = String(regionSelect.value || '').trim();
       regionSelect.disabled = true;
       replaceOptions([], country ? 'Loading states or regions…' : 'Select a country first');
       if (!country) return;
@@ -1810,6 +2035,9 @@ function initCountryRegionSelects() {
         if (!response.ok || !payload.ok || !Array.isArray(payload.regions)) throw new Error('Unable to load states or regions.');
         replaceOptions(payload.regions, 'Select a state, province, or region');
         regionSelect.disabled = false;
+        if (currentRegion && payload.regions.includes(currentRegion)) {
+          regionSelect.value = currentRegion;
+        }
         if (payload.regions.length === 1 && payload.regions[0] === 'Not applicable') {
           regionSelect.value = payload.regions[0];
         }
@@ -2072,6 +2300,7 @@ function initTermsPage() {
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
   initDeclarativeActions();
+  initCharacterCounters();
   initPageAnimations();
   loadSharedFooter();
   loadSiteShells();
@@ -2115,7 +2344,7 @@ function loadSiteShells() {
 
   const headerReady = document.querySelector('header .navbar, body > .navbar')
     ? Promise.resolve()
-    : fetch('/assets/partial/header.html?v=46')
+    : fetch('/assets/partial/header.html?v=47')
       .then(r => r.text())
       .then(html => {
         const header = document.querySelector('header');
@@ -2228,6 +2457,7 @@ function loadSiteShells() {
           const accountLabelEl = document.querySelector('.account-label');
           const inboxCountEls = document.querySelectorAll('[data-inbox-count]');
           const statsLink = accountDropdown ? accountDropdown.querySelector('a[data-href="/stats"]') : null;
+          const reportsLink = accountDropdown ? accountDropdown.querySelector('a[data-href="/reports"]') : null;
           const settingsLink = accountDropdown ? accountDropdown.querySelector('a[data-href="/account"]') : null;
           const signOutLink = accountDropdown ? accountDropdown.querySelector('a[data-href="/logout"]') : null;
           let notifications = Array.isArray(data.notifications) ? data.notifications : [];
@@ -2335,6 +2565,14 @@ function loadSiteShells() {
               if (canViewStats) {
                 statsLink.setAttribute('href', '/stats');
                 statsLink.setAttribute('data-href', '/stats');
+              }
+            }
+            if (reportsLink) {
+              const canViewReports = Boolean(user.canViewReports || ['evergreentechatrons.contact@gmail.com', 'evergreentechatrons@gmail.com'].includes(String(user.email || '').trim().toLowerCase()));
+              reportsLink.style.display = canViewReports ? '' : 'none';
+              if (canViewReports) {
+                reportsLink.setAttribute('href', '/reports');
+                reportsLink.setAttribute('data-href', '/reports');
               }
             }
           }
@@ -2451,6 +2689,10 @@ function loadSiteShells() {
               const canViewStats = Boolean(user && user.canViewStats);
               navItem.style.display = canViewStats ? '' : 'none';
               if (canViewStats) a.setAttribute('href', target);
+            } else if (target === '/reports') {
+              const canViewReports = Boolean(user && (user.canViewReports || ['evergreentechatrons.contact@gmail.com', 'evergreentechatrons@gmail.com'].includes(String(user.email || '').trim().toLowerCase())));
+              navItem.style.display = canViewReports ? '' : 'none';
+              if (canViewReports) a.setAttribute('href', target);
             } else if (target === '/team-email-directory') {
               navItem.hidden = !canViewTeamEmailDirectory;
               navItem.style.display = canViewTeamEmailDirectory ? '' : 'none';

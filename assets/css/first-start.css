@@ -62,14 +62,27 @@
 }
 
 .home-hero {
+  --curve-height: clamp(52px, 4.5vw, 72px);
+  position: relative;
+  z-index: 1;
+  margin-bottom: calc(-1 * var(--curve-height));
   min-height: auto;
-  padding: 28px 0 48px;
+  padding: 28px 0 var(--curve-height);
   display: flex;
   flex-direction: column;
   background:
     linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px),
     linear-gradient(0deg, rgba(255,255,255,0.03) 1px, transparent 1px);
   background-size: 56px 56px;
+  background-color: #0f3922;
+  -webkit-mask-image: linear-gradient(#000, #000), url('/assets/img/hero-curve-mask.svg');
+  mask-image: linear-gradient(#000, #000), url('/assets/img/hero-curve-mask.svg');
+  -webkit-mask-size: 100% calc(100% - var(--curve-height) + 1px), 100% var(--curve-height);
+  mask-size: 100% calc(100% - var(--curve-height) + 1px), 100% var(--curve-height);
+  -webkit-mask-position: top, bottom;
+  mask-position: top, bottom;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
 .home-hero-grid {
@@ -997,24 +1010,10 @@
 }
 
 /* New homepage sections */
-.home-wave {
-  margin-top: auto;
-  background: transparent;
-  line-height: 0;
-}
-
-.home-wave svg {
-  display: block;
-  width: 100%;
-  height: 136px;
-  margin-bottom: -88px;
-  background-color: #0f3922;
-  overflow: visible;
-}
-
 .home-surface {
   position: relative;
-  margin-top: -18px;
+  padding-top: clamp(52px, 4.5vw, 72px);
+  margin-top: 0;
   background-color: #ffffff;
   background-image:
     linear-gradient(90deg, rgba(0, 168, 107, 0.055) 1px, transparent 1px),
@@ -1929,8 +1928,14 @@
     background-size: 34px 34px, 34px 34px;
   }
 
-  .home-wave {
-    display: none;
+  .home-hero {
+    margin-bottom: 0;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .home-surface {
+    padding-top: 0;
   }
 
   .home-hero-copy h1 {

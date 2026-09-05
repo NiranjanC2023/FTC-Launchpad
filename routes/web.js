@@ -8,6 +8,8 @@ const Student = require('../models/student');
 const { createNotification, normalizeEmail } = require('../lib/notifications');
 const Notification = require('../models/notification');
 const SiteVisit = require('../models/siteVisit');
+const { isExcludedTraffic, publicTrafficFilter } = require('../lib/site-traffic');
+const Report = require('../models/report');
 const { DEFAULT_FROM, sendTransactionalEmail, buildTransactionalEmailTemplate } = require('../lib/email');
 const { validatePhoneNumber } = require('../lib/phone');
 const { canonicalizeCountryRegion, isValidCountryRegion } = require('../lib/country-regions');
@@ -18,6 +20,11 @@ const path = require('path');
 const crypto = require('crypto');
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
 const TEAM_EMAIL_DIRECTORY_ACCESS_EMAIL = 'evergreentechatrons.contact@gmail.com';
+const REPORTS_ACCESS_EMAILS = new Set([
+    'evergreentechatrons.contact@gmail.com',
+    'evergreentechatrons@gmail.com'
+]);
+const REPORT_REASONS = new Set(['spam_or_scam', 'inappropriate_content', 'impersonation', 'privacy_or_safety', 'other']);
 const LOCALHOST_HOST_PATTERN = /^(localhost|127(?:\.\d{1,3}){3}|\[?::1\]?)(?::\d+)?$/i;
 const LOCAL_PRIVACY_POLICY_HTML = fs.readFileSync(path.join(__dirname, '..', 'views', 'partial', 'privacy-policy.html'), 'utf8');
 const SIGNUP_VERIFICATION_RESEND_INTERVAL_MS = 5 * 60 * 1000;
@@ -286,18 +293,24 @@ router.use(function trackSiteTraffic(req, res, next) {
     if (req.path.startsWith('/api/')) return next();
     if (req.path.startsWith('/assets/')) return next();
     if (req.path === '/favicon.ico') return next();
-    if (isLocalhostHost(req.hostname || req.get('host'))) return next();
+    if (isExcludedTraffic(req.hostname || req.get('host'), req.get('user-agent'), req.path)) return next();
     if (!isDatabaseConnected()) return next();
 
     const pathName = String(req.originalUrl || req.path || '/').split('?')[0] || '/';
-    SiteVisit.create({
+    const visit = {
         path: pathName,
         host: String(req.hostname || req.get('host') || '').trim() || undefined,
         userId: req.session && req.session.userId ? req.session.userId : undefined,
         referrer: String(req.get('referer') || '').trim() || undefined,
         userAgent: String(req.get('user-agent') || '').trim() || undefined
-    }).catch(err => {
-        console.error('Failed to record site visit:', err);
+    };
+    res.once('finish', () => {
+        // Do not count missing pages, errors, redirects, or non-page responses.
+        if (res.statusCode < 200 || res.statusCode >= 300) return;
+        if (!/^text\/html\b/i.test(String(res.getHeader('content-type') || ''))) return;
+        SiteVisit.create(visit).catch(err => {
+            console.error('Failed to record site visit:', err);
+        });
     });
 
     next();
@@ -356,6 +369,25 @@ function isStatsAccessUser(user) {
 
 function canAccessTeamEmailDirectory(user) {
     return Boolean(user && normalizeEmail(user.email) === normalizeEmail(TEAM_EMAIL_DIRECTORY_ACCESS_EMAIL));
+}
+
+function canAccessReports(user) {
+    return Boolean(user && REPORTS_ACCESS_EMAILS.has(normalizeEmail(user.email)));
+}
+
+function buildReportReturnUrl(value, result) {
+    const safeValue = sanitizeNextPath(value, '/teams-nearby');
+    const parsed = new URL(safeValue, 'http://localhost');
+    if (!['/teams-nearby', '/manage-team'].includes(parsed.pathname)) {
+        parsed.pathname = '/teams-nearby';
+        parsed.search = '';
+    }
+    if (parsed.pathname === '/manage-team') {
+        parsed.searchParams.set(result === 'sent' ? 'success' : 'error', result === 'sent' ? 'report_sent' : 'report_invalid');
+    } else {
+        parsed.searchParams.set(result === 'sent' ? 'report' : 'report_error', result);
+    }
+    return `${parsed.pathname}${parsed.search}`;
 }
 
 function getMonthKey(date) {
@@ -618,6 +650,8 @@ function mapTeam(team) {
         name: team.name,
         contact: team.contact,
         country: team.country,
+        state: team.state,
+        canonicalState: canonicalizeCountryRegion(team.country, team.state) || team.state,
         lat: displayCoords.lat,
         lon: displayCoords.lon,
         isNewTeam: Boolean(team.isNewTeam),
@@ -801,10 +835,6 @@ function validateTeamEmailRegistration(values = {}) {
         return 'Choose a FIRST program and enter a valid team number before requesting a verification code.';
     }
     if (!String(values.name || '').trim()) return 'Enter the team name before requesting a verification code.';
-    const contact = normalizeEmail(values.contact);
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) {
-        return 'Enter a valid contact email before requesting a verification code.';
-    }
     if (!isUsableTeamAddress(values.address)) return 'Enter a complete team address before requesting a verification code.';
     return '';
 }
@@ -1957,18 +1987,18 @@ router.get("/join-form", ensureAuthenticated, async function(req, res){
             return res.render("pages/join-form", { values: {} });
         }
 
-        const user = await User.findById(req.session.userId).select('name age country state experience email phone interests').lean().exec();
+        const user = await User.findById(req.session.userId).select('name country state experience currentGrade email phone interests').lean().exec();
         if (!user) {
             return res.render("pages/join-form", { values: {} });
         }
 
         const studentProfile = user.email
-            ? await Student.findOne({ email: normalizeEmail(user.email) }).select('name age country state experience email phone interests').lean().exec()
+            ? await Student.findOne({ email: normalizeEmail(user.email) }).select('name country state experience email phone interests currentGrade').lean().exec()
             : null;
 
         const values = {
+            currentGrade: (studentProfile && studentProfile.currentGrade) || user.currentGrade || '',
             name: (studentProfile && studentProfile.name) || user.name || '',
-            age: (studentProfile && studentProfile.age) || user.age || '',
             country: (studentProfile && studentProfile.country) || user.country || '',
             state: (studentProfile && studentProfile.state) || user.state || '',
             experience: (studentProfile && studentProfile.experience) || user.experience || '',
@@ -2198,7 +2228,9 @@ router.get("/team-org", function(req, res){
 
 router.get("/teams-nearby", async function(req, res){
     try {
-        if (!(await waitForDatabase())) return res.render("pages/teams-nearby", { teams: [], databaseUnavailable: true });
+        const reportSent = req.query.report === 'sent';
+        const reportError = req.query.report_error ? 'Unable to submit that report. Please check the selected reason and try again.' : null;
+        if (!(await waitForDatabase())) return res.render("pages/teams-nearby", { teams: [], databaseUnavailable: true, reportSent, reportError });
         const teams = await Team.find({
             program: { $in: Object.keys(PROGRAM_LABELS) },
             $or: [{ verified: true }, { isNewTeam: true }]
@@ -2216,7 +2248,10 @@ router.get("/teams-nearby", async function(req, res){
         let studentApp = null;
         let currentUser = null;
         if (req.session && req.session.userId) {
-            currentUser = await User.findById(req.session.userId).select('name age country state experience email phone interests').lean().exec();
+            currentUser = await User.findById(req.session.userId).select('name country state experience currentGrade email phone interests').lean().exec();
+            if (currentUser) {
+                currentUser.canonicalState = canonicalizeCountryRegion(currentUser.country, currentUser.state) || currentUser.state;
+            }
             if (currentUser && currentUser.email) {
                 const normalizedEmail = normalizeEmail(currentUser.email);
                 const [student, existingTeam] = await Promise.all([
@@ -2240,10 +2275,116 @@ router.get("/teams-nearby", async function(req, res){
             }
         }
 
-        res.render("pages/teams-nearby", { teams: normalizedTeams.map(mapTeam), studentApp, user: currentUser });
+        res.render("pages/teams-nearby", { teams: normalizedTeams.map(mapTeam), studentApp, user: currentUser, reportSent, reportError });
     } catch (err) {
         console.error('Failed to load nearby teams:', err);
-        res.render("pages/teams-nearby", { teams: [] });
+        res.render("pages/teams-nearby", { teams: [], reportSent: false, reportError: null });
+    }
+});
+
+router.post('/reports', ensureAuthenticated, async function(req, res) {
+    const returnUrl = req.body && req.body.returnTo;
+    const fail = () => res.redirect(buildReportReturnUrl(returnUrl, 'invalid'));
+
+    try {
+        if (!(await waitForDatabase())) return fail();
+
+        const reporter = await User.findById(req.session.userId).select('name email teamNumber').lean().exec();
+        if (!reporter) return res.redirect('/logout');
+
+        const targetType = String(req.body.targetType || '').trim();
+        const targetId = String(req.body.targetId || '').trim();
+        const contextTeamId = String(req.body.contextTeamId || '').trim();
+        const reason = String(req.body.reason || '').trim();
+        const details = String(req.body.details || '').trim();
+
+        if (!['team', 'user'].includes(targetType)
+            || !mongoose.Types.ObjectId.isValid(targetId)
+            || !REPORT_REASONS.has(reason)
+            || details.length > 1000) {
+            return fail();
+        }
+
+        const reportData = {
+            reporter: reporter._id,
+            reporterName: reporter.name,
+            reporterEmail: normalizeEmail(reporter.email),
+            targetType,
+            reason,
+            details: details || undefined
+        };
+
+        if (targetType === 'team') {
+            const targetTeam = await Team.findOne({
+                _id: targetId,
+                $or: [{ verified: true }, { isNewTeam: true }]
+            }).select('_id name program teamNumber').lean().exec();
+            if (!targetTeam) return fail();
+
+            reportData.targetTeam = targetTeam._id;
+            reportData.contextTeam = targetTeam._id;
+            reportData.targetName = targetTeam.name || `${targetTeam.program || 'FTC'} team ${targetTeam.teamNumber || ''}`.trim();
+        } else {
+            if (!mongoose.Types.ObjectId.isValid(contextTeamId) || String(reporter._id) === targetId) return fail();
+
+            const [contextTeam, targetUser] = await Promise.all([
+                Team.findById(contextTeamId).select('name contact managers teamNumber').lean().exec(),
+                User.findById(targetId).select('name email teamNumber').lean().exec()
+            ]);
+            if (!contextTeam || !targetUser || !hasTeamAccess(reporter, contextTeam)) return fail();
+
+            const targetIsShownMember = (Array.isArray(contextTeam.managers)
+                && contextTeam.managers.some(managerId => String(managerId) === String(targetUser._id)))
+                || normalizeEmail(contextTeam.contact) === normalizeEmail(targetUser.email);
+            const targetHasTeamApplication = targetIsShownMember ? true : Boolean(await Student.findOne({
+                email: normalizeEmail(targetUser.email),
+                $or: [
+                    { 'sentApplications.team': contextTeam._id },
+                    { applicationTeam: contextTeam._id }
+                ]
+            }).select('_id').lean().exec());
+            if (!targetHasTeamApplication) return fail();
+
+            reportData.targetUser = targetUser._id;
+            reportData.contextTeam = contextTeam._id;
+            reportData.targetName = targetUser.name;
+            reportData.targetEmail = normalizeEmail(targetUser.email);
+        }
+
+        await Report.create(reportData);
+        return res.redirect(buildReportReturnUrl(returnUrl, 'sent'));
+    } catch (err) {
+        console.error('Report submission failed:', err);
+        return fail();
+    }
+});
+
+router.get('/reports', ensureAuthenticated, async function(req, res) {
+    try {
+        if (!isDatabaseConnected()) {
+            return res.render('pages/reports', { error: databaseErrorMessage(), user: null, reports: [], counts: {} });
+        }
+
+        const user = await User.findById(req.session.userId).select('name email').lean().exec();
+        if (!user) return res.redirect('/logout');
+        if (!canAccessReports(user)) return res.redirect('/');
+
+        const reports = await Report.find({})
+            .sort({ createdAt: -1 })
+            .limit(500)
+            .populate('contextTeam', 'name program teamNumber')
+            .lean()
+            .exec();
+        const counts = reports.reduce((result, report) => {
+            const status = String(report.status || 'open');
+            result[status] = (result[status] || 0) + 1;
+            return result;
+        }, {});
+
+        return res.render('pages/reports', { error: null, user, reports, counts });
+    } catch (err) {
+        console.error('Reports page failed:', err);
+        return res.status(500).render('pages/reports', { error: 'Unable to load reports right now.', user: null, reports: [], counts: {} });
     }
 });
 
@@ -2322,6 +2463,7 @@ router.post('/team-register/email-verification', requireAccountForTeamRegister, 
             values: {
                 ...values,
                 ...(dashboardProfile || {}),
+                contact: publicEmail,
                 program,
                 teamNumber: String(teamNumber)
             }
@@ -2351,6 +2493,7 @@ router.post('/team-register/email-verification/confirm', requireAccountForTeamRe
     req.session.teamEmailVerification = {
         program: pending.program,
         teamNumber: pending.teamNumber,
+        publicEmail: normalizeEmail(pending.publicEmail),
         verifiedAt: new Date().toISOString(),
         expiresAt: Date.now() + TEAM_EMAIL_VERIFICATION_TTL_MS
     };
@@ -2395,7 +2538,6 @@ router.post('/manage-team/email-verification', ensureAuthenticated, async functi
             program: 'FTC',
             teamNumber: teamNumber ? String(teamNumber) : String(req.body.teamNumber || '').trim(),
             name: String(req.body.name || '').trim(),
-            contact: normalizeEmail(req.body.contact),
             address: String(req.body.address || '').trim(),
             city: String(req.body.city || '').trim(),
             state: String(req.body.state || '').trim(),
@@ -2407,8 +2549,7 @@ router.post('/manage-team/email-verification', ensureAuthenticated, async functi
         if (canonicalState) values.state = canonicalState;
         req.session.teamUpgradeDraft = { teamId, values };
 
-        const contactIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.contact);
-        if (!teamId || !teamNumber || !values.name || !contactIsValid || !isUsableTeamAddress(values.address) || !values.city || !isValidCountryRegion(values.country, values.state)) {
+        if (!teamId || !teamNumber || !values.name || !isUsableTeamAddress(values.address) || !values.city || !isValidCountryRegion(values.country, values.state)) {
             return res.redirect(`/manage-team?team=${encodeURIComponent(teamId)}&error=verification_invalid`);
         }
 
@@ -2554,7 +2695,7 @@ router.post('/manage-team/email-verification/confirm', ensureAuthenticated, asyn
         team.isNewTeam = false;
         team.name = officialName;
         team.organization = organization;
-        team.contact = normalizeEmail(submittedValues.contact) || team.contact;
+        team.contact = normalizeEmail(pending.publicEmail) || team.contact;
         team.address = String(submittedValues.address || team.address).trim();
         team.city = officialLocation.city || String(submittedValues.city || team.city).trim();
         team.state = officialLocation.state || String(submittedValues.state || team.state).trim();
@@ -2688,7 +2829,10 @@ router.get('/team-register', requireAccountForTeamRegister, async function(req, 
     res.render('pages/team-register', {
         error: verificationErrors[verificationStatus] || null,
         message: verificationMessages[verificationStatus] || null,
-        values: pendingValues || { registrationMode, contact: normalizeEmail(user.email) },
+        values: pendingValues || {
+            registrationMode,
+            ...(registrationMode === 'new' ? { contact: normalizeEmail(user.email) } : {})
+        },
         teamEmailVerification: req.session.teamEmailVerification || null,
         pendingTeamEmailVerification: pendingRegistration
     });
@@ -2745,7 +2889,9 @@ async function saveRegisteredTeam(req, res) {
                 values
             });
         }
-        const contact = normalizeEmail(values.contact);
+        const contact = isNewTeam
+            ? normalizeEmail(values.contact)
+            : normalizeEmail(req.session.teamEmailVerification && req.session.teamEmailVerification.publicEmail);
         values.contact = contact;
         const teamNumber = isNewTeam ? null : parsePositiveTeamNumber(values.teamNumber);
 
@@ -2761,7 +2907,9 @@ async function saveRegisteredTeam(req, res) {
 
         if (!contact) {
             return res.render('pages/team-register', {
-                error: 'Enter a valid contact email.',
+                error: isNewTeam
+                    ? 'Enter a valid contact email.'
+                    : 'The verified FIRST Dashboard email is missing. Request a new verification code.',
                 message: null,
                 values
             });
@@ -2774,8 +2922,8 @@ async function saveRegisteredTeam(req, res) {
                     : isNewTeam
                         ? 'Team name, city, country, and contact email are required.'
                         : isOfficialTeam
-                            ? 'Team number, team name, address, and contact email are required.'
-                            : 'Team name, city, country, and contact email are required.',
+                            ? 'Team number, team name, and address are required.'
+                            : 'Team name, city, and country are required.',
                 message: null,
                 values
             });
@@ -2837,8 +2985,8 @@ async function saveRegisteredTeam(req, res) {
                 error: isNewTeam
                     ? 'Program, team name, contact email, address, and country are required for a new team.'
                     : isOfficialTeam
-                        ? 'Program, team number, team name, contact email, and address are required.'
-                        : 'Program, team number, team name, contact email, and address or team location are required.',
+                        ? 'Program, team number, team name, address, and a verified FIRST Dashboard email are required.'
+                        : 'Program, team number, team name, address or team location, and a verified FIRST Dashboard email are required.',
                 message: null,
                 values
             });
@@ -3006,9 +3154,9 @@ router.get('/stats', ensureAuthenticated, async function(req, res) {
             Team.find({ program: { $in: Object.keys(PROGRAM_LABELS) } }).select('program teamNumber name city state country recruiting verified isNewTeam createdAt updatedAt').lean().exec(),
             Student.find({}).select('applicationStatus applicationTeam sentApplications createdAt updatedAt').lean().exec(),
             ManagerInvite.find({}).select('acceptedAt expiresAt createdAt').lean().exec(),
-            SiteVisit.find({ createdAt: { $gte: trafficWindowStart } }).select('path createdAt').lean().exec(),
-            SiteVisit.countDocuments({}).exec(),
-            SiteVisit.countDocuments({ createdAt: { $gte: trafficRecentWindowStart } }).exec(),
+            SiteVisit.find({ ...publicTrafficFilter(), createdAt: { $gte: trafficWindowStart } }).select('path createdAt').lean().exec(),
+            SiteVisit.countDocuments(publicTrafficFilter()).exec(),
+            SiteVisit.countDocuments({ ...publicTrafficFilter(), createdAt: { $gte: trafficRecentWindowStart } }).exec(),
             Notification.find({}).select('type title body link metadata recipientEmail readAt createdAt').sort({ createdAt: -1 }).limit(12).lean().exec(),
             Notification.countDocuments({}).exec(),
             Notification.countDocuments({
@@ -3241,6 +3389,8 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             errorMessage = 'Please wait one minute before requesting another verification code.';
         } else if (queryError === 'verification_failed') {
             errorMessage = 'Team is unable to be verified. Please try again.';
+        } else if (queryError === 'report_invalid') {
+            errorMessage = 'Unable to submit that report. Please check the selected reason and try again.';
         }
 
         // Handle success messages
@@ -3274,6 +3424,8 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             successMessage = 'Pending invitations cleared successfully.';
         } else if (querySuccess === 'team_verified') {
             successMessage = 'Team ownership verified. The listing was updated with official FTC Scout information.';
+        } else if (querySuccess === 'report_sent') {
+            successMessage = 'Your report was submitted for review.';
         } else if (querySuccess === 'verification_sent') {
             successMessage = 'A verification code was sent to the public email on the team’s FIRST Dashboard profile.';
         }
@@ -3411,6 +3563,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
                 if (!existing || new Date(updatedAt || 0) > new Date(existing.updatedAt || 0)) {
                     recruitMap.set(key, {
                         ...recruit,
+                        currentGrade: entry.currentGrade || recruit.currentGrade || '',
                         applicationTeam: entryTeam,
                         applicationStatus: entry.status || recruit.applicationStatus || 'pending',
                         statusMessage: entry.message || recruit.statusMessage || '',
@@ -3421,7 +3574,16 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
             }
         }
 
-        const teamApplications = Array.from(recruitMap.values()).sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+        let teamApplications = Array.from(recruitMap.values()).sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+        const applicantEmails = Array.from(new Set(teamApplications.map(application => normalizeEmail(application.email)).filter(Boolean)));
+        if (applicantEmails.length) {
+            const applicantAccounts = await User.find({ email: { $in: applicantEmails } }).select('_id email').lean().exec();
+            const applicantAccountByEmail = new Map(applicantAccounts.map(account => [normalizeEmail(account.email), account._id]));
+            teamApplications = teamApplications.map(application => ({
+                ...application,
+                accountId: applicantAccountByEmail.get(normalizeEmail(application.email)) || null
+            }));
+        }
         const recruits = teamApplications.filter(recruit => {
             const status = String(recruit.applicationStatus || '').toLowerCase();
             return status !== 'accepted' && status !== 'waitlisted' && status !== 'rejected';
@@ -4513,7 +4675,7 @@ router.post('/signup', async function(req, res){
     const mode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
     try {
         if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
-        const { name, email, password, age, country, state, phone, profilePicture, interests, experience, inviteToken, policyAccepted } = req.body;
+        const { name, email, password, country, state, phone, profilePicture, interests, experience, currentGrade, inviteToken, policyAccepted } = req.body;
         const nextPath = sanitizeNextPath(req.body.next, '');
         const normalizedEmail = normalizeEmail(email);
         const phoneCheck = mode === 'seeker'
@@ -4531,9 +4693,9 @@ router.post('/signup', async function(req, res){
             name,
             normalizedEmail,
             password,
-            age,
             country,
             state,
+            currentGrade,
             interests,
             experience
         };
@@ -4542,19 +4704,15 @@ router.post('/signup', async function(req, res){
         const hasMissingRequiredField = Object.values(requiredFields).some(value => !String(value ?? '').trim());
         if (hasMissingRequiredField) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body, inviteToken: inviteToken || null, nextPath });
         if (String(password).length < 8) return res.render(`pages/signup-${mode}`, { error: 'Password must be at least 8 characters.', values: req.body, inviteToken: inviteToken || null, nextPath });
+        const schoolGrades = new Set(['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12']);
+        if (mode === 'seeker' && !schoolGrades.has(String(currentGrade || '').trim())) return res.render(`pages/signup-${mode}`, { error: 'Select your grade for the current school year.', values: req.body, inviteToken: inviteToken || null, nextPath });
         if (!['1', 'on', 'true'].includes(String(policyAccepted || '').trim().toLowerCase())) {
             return res.render(`pages/signup-${mode}`, {
-                error: 'You must confirm that you are 13+ and agree to the privacy policy before creating an account.',
+                error: 'You must agree to the privacy policy before creating an account.',
                 values: req.body,
                 inviteToken: inviteToken || null,
                 nextPath
             });
-        }
-
-        const trimmedAge = String(age || '').trim();
-        const numericAge = trimmedAge ? Number(trimmedAge) : null;
-        if (mode === 'seeker' && (!trimmedAge || !Number.isInteger(numericAge) || numericAge < 13 || numericAge > 18)) {
-            return res.render(`pages/signup-${mode}`, { error: 'Age must be a whole number from 13 to 18.', values: req.body, inviteToken: inviteToken || null, nextPath });
         }
 
         const canonicalState = mode === 'seeker' ? canonicalizeCountryRegion(country, state) : '';
@@ -4583,13 +4741,13 @@ router.post('/signup', async function(req, res){
 
         user.name = String(name || '').trim();
         user.email = normalizedEmail;
-        user.age = mode === 'seeker' && Number.isInteger(numericAge) ? numericAge : undefined;
         user.country = mode === 'seeker' ? String(country || '').trim() : undefined;
         user.state = mode === 'seeker' ? canonicalState : undefined;
         user.phone = phoneCheck.normalized ? String(phoneCheck.normalized).trim() : undefined;
         user.profilePicture = String(profilePicture || '').trim();
         user.interests = mode === 'seeker' ? String(interests || '').trim() : undefined;
         user.experience = mode === 'seeker' ? String(experience || '').trim() : undefined;
+        user.currentGrade = mode === 'seeker' ? String(currentGrade || '').trim() : undefined;
         user.emailVerified = false;
         user.emailVerifiedAt = undefined;
         await user.setPassword(password);
@@ -4601,13 +4759,13 @@ router.post('/signup', async function(req, res){
                 name: String(name || '').trim(),
                 email: normalizedEmail,
                 password: String(password || ''),
-                age: String(age || '').trim(),
                 country: String(country || '').trim(),
                 state: canonicalState,
                 phone: phoneCheck.normalized,
                 profilePicture: String(profilePicture || '').trim(),
                 interests: String(interests || '').trim(),
                 experience: String(experience || '').trim(),
+                currentGrade: String(currentGrade || '').trim(),
                 inviteToken: inviteToken || null,
                 nextPath,
                 policyAccepted: '1',
@@ -4771,7 +4929,7 @@ router.post('/signup/verify', async function(req, res){
         });
     }
 
-    const { name, email, password, age, country, state, phone, profilePicture, interests, experience, inviteToken, nextPath } = pending.data;
+    const { name, email, password, country, state, phone, profilePicture, interests, experience, currentGrade, inviteToken, nextPath } = pending.data;
     const mode = pending.mode === 'manager' ? 'manager' : 'seeker';
     clearPendingSignupVerification(req);
 
@@ -4791,17 +4949,16 @@ router.post('/signup/verify', async function(req, res){
             user = await User.findOne({ email }).exec();
         }
         if (!user) {
-            const numericAge = age ? Number(age) : null;
             user = new User({
                 name: name.trim(),
                 email,
-                age: mode === 'seeker' && Number.isInteger(numericAge) ? numericAge : undefined,
                 country: mode === 'seeker' ? String(country || '').trim() : undefined,
                 state: mode === 'seeker' ? String(state || '').trim() : undefined,
                 phone: String(phone || '').trim(),
                 profilePicture: String(profilePicture || '').trim(),
                 interests: mode === 'seeker' ? String(interests || '').trim() : undefined,
                 experience: mode === 'seeker' ? String(experience || '').trim() : undefined,
+                currentGrade: mode === 'seeker' ? String(currentGrade || '').trim() : undefined,
                 emailVerified: true,
                 emailVerifiedAt: new Date()
             });
@@ -4810,13 +4967,13 @@ router.post('/signup/verify', async function(req, res){
 
         user.name = name.trim();
         user.email = email;
-        user.age = mode === 'seeker' && age ? Number(age) : undefined;
         user.country = mode === 'seeker' ? String(country || '').trim() : undefined;
         user.state = mode === 'seeker' ? String(state || '').trim() : undefined;
         user.phone = String(phone || '').trim();
         user.profilePicture = String(profilePicture || '').trim();
         user.interests = mode === 'seeker' ? String(interests || '').trim() : undefined;
         user.experience = mode === 'seeker' ? String(experience || '').trim() : undefined;
+        user.currentGrade = mode === 'seeker' ? String(currentGrade || '').trim() : undefined;
         user.emailVerified = true;
         user.emailVerifiedAt = user.emailVerifiedAt || new Date();
         if (!user.passwordHash) {
@@ -4897,10 +5054,10 @@ router.get('/account/signup-info', ensureAuthenticated, async function(req, res)
 
         const values = {
             name: user.name || '',
-            age: user.age || '',
             country: user.country || '',
             state: user.state || '',
             experience: user.experience || '',
+            currentGrade: user.currentGrade || '',
             email: user.email || '',
             phone: user.phone || '',
             interests: user.interests || ''
@@ -4927,10 +5084,10 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
         if (!currentUser) return res.redirect('/logout');
 
         const name = String(req.body.name || '').trim();
-        const age = String(req.body.age || '').trim();
         const country = String(req.body.country || '').trim();
         const state = String(req.body.state || '').trim();
         const experience = String(req.body.experience || '').trim();
+        const currentGrade = String(req.body.currentGrade || '').trim();
         const email = String(req.body.email || '').trim();
         const phone = String(req.body.phone || '').trim();
         const interests = String(req.body.interests || '').trim();
@@ -4949,21 +5106,10 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
 
         const normalizedEmail = normalizeEmail(email);
         const canonicalState = canonicalizeCountryRegion(country, state);
-        if (!name || !normalizedEmail || !country || !canonicalState) {
+        const schoolGrades = new Set(['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12']);
+        if (!name || !normalizedEmail || !country || !canonicalState || !schoolGrades.has(currentGrade)) {
             return res.render('pages/account-signup-info', {
                 error: 'Name, country, matching state or region, and valid email are required.',
-                success: null,
-                values: req.body || {},
-                backTarget,
-                backUrl,
-                pendingTeamId
-            });
-        }
-
-        const numericAge = age ? Number(age) : undefined;
-        if (age && (!Number.isInteger(numericAge) || numericAge < 13 || numericAge > 18)) {
-            return res.render('pages/account-signup-info', {
-                error: 'Age must be a whole number from 13 to 18.',
                 success: null,
                 values: req.body || {},
                 backTarget,
@@ -4986,22 +5132,22 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
 
         const updatedUser = await User.findByIdAndUpdate(req.session.userId, {
             name,
-            age: numericAge,
             country,
             state: canonicalState,
             email: normalizedEmail,
             phone: phoneCheck.normalized,
             interests,
-            experience
+            experience,
+            currentGrade
         }, { new: true, runValidators: true }).exec();
 
         const student = await Student.findOne({ email: normalizeEmail(currentUser.email) }).exec();
         if (student) {
             student.name = name;
-            student.age = numericAge;
             student.country = country;
             student.state = canonicalState;
             student.experience = experience;
+            student.currentGrade = currentGrade;
             student.interests = interests;
             student.phone = phoneCheck.normalized;
             student.email = normalizedEmail;
@@ -5028,8 +5174,8 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             error: null,
             success: 'Signup info saved successfully.',
             values: {
+                currentGrade,
                 name,
-                age,
                 country,
                 state: canonicalState,
                 experience,
@@ -5322,6 +5468,8 @@ router.get('/logout', function(req, res){
 module.exports = router;
 module.exports.__test = {
     canAccessTeamEmailDirectory,
+    canAccessReports,
+    buildReportReturnUrl,
     compareTeamNameToNumber,
     attachContactTeamsToUser,
     getTeamNameFromApiProfile,
@@ -5345,5 +5493,6 @@ module.exports.__test = {
     buildVerifiedTeamRegistrationValues,
     geocodeAddress,
     verifySubmittedTeamDetails,
-    verifyTeamWithApi
+    verifyTeamWithApi,
+    mapTeam
 };

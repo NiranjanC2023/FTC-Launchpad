@@ -1,0 +1,25 @@
+<details class="report-menu <%= menuClass || '' %>">
+  <summary aria-label="Report <%= targetLabel %>" title="Report <%= targetType === 'team' ? 'team' : 'member' %>">
+    <i class="fa-regular fa-flag" aria-hidden="true"></i>
+  </summary>
+  <form class="report-menu-panel" action="/reports" method="POST">
+    <input type="hidden" name="targetType" value="<%= targetType %>" />
+    <input type="hidden" name="targetId" value="<%= targetId %>" />
+    <% if (contextTeamId) { %><input type="hidden" name="contextTeamId" value="<%= contextTeamId %>" /><% } %>
+    <input type="hidden" name="returnTo" value="<%= returnTo %>" />
+    <label>Why are you reporting this <%= targetType === 'team' ? 'team' : 'member' %>?
+      <select name="reason" required>
+        <option value="">Choose a reason</option>
+        <option value="spam_or_scam">Spam or scam</option>
+        <option value="inappropriate_content">Inappropriate content or behavior</option>
+        <option value="impersonation">Impersonation or false information</option>
+        <option value="privacy_or_safety">Privacy or safety concern</option>
+        <option value="other">Other</option>
+      </select>
+    </label>
+    <label>Additional details (optional)
+      <textarea name="details" rows="3" maxlength="1000" placeholder="Tell us what happened"></textarea>
+    </label>
+    <button type="submit" class="btn btn-tertiary report-submit-button">Submit report</button>
+  </form>
+</details>

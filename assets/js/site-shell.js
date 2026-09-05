@@ -150,7 +150,7 @@ function initJoinForm() {
       const response = await fetch('/api/signups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ currentGrade: form.elements.currentGrade.value.trim() })
       });
       const payload = await response.json().catch(() => ({}));
       if (response.status === 401) {
@@ -244,16 +244,29 @@ function normalizeCountryName(value) {
   return aliases[normalized] || normalized;
 }
 
+function normalizeRegionName(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 function getCountryApplicationState(team) {
   const user = getCurrentUser();
-  if (!user) return { hasTeam: false, needsCountry: false, needsRegion: false, outsideCountry: false };
+  if (!user) return { hasTeam: false, needsCountry: false, needsRegion: false, outsideCountry: false, outsideRegion: false };
   const userCountry = normalizeCountryName(user.country);
   const teamCountry = normalizeCountryName(team && team.country);
+  const userRegion = normalizeRegionName(user.canonicalState || user.state);
+  const teamRegion = normalizeRegionName(team && (team.canonicalState || team.state));
   return {
     hasTeam: Boolean(user.hasTeam),
     needsCountry: !userCountry,
-    needsRegion: Boolean(userCountry && !String(user.state || '').trim()),
-    outsideCountry: Boolean(userCountry && (!teamCountry || userCountry !== teamCountry))
+    needsRegion: Boolean(userCountry && !userRegion),
+    outsideCountry: Boolean(userCountry && (!teamCountry || userCountry !== teamCountry)),
+    outsideRegion: Boolean(userCountry && teamCountry && userCountry === teamCountry && userRegion && (!teamRegion || userRegion !== teamRegion))
   };
 }
 
@@ -407,7 +420,7 @@ function loadSiteShells() {
 
   const headerReady = document.querySelector('header .navbar, body > .navbar')
     ? Promise.resolve()
-    : fetch('/assets/partial/header.html?v=46')
+    : fetch('/assets/partial/header.html?v=47')
       .then(r => r.text())
       .then(html => {
         const header = document.querySelector('header');
@@ -520,6 +533,7 @@ function loadSiteShells() {
           const accountLabelEl = document.querySelector('.account-label');
           const inboxCountEls = document.querySelectorAll('[data-inbox-count]');
           const statsLink = accountDropdown ? accountDropdown.querySelector('a[data-href="/stats"]') : null;
+          const reportsLink = accountDropdown ? accountDropdown.querySelector('a[data-href="/reports"]') : null;
           const settingsLink = accountDropdown ? accountDropdown.querySelector('a[data-href="/account"]') : null;
           const signOutLink = accountDropdown ? accountDropdown.querySelector('a[data-href="/logout"]') : null;
           let notifications = Array.isArray(data.notifications) ? data.notifications : [];
@@ -627,6 +641,14 @@ function loadSiteShells() {
               if (canViewStats) {
                 statsLink.setAttribute('href', '/stats');
                 statsLink.setAttribute('data-href', '/stats');
+              }
+            }
+            if (reportsLink) {
+              const canViewReports = Boolean(user.canViewReports || ['evergreentechatrons.contact@gmail.com', 'evergreentechatrons@gmail.com'].includes(String(user.email || '').trim().toLowerCase()));
+              reportsLink.style.display = canViewReports ? '' : 'none';
+              if (canViewReports) {
+                reportsLink.setAttribute('href', '/reports');
+                reportsLink.setAttribute('data-href', '/reports');
               }
             }
           }
@@ -743,6 +765,10 @@ function loadSiteShells() {
               const canViewStats = Boolean(user && user.canViewStats);
               navItem.style.display = canViewStats ? '' : 'none';
               if (canViewStats) a.setAttribute('href', target);
+            } else if (target === '/reports') {
+              const canViewReports = Boolean(user && (user.canViewReports || ['evergreentechatrons.contact@gmail.com', 'evergreentechatrons@gmail.com'].includes(String(user.email || '').trim().toLowerCase())));
+              navItem.style.display = canViewReports ? '' : 'none';
+              if (canViewReports) a.setAttribute('href', target);
             } else if (target === '/team-email-directory') {
               navItem.hidden = !canViewTeamEmailDirectory;
               navItem.style.display = canViewTeamEmailDirectory ? '' : 'none';

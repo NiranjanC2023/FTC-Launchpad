@@ -412,13 +412,12 @@
   <%
     const displayName = user && user.name ? user.name : 'Account';
     const initials = user && user.name ? user.name.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0].toUpperCase()).join('') : 'U';
-    const ageValue = user && user.age ? user.age : 'Not set';
     const phoneValue = user && user.phone ? user.phone : 'Not set';
     const interestsValue = studentProfile && studentProfile.interests ? studentProfile.interests : (user && user.interests ? user.interests : 'Not set');
     const experienceValue = studentProfile && studentProfile.experience ? studentProfile.experience : (user && user.experience ? user.experience : 'Not set');
     const teamLabel = team ? (team.teamNumber + ' - ' + team.name) : (user && user.teamNumber ? ('Team #' + user.teamNumber) : 'Not connected yet');
     const accountRole = team ? 'Team Member' : 'Getting Started';
-    const profileComplete = (ageValue !== 'Not set' && phoneValue !== 'Not set' && interestsValue !== 'Not set');
+    const profileComplete = (phoneValue !== 'Not set' && interestsValue !== 'Not set');
     const inferredGoal = team ? 'manager' : 'seeker';
     const studentProfileState = studentProfile ? 'Created but inactive' : 'Not created yet';
   %>
@@ -487,10 +486,6 @@
                 <p class="text-muted"><%= user ? user.email : '' %></p>
                 <div class="account-detail-grid">
                   <div class="account-detail">
-                    <span>Age</span>
-                    <strong><%= ageValue %></strong>
-                  </div>
-                  <div class="account-detail">
                     <span>Phone</span>
                     <strong><%= phoneValue %></strong>
                   </div>
@@ -555,7 +550,7 @@
     </div>
   </main>
 
-  <script src="/assets/js/main.js?v=46"></script>
+  <script src="/assets/js/main.js?v=74"></script>
   <script>
     (() => {
       const fileInput = document.getElementById('profilePictureFile');

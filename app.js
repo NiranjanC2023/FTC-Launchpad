@@ -36,11 +36,11 @@ const COMPRESSED_CONTENT_TYPES = {
     ".xml": "application/xml; charset=utf-8"
 };
 
-const MAIN_CSS_VERSION = "53";
-const MAIN_JS_VERSION = "73";
-const HOME_CSS_VERSION = "2";
+const MAIN_CSS_VERSION = "89";
+const MAIN_JS_VERSION = "99";
+const HOME_CSS_VERSION = "6";
 const HOME_JS_VERSION = "13";
-const SITE_SHELL_JS_VERSION = "4";
+const SITE_SHELL_JS_VERSION = "5";
 const BOOTSTRAP_STYLESHEET = '<link rel="stylesheet" href="/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6">';
 const EXTERNAL_ASSET_REPLACEMENTS = [
     [

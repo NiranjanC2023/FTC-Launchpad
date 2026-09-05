@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>Register Team - FTC Starter Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="/assets/css/main.css?v=13">
+  <link rel="stylesheet" href="/assets/css/main.css?v=58">
 </head>
 <body>
   <header>
@@ -76,9 +76,9 @@
 
         <label for="program">FIRST program</label>
         <select id="program" name="program" required>
+          <option value="FLL Challenge" <%= selectedProgram === 'FLL Challenge' ? 'selected' : '' %>>FIRST LEGO League Challenge</option>
           <option value="FTC" <%= selectedProgram === 'FTC' ? 'selected' : '' %>>FIRST Tech Challenge</option>
           <option value="FRC" <%= selectedProgram === 'FRC' ? 'selected' : '' %>>FIRST Robotics Competition</option>
-          <option value="FLL Challenge" <%= selectedProgram === 'FLL Challenge' ? 'selected' : '' %>>FIRST LEGO League Challenge</option>
         </select>
 
         <div class="registration-field-inline form-grid-full <%= selectedMode === 'new' ? 'registration-hidden' : '' %>" data-registration-field="teamNumber">
@@ -89,17 +89,11 @@
         <label for="name">Team name</label>
         <input id="name" name="name" required value="<%= values.name || '' %>" />
 
-        <label for="contact">Contact email</label>
-        <input id="contact" name="contact" type="email" required value="<%= values.contact || '' %>" />
-
-        <label for="address">Address</label>
-        <input id="address" name="address" required placeholder="Street address, meeting area, or landmark" value="<%= values.address || '' %>" />
+        <label for="contact" class="<%= selectedMode === 'new' ? '' : 'registration-hidden' %>" data-team-contact-field>Contact email</label>
+        <input id="contact" name="contact" type="email" <%= selectedMode === 'new' ? 'required' : 'disabled' %> value="<%= values.contact || '' %>" class="<%= selectedMode === 'new' ? '' : 'registration-hidden' %>" data-team-contact-field />
 
         <% const showLocationFields = selectedMode === 'new'; %>
         <div class="registration-location-grid form-grid-full <%= showLocationFields ? '' : 'registration-hidden' %>" data-team-location-fields>
-          <label for="city">City</label>
-          <input id="city" name="city" required value="<%= values.city || '' %>" />
-
           <label for="country">Country</label>
           <select id="country" name="country" autocomplete="country-name" data-country-select required>
             <option value="">Select a country</option>
@@ -115,7 +109,15 @@
               <option value="<%= regionName %>" <%= canonicalizeCountryRegion(values.country, values.state) === regionName ? 'selected' : '' %>><%= regionName %></option>
             <% }); %>
           </select>
+
+          <label for="city">City</label>
+          <input id="city" name="city" required value="<%= values.city || '' %>" />
         </div>
+
+        <label for="address">Address</label>
+        <input id="address" name="address" required placeholder="Street address, meeting area, or landmark" value="<%= values.address || '' %>" />
+        <span aria-hidden="true"></span>
+        <small class="registration-address-disclaimer">For safety, your exact address is not shown publicly. The map marker is slightly offset and the surrounding 500-foot radius is blurred.</small>
 
         <label for="notes">Recruiting info</label>
         <textarea id="notes" name="notes" rows="4" placeholder="Meeting days, grades accepted, application link, or what students should include."><%= values.notes || '' %></textarea>
@@ -128,29 +130,29 @@
           <input id="yearsInProgram" name="yearsInProgram" type="number" min="0" step="1" placeholder="Optional: 1, 3, 6..." value="<%= values.yearsInProgram || '' %>" />
         </div>
 
-        <span></span>
-        <label class="checkbox-row">
-          <input type="checkbox" name="recruiting" <%= values.recruiting === undefined || values.recruiting === 'on' ? 'checked' : '' %> />
-          <span>Show this team as recruiting</span>
-        </label>
+        <div class="registration-form-footer form-grid-full">
+          <label class="checkbox-row">
+            <input type="checkbox" name="recruiting" <%= values.recruiting === undefined || values.recruiting === 'on' ? 'checked' : '' %> />
+            <span>Show this team as recruiting</span>
+          </label>
 
-        <span></span>
-        <div class="registration-submit-actions">
-          <button
-            class="btn btn-primary"
-            type="submit"
-            formaction="/team-register/email-verification"
-            data-email-verification-submit
-          >Email Team Verification Code</button>
-          <button class="btn btn-primary" type="submit" data-team-save>Save Team</button>
-          <button class="btn btn-secondary" type="button" data-clear-team-register>Clear Fields</button>
-          <small class="text-muted" data-email-verification-requirements>Complete every required field before verifying ownership.</small>
+          <div class="registration-submit-actions">
+            <button
+              class="btn btn-primary"
+              type="submit"
+              formaction="/team-register/email-verification"
+              data-email-verification-submit
+            >Email Team Verification Code</button>
+            <button class="btn btn-primary" type="submit" data-team-save>Save Team</button>
+            <button class="btn btn-secondary" type="button" data-clear-team-register>Clear Fields</button>
+            <small class="text-muted" data-email-verification-requirements>Complete every required field before verifying ownership.</small>
+          </div>
         </div>
       </form>
     </div>
   </main>
 
-  <script src="/assets/js/main.js?v=46"></script>
+  <script src="/assets/js/main.js?v=74"></script>
   <script>
     (function() {
       const form = document.querySelector('[data-team-register-form]');
@@ -159,6 +161,8 @@
       const teamNumberField = form.querySelector('[data-registration-field="teamNumber"]');
       const extrasField = form.querySelector('[data-registration-extras]');
       const teamNumberInput = form.querySelector('#teamNumber');
+      const contactFields = Array.from(form.querySelectorAll('[data-team-contact-field]'));
+      const contactInput = form.querySelector('#contact');
       const awardsInput = form.querySelector('#awards');
       const yearsInput = form.querySelector('#yearsInProgram');
       const extraInputs = [awardsInput, yearsInput].filter(Boolean);
@@ -184,6 +188,12 @@
           teamNumberInput.required = !isNew;
           teamNumberInput.disabled = isNew;
           if (isNew) teamNumberInput.value = '';
+        }
+
+        contactFields.forEach(field => field.classList.toggle('registration-hidden', !isNew));
+        if (contactInput) {
+          contactInput.disabled = !isNew;
+          contactInput.required = isNew;
         }
 
         if (locationFields) locationFields.classList.toggle('registration-hidden', !showLocation);

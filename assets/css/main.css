@@ -1791,9 +1791,38 @@ h3 {
 }
 
 .resources-program-choice .resource-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+  grid-row: span 4;
+  grid-template-rows: subgrid;
+  align-content: start;
+  align-items: start;
+  min-width: 0;
+}
+
+.resources-program-choice .resource-card > .card-icon {
+  justify-self: center;
+  margin: 0;
+}
+
+.resources-program-choice .resource-card > h2,
+.resources-program-choice .resource-card > p {
+  margin: 0;
+  text-align: center;
+}
+
+.resources-program-choice .resource-card > .resource-links {
+  width: 100%;
+  margin: 0;
+  text-align: left;
+  align-content: start;
+}
+
+@supports not (grid-template-rows: subgrid) {
+  .resources-program-choice .resource-card {
+    grid-row: auto;
+    grid-template-rows: auto minmax(3.6em, auto) minmax(8em, auto) 1fr;
+    gap: 22px;
+  }
 }
 
 .resources-program-choice .card-icon {
@@ -2686,6 +2715,222 @@ textarea.form-control {
   flex: 0 0 auto;
 }
 
+.team-card.report-menu-open {
+  overflow: visible;
+  z-index: 40;
+}
+
+.send-info-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.send-info-confirm-dialog {
+  width: min(100%, 420px);
+  padding: 24px;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  text-align: left;
+}
+
+.send-info-confirm-dialog h2 {
+  margin: 0 0 10px;
+  color: var(--text-primary);
+  font-size: 1.35rem;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.send-info-confirm-dialog p {
+  margin: 0 0 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  text-align: left;
+}
+
+.send-info-confirm-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  color: #8a3a08 !important;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: var(--radius-sm);
+  font-weight: 800;
+}
+
+.send-info-confirm-warning i {
+  margin-top: 2px;
+}
+
+.send-info-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.send-info-confirm-actions .btn {
+  width: auto;
+}
+
+.report-menu {
+  position: relative;
+  display: inline-flex;
+  z-index: 30;
+}
+
+.report-menu[open] {
+  z-index: 50;
+}
+
+.report-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.report-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.member-report-menu > summary {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #c62828;
+  background: #fff7f7;
+  border: 1px solid #f1caca;
+  border-radius: 999px;
+}
+
+.report-menu > summary:hover,
+.report-menu > summary:focus-visible {
+  color: #a21d32;
+  border-color: #db8d99;
+  background: #fff0f2;
+}
+
+.member-report-menu > summary:hover,
+.member-report-menu > summary:focus-visible {
+  color: #a61b1b;
+  border-color: #e59a9a;
+  background: #ffefef;
+}
+
+.report-menu > summary i {
+  color: inherit;
+}
+
+.report-menu-panel {
+  box-sizing: border-box;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(320px, calc(100vw - 36px));
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  cursor: default;
+  text-align: left;
+  z-index: 100;
+}
+
+.member-report-menu .report-menu-panel {
+  right: auto;
+  left: 0;
+}
+
+/* Applicant action rows sit at the right edge of the card; open their menu inward. */
+.recruit-report-menu .report-menu-panel {
+  right: 0;
+  left: auto;
+}
+
+.report-menu-panel label {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.character-count {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+.character-field {
+  width: 100%;
+  min-width: 0;
+}
+
+.report-menu-panel select,
+.report-menu-panel textarea {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  padding: 9px 10px;
+  color: var(--text-primary);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 9px;
+  font: inherit;
+  font-weight: 500;
+}
+
+.report-menu-panel textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.report-menu-panel select:focus,
+.report-menu-panel textarea:focus {
+  outline: none;
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.report-submit-button {
+  width: 100%;
+  color: #a21d32 !important;
+  border-color: #e5a7b1 !important;
+}
+
+.manager-card:has(.report-menu[open]) {
+  z-index: 200000;
+}
+
+/* Lift the animated panel's stacking context above adjacent dashboard panels. */
+.dashboard-panel:has(.report-menu[open]) {
+  position: relative;
+  z-index: 100;
+  overflow: visible;
+}
+
+.recruit-card:has(.report-menu[open]) {
+  z-index: 200000;
+}
+
 .team-card h3 {
   margin: 0 0 4px;
   font-size: 18px;
@@ -2975,8 +3220,8 @@ textarea.form-control {
 .team-card-award-history {
   margin-top: 10px;
   padding: 10px 12px;
-  background: linear-gradient(180deg, rgba(252, 248, 238, 0.96), rgba(247, 242, 228, 0.96));
-  border: 1px solid rgba(181, 151, 84, 0.24);
+  background: var(--surface);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
 }
 
@@ -2985,7 +3230,7 @@ textarea.form-control {
   align-items: center;
   gap: 7px;
   margin-bottom: 7px;
-  color: #7c5b1f;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.01em;
@@ -2996,7 +3241,45 @@ textarea.form-control {
 }
 
 .team-card-award-history .team-history-item {
-  color: #3f3b30;
+  padding: 12px 14px;
+  background: var(--surface);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.team-card-award-history .team-history-list { gap: 8px; }
+.team-card-award-history .team-history-entry { gap: 12px; flex-wrap: wrap; }
+.team-card-award-history .team-history-text {
+  flex: 1 1 150px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.team-card-award-history .team-history-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-primary);
+}
+.team-card-award-history .team-history-meta {
+  padding: 3px 9px;
+  background: var(--accent-soft);
+  color: var(--accent-primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.team-card-award-history .team-history-item--award .team-history-icon,
+.team-card-award-history .team-history-item--award .team-history-meta {
+  background: #fff4da;
+  color: #865912;
+}
+.team-card-award-history .team-history-toggle {
+  color: var(--accent-primary);
+}
+.team-card-award-history .team-history-toggle:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 3px;
 }
 
 .team-history-source-link-row {
@@ -3261,6 +3544,61 @@ textarea.form-control {
 .team-history-item--worlds .team-history-meta {
   background: rgba(14, 165, 233, 0.12);
   color: #0369a1;
+}
+
+.team-card .team-card-requirements,
+.team-card .team-card-award-history {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 12px;
+}
+
+.team-card .team-card-award-history > strong,
+.team-card .team-card-requirements-head {
+  min-height: 28px;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.team-card .team-card-award-history > strong,
+.team-card .team-card-requirements-title {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.team-card .team-card-award-history > strong > i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-primary);
+}
+
+.team-card .team-history-section[data-history-section="awards"] > strong > i {
+  background: #fff4da;
+  color: #865912;
+}
+
+.team-card .team-history-section[data-history-section="advancement"] .team-history-icon,
+.team-card .team-history-section[data-history-section="advancement"] .team-history-meta {
+  background: var(--accent-soft);
+  color: var(--accent-primary);
+}
+
+.team-card .team-history-item { min-height: 54px; box-sizing: border-box; }
+.team-card .team-history-source-link { margin-top: 10px; }
+.team-card .team-history-toggle {
+  min-height: 36px;
+  margin-top: 10px;
+  padding: 6px 12px;
+  color: var(--accent-primary);
 }
 
 .team-distance {
@@ -3762,6 +4100,96 @@ textarea.form-control {
   display: none;
 }
 
+/* Keep the summary cards visually consistent with the history sections. */
+.team-card .team-distance,
+.team-card .team-card-stat,
+.team-card .team-card-requirements,
+.team-card .team-card-award-history {
+  box-sizing: border-box;
+  min-height: 54px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+.team-card .team-card-requirements {
+  min-height: 96px;
+}
+
+.team-card .team-card-stat {
+  margin-top: 0;
+}
+
+.team-card .team-card-stats {
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.team-card .team-card-requirements-text {
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.google-team-privacy-overlay {
+  position: absolute;
+  box-sizing: border-box;
+  border: 3px solid rgba(37, 99, 235, 0.82);
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.2);
+  box-shadow: 0 0 18px rgba(37, 99, 235, 0.34);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  pointer-events: none;
+  transform: none;
+  z-index: 4;
+}
+
+.google-team-privacy-overlay[hidden] {
+  display: none;
+}
+
+.creator-badge-beta {
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.28);
+  color: #d9fce5;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.team-card .report-menu > summary.team-card-icon-button {
+  color: #c62828;
+  background: #fff7f7;
+  border-color: #f1caca;
+}
+
+.team-card .goto-marker {
+  color: #08783f;
+  background: #f0fdf4;
+  border-color: #9fddb9;
+}
+
+.team-card .goto-marker i {
+  color: inherit;
+}
+
+.team-card .report-menu > summary.team-card-icon-button:hover,
+.team-card .report-menu > summary.team-card-icon-button:focus-visible {
+  color: #a61b1b;
+  background: #ffefef;
+  border-color: #e59a9a;
+}
+
+.team-card .goto-marker:hover,
+.team-card .goto-marker:focus-visible {
+  color: #056735;
+  background: #dcfce7;
+  border-color: #68c58f;
+}
+
 .google-team-marker-overlay {
   display: flex;
   flex-direction: column;
@@ -3769,6 +4197,7 @@ textarea.form-control {
   gap: 5px;
   outline: none;
   transform: translate(-50%, -100%);
+  z-index: 10;
 }
 
 .google-user-overlay {
@@ -3795,6 +4224,14 @@ textarea.form-control {
 
 .team-zoom-notifier--inactive {
   background: #6b7280;
+}
+
+.team-zoom-notifier--team {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  background: #d32f2f;
+  filter: drop-shadow(0 6px 10px rgba(15, 23, 42, 0.18));
 }
 
 .team-zoom-notifier--unregistered {
@@ -3903,7 +4340,7 @@ textarea.form-control {
 }
 
 .goto-marker i {
-  color: #1a4731;
+  color: inherit;
   font-size: 1.1rem;
 }
 
@@ -4580,17 +5017,40 @@ header > .theme-toggle {
   text-align: center;
 }
 
+.registration-form-footer {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding-top: 2px;
+  text-align: center;
+}
+
+.registration-form-footer .checkbox-row {
+  width: max-content;
+  max-width: 100%;
+  justify-self: center;
+}
+
 .registration-submit-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 10px;
+  width: 100%;
 }
 
 .registration-submit-actions small {
   flex-basis: 100%;
   text-align: center;
+}
+
+.registration-address-disclaimer {
+  display: block;
+  margin-top: -6px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 .registration-submit-actions [hidden],
@@ -5492,6 +5952,25 @@ header .navbar-header {
 
 header .navbar-nav > li > a {
   display: block;
+}
+
+@media (min-width: 1281px) {
+  header .navbar-collapse {
+    justify-content: flex-end;
+    margin-left: auto;
+  }
+
+  header .navbar-nav:not(.navbar-right) {
+    margin-left: auto;
+  }
+
+  header .navbar-tools {
+    margin-left: 12px;
+  }
+
+  html[data-auth-state="anonymous"] header .navbar-tools {
+    display: none;
+  }
 }
 
 @media (max-width: 1280px) {

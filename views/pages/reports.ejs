@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reports - FIRST Start</title>
+  <link rel="stylesheet" href="/assets/css/main.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    .reports-page { width: min(1180px, calc(100% - 32px)); margin: 28px auto 56px; }
+    .reports-heading { display:flex; justify-content:space-between; align-items:flex-end; gap:20px; margin-bottom:22px; }
+    .reports-heading h1 { margin:0 0 6px; }
+    .reports-heading p { margin:0; color:var(--text-muted); }
+    .reports-summary { display:flex; flex-wrap:wrap; gap:10px; }
+    .reports-summary span { padding:8px 12px; border:1px solid var(--border-color); border-radius:999px; background:var(--surface); font-weight:800; }
+    .reports-list { display:grid; gap:14px; }
+    .report-card { padding:20px; background:var(--surface); border:1px solid var(--border-color); border-radius:16px; box-shadow:var(--shadow-sm); }
+    .report-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:14px; }
+    .report-card h2 { margin:0 0 5px; font-size:1.15rem; }
+    .report-card-meta { margin:0; color:var(--text-muted); font-size:.9rem; }
+    .report-status { padding:5px 9px; border-radius:999px; background:#fff1f2; color:#9f1239; font-size:.78rem; font-weight:900; text-transform:uppercase; }
+    .report-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 20px; }
+    .report-field { margin:0; overflow-wrap:anywhere; }
+    .report-field strong { display:block; margin-bottom:3px; color:var(--text-muted); font-size:.76rem; letter-spacing:.05em; text-transform:uppercase; }
+    .report-details { grid-column:1 / -1; padding:12px 14px; background:var(--surface-soft); border-radius:10px; white-space:pre-wrap; }
+    .reports-empty { padding:42px 24px; text-align:center; background:var(--surface); border:1px dashed var(--border-color); border-radius:16px; color:var(--text-muted); }
+    @media (max-width:700px) { .reports-heading { align-items:flex-start; flex-direction:column; } .report-grid { grid-template-columns:1fr; } .report-details { grid-column:1; } }
+  </style>
+</head>
+<body>
+  <header></header>
+  <main class="reports-page">
+    <% const reasonLabels = { spam_or_scam: 'Spam or scam', inappropriate_content: 'Inappropriate content or behavior', impersonation: 'Impersonation or false information', privacy_or_safety: 'Privacy or safety concern', other: 'Other' }; %>
+    <div class="reports-heading">
+      <div>
+        <h1><i class="fa-regular fa-flag" aria-hidden="true"></i> Reports</h1>
+        <p>Team and member reports submitted by FIRST Start users.</p>
+      </div>
+      <div class="reports-summary" aria-label="Report totals">
+        <span><%= reports.length %> total</span>
+        <span><%= counts.open || 0 %> open</span>
+      </div>
+    </div>
+
+    <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+    <% if (reports && reports.length) { %>
+      <div class="reports-list">
+        <% reports.forEach(function(report) { %>
+          <article class="report-card">
+            <div class="report-card-head">
+              <div>
+                <h2><%= report.targetType === 'team' ? 'Team' : 'Member' %>: <%= report.targetName %></h2>
+                <p class="report-card-meta">Submitted <%= report.createdAt ? new Date(report.createdAt).toLocaleString() : 'recently' %></p>
+              </div>
+              <span class="report-status"><%= report.status || 'open' %></span>
+            </div>
+            <div class="report-grid">
+              <p class="report-field"><strong>Reason</strong><%= reasonLabels[report.reason] || report.reason %></p>
+              <p class="report-field"><strong>Reported by</strong><%= report.reporterName %> &lt;<%= report.reporterEmail %>&gt;</p>
+              <% if (report.targetEmail) { %><p class="report-field"><strong>Reported member email</strong><%= report.targetEmail %></p><% } %>
+              <% if (report.contextTeam) { %>
+                <p class="report-field"><strong>Team context</strong><%= report.contextTeam.name %><%= report.contextTeam.teamNumber ? ' #' + report.contextTeam.teamNumber : '' %></p>
+              <% } %>
+              <p class="report-field report-details"><strong>Details</strong><%= report.details || 'No additional details provided.' %></p>
+            </div>
+          </article>
+        <% }); %>
+      </div>
+    <% } else if (!error) { %>
+      <div class="reports-empty"><i class="fa-regular fa-circle-check" aria-hidden="true"></i> No reports have been submitted.</div>
+    <% } %>
+  </main>
+  <script src="/assets/js/main.js?v=74"></script>
+</body>
+</html>

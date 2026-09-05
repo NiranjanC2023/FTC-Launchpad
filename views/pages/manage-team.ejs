@@ -4,9 +4,66 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Team | <%= team ? team.name : 'My Team' %></title>
-    <link rel="stylesheet" href="/assets/css/main.css">
+    <link rel="stylesheet" href="/assets/css/main.css?v=85">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        .team-history-panel .team-history-list li.team-history-item {
+            padding: 12px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--surface);
+            color: var(--text-primary);
+        }
+        .team-history-panel .team-history-entry { gap: 12px; flex-wrap: wrap; }
+        .team-history-panel .team-history-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            background: var(--accent-soft);
+            color: var(--accent-primary);
+        }
+        .team-history-panel .team-history-item--award .team-history-icon {
+            background: #fff4da;
+            color: #865912;
+        }
+        .team-history-panel .team-history-text {
+            flex: 1 1 150px;
+            color: var(--text-primary);
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+        }
+        .team-history-panel .team-history-meta {
+            padding: 3px 9px;
+            background: var(--accent-soft);
+            color: var(--accent-primary);
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+        .team-history-panel .team-history-item--award .team-history-meta {
+            background: #fff4da;
+            color: #865912;
+        }
+        .team-history-panel .team-history-toggle {
+            min-height: 40px;
+            margin-top: 10px;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--surface-soft);
+            color: var(--accent-primary);
+            font-size: 0.82rem;
+            font-weight: 700;
+            line-height: 1.4;
+            letter-spacing: normal;
+        }
+        .team-history-panel .team-history-toggle:hover {
+            background: var(--accent-soft);
+            transform: none;
+        }
+        .team-history-panel .team-history-toggle:focus-visible {
+            outline: 2px solid var(--accent-primary);
+            outline-offset: 3px;
+        }
         .dashboard-wrapper {
             width: min(100% - 28px, 1400px);
             padding: 34px 0 76px;
@@ -323,8 +380,13 @@
         }
         .recruit-card:hover { border-color: var(--accent-primary); transform: translateY(-2px); background: var(--surface); }
         .recruit-card::after { 
-            content: ''; position: absolute; left: 0; top: 0; height: 100%; width: 4px; 
-            background: var(--accent-secondary); opacity: 0.6;
+            content: '';
+            position: absolute;
+            inset: -1px;
+            border-left: 4px solid var(--accent-secondary);
+            border-radius: inherit;
+            opacity: 0.6;
+            pointer-events: none;
         }
 
         .btn-update { 
@@ -336,19 +398,41 @@
         .status-pill { padding: 4px 12px; border-radius: 50px; font-size: 0.7rem; font-weight: 900; background: #e0f2fe; color: #0369a1; }
         .recruit-action-row { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
         .recruit-card .row {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 16px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(118px, auto);
+            align-items: start;
+            gap: 20px;
             min-width: 0;
         }
         .recruit-card .col-sm-8 {
-            flex: 1 1 360px;
             min-width: 0;
         }
         .recruit-card .col-sm-4 {
-            flex: 0 1 260px;
             min-width: 0;
+        }
+        .recruit-actions {
+            align-self: start;
+            text-align: left !important;
+        }
+        .recruit-action-row {
+            min-width: 118px;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: flex-start;
+        }
+        .recruit-action-row .btn {
+            width: 100%;
+            justify-content: center;
+        }
+        .recruit-action-row .report-menu {
+            align-self: flex-end;
+        }
+        .dashboard-panel:has(.report-menu[open]),
+        .dashboard-sidebar:has(.report-menu[open]),
+        .dashboard-main:has(.report-menu[open]) {
+            position: relative;
+            z-index: 100;
+            overflow: visible;
         }
         .btn-rounded { border-radius: 9999px; }
         .btn-rounded.btn-sm { padding: 0.5rem 1rem; }
@@ -373,14 +457,18 @@
         }
         .recruit-details-dropdown > summary::-webkit-details-marker { display: none; }
         .recruit-details-dropdown > summary::after {
-            content: '\f078';
-            font-family: 'Font Awesome 6 Free';
-            font-weight: 900;
+            content: '';
+            width: 8px;
+            height: 8px;
+            flex: 0 0 8px;
+            border-right: 2px solid currentColor;
+            border-bottom: 2px solid currentColor;
+            transform: rotate(45deg);
             color: var(--accent-primary);
             transition: transform 0.2s ease;
         }
         .recruit-details-dropdown[open] > summary::after {
-            transform: rotate(180deg);
+            transform: rotate(225deg);
         }
         .recruit-details-panel {
             border-top: 1px solid var(--border-color);
@@ -419,7 +507,35 @@
             word-break: break-word;
             min-width: 0;
         }
+        .recruit-detail-chip:not(.recruit-detail-full) .recruit-detail-value {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .recruit-card .label-info {
+            display: block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
         .recruit-detail-full { grid-column: 1 / -1; }
+        @media (max-width: 900px) {
+            .recruit-card .row {
+                grid-template-columns: 1fr;
+            }
+            .recruit-action-row {
+                min-width: 0;
+                flex-direction: row;
+                align-items: center;
+                justify-content: flex-start;
+            }
+            .recruit-action-row .btn {
+                width: auto;
+            }
+            .recruit-action-row .report-menu {
+                align-self: center;
+            }
+        }
         .status-modal {
             position: fixed;
             inset: 0;
@@ -581,6 +697,65 @@
             .recruit-info-grid { grid-template-columns: 1fr; gap: 4px 0; }
             .recruit-info-grid dd { margin-bottom: 10px; }
         }
+        /* Applicant cards use their available panel width, including when
+           Bootstrap's column widths and clearfix rules are present. */
+        .dashboard-page .recruit-card > .row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 18px;
+            margin: 0;
+        }
+        .dashboard-page .recruit-card > .row::before,
+        .dashboard-page .recruit-card > .row::after {
+            display: none;
+            content: none;
+        }
+        .dashboard-page .recruit-card > .row > .col-sm-8,
+        .dashboard-page .recruit-card > .row > .col-sm-4 {
+            width: 100%;
+            max-width: 100%;
+            padding: 0;
+            float: none;
+        }
+        .dashboard-page .recruit-card .recruit-action-row {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            min-width: 0;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+        }
+        .dashboard-page .recruit-card .recruit-action-row .btn {
+            flex: 0 1 auto;
+            width: auto;
+            min-height: 40px;
+            padding: 9px 16px;
+            box-shadow: none;
+        }
+        .dashboard-page .recruit-card .recruit-action-row .report-menu {
+            align-self: center;
+            margin-right: auto;
+        }
+        .dashboard-page .recruit-card .label-info {
+            font-size: 0.82rem;
+            line-height: 1.5;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        .dashboard-page .recruit-card p {
+            overflow-wrap: anywhere;
+        }
+        @media (max-width: 420px) {
+            .dashboard-page .recruit-card .recruit-action-row {
+                gap: 8px;
+            }
+            .dashboard-page .recruit-card .recruit-action-row .btn {
+                padding: 8px 10px;
+                font-size: 0.8rem;
+            }
+        }
     </style>
 </head>
 <body class="dashboard-page">
@@ -687,15 +862,6 @@
                         <label for="verifyTeamName">Team name</label>
                         <input id="verifyTeamName" class="form-control" name="name" required value="<%= verificationValues.name || '' %>">
 
-                        <label for="verifyContact">Contact email</label>
-                        <input id="verifyContact" class="form-control" type="email" name="contact" required value="<%= verificationValues.contact || '' %>">
-
-                        <label for="verifyAddress">Address</label>
-                        <input id="verifyAddress" class="form-control" name="address" required placeholder="Street address, meeting area, or landmark" value="<%= verificationValues.address || '' %>">
-
-                        <label for="verifyCity">City</label>
-                        <input id="verifyCity" class="form-control" name="city" required value="<%= verificationValues.city || '' %>">
-
                         <label for="verifyCountry">Country</label>
                         <select id="verifyCountry" class="form-control" name="country" autocomplete="country-name" data-country-select required>
                             <option value="">Select a country</option>
@@ -711,6 +877,13 @@
                                 <option value="<%= regionName %>" <%= canonicalizeCountryRegion(verificationValues.country, verificationValues.state) === regionName ? 'selected' : '' %>><%= regionName %></option>
                             <% }); %>
                         </select>
+
+                        <label for="verifyCity">City</label>
+                        <input id="verifyCity" class="form-control" name="city" required value="<%= verificationValues.city || '' %>">
+
+                        <label for="verifyAddress">Address</label>
+                        <input id="verifyAddress" class="form-control" name="address" required placeholder="Street address, meeting area, or landmark" value="<%= verificationValues.address || '' %>">
+                        <small class="text-muted">For safety, the public map marker is slightly offset and the surrounding 500-foot radius is blurred.</small>
 
                         <label for="verifyNotes">Recruiting info</label>
                         <textarea id="verifyNotes" class="form-control" name="notes" placeholder="Meeting days, grades accepted, application link, or what students should include."><%= verificationValues.notes || '' %></textarea>
@@ -790,8 +963,9 @@
                                     <small class="text-muted">This bio appears on the public map.</small>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label" for="teamMeetingAddress">Exact meeting address</label>
+                                    <label class="form-label" for="teamMeetingAddress">Meeting address</label>
                                     <input id="teamMeetingAddress" name="address" class="form-control" autocomplete="street-address" value="<%= team.address || '' %>" placeholder="Street address, building, or meeting location">
+                                    <small class="text-muted">For safety, the public map marker is slightly offset and the surrounding 500-foot radius is blurred.</small>
                                     <small class="text-muted">Used to place your red map marker and calculate distances accurately.</small>
                                 </div>
                                 <div class="mb-3">
@@ -811,7 +985,7 @@
                                             </ul>
                                             <% if (team.awardHistory.length > 2) { %>
                                                 <button type="button" class="team-history-toggle" aria-expanded="false" aria-label="Show all awards achieved" data-history-toggle="false">
-                                                    <span class="team-history-toggle-icon" aria-hidden="true">...</span>
+                                                    <span class="team-history-toggle-icon">Show all awards</span>
                                                 </button>
                                             <% } %>
                                         <% } else { %>
@@ -841,7 +1015,7 @@
                                             </ul>
                                             <% if (visibleAdvancementHistory.length > 2) { %>
                                                 <button type="button" class="team-history-toggle" aria-expanded="false" aria-label="Show all competition history" data-history-toggle="false">
-                                                    <span class="team-history-toggle-icon" aria-hidden="true">...</span>
+                                                    <span class="team-history-toggle-icon">Show all competition history</span>
                                                 </button>
                                             <% } %>
                                         <% } else { %>
@@ -889,6 +1063,9 @@
                                                         <span class="status-pill" style="background: #fee2e2; color: #b91c1c; margin-left: 8px;"><i class="fa-solid fa-star" style="margin-right:4px;"></i>Primary</span>
                                                     <% } else { %>
                                                         <span class="status-pill" style="background: #dcfce7; color: #166534; margin-left: 8px;">Manager</span>
+                                                    <% } %>
+                                                    <% if (user && String(manager._id) !== String(user._id)) { %>
+                                                        <%- include('../partial/report-menu', { menuClass: 'member-report-menu', targetType: 'user', targetId: manager._id, targetLabel: manager.name, contextTeamId: team._id, returnTo: '/manage-team?team=' + team._id }) %>
                                                     <% } %>
                                                 </div>
                                                 <% const isSelf = (user && manager && String(manager._id) === String(user._id)); %>
@@ -1003,7 +1180,7 @@
                                     <% recruits.forEach(function(recruit) { %>
                                         <% const recruitTeamId = recruit.applicationTeam && recruit.applicationTeam._id ? String(recruit.applicationTeam._id) : String(recruit.applicationTeam || ''); %>
                                         <div class="recruit-card">
-                                            <div class="row" style="display: flex; align-items: center;">
+                                            <div class="row">
                                                 <div class="col-sm-8">
                                                     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
                                                         <h4 style="margin: 0;"><%= recruit.name %></h4>
@@ -1015,18 +1192,14 @@
                                                         <% } %>
                                                     </div>
                                                     <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
-                                                        <span class="label label-default" style="font-weight: 800;">Age <%= recruit.age %></span>
                                                         <span class="label label-info" style="background: var(--bg-secondary); color: var(--accent-primary); font-weight: 800;"><%= recruit.interests %></span>
                                                     </div>
+                                                    <p class="small text-muted" style="margin: 0;"><strong>Current grade:</strong> <%= recruit.currentGrade || 'Not provided' %></p>
                                                     <p class="small text-muted" style="margin: 0;"><strong>Background:</strong> <%= previewRecruitText(recruit.experience, 160) || 'Not provided' %></p>
                                                     <details class="recruit-details-dropdown">
                                                         <summary>Applicant details</summary>
                                                         <div class="recruit-details-panel">
                                                             <div class="recruit-details-grid">
-                                                                <div class="recruit-detail-chip">
-                                                                    <span class="recruit-detail-label">Age</span>
-                                                                    <p class="recruit-detail-value"><%= recruit.age || 'Not provided' %></p>
-                                                                </div>
                                                                 <div class="recruit-detail-chip">
                                                                     <span class="recruit-detail-label">Email</span>
                                                                     <p class="recruit-detail-value"><%= recruit.email || 'Not provided' %></p>
@@ -1036,12 +1209,16 @@
                                                                     <p class="recruit-detail-value"><%= recruit.phone || 'Not provided' %></p>
                                                                 </div>
                                                                 <div class="recruit-detail-chip">
+                                                                    <span class="recruit-detail-label">Current grade</span>
+                                                                    <p class="recruit-detail-value"><%= recruit.currentGrade || 'Not provided' %></p>
+                                                                </div>
+                                                                <div class="recruit-detail-chip recruit-detail-full">
                                                                     <span class="recruit-detail-label">Interests</span>
                                                                     <p class="recruit-detail-value"><%= normalizeRecruitText(recruit.interests) || 'Not provided' %></p>
                                                                 </div>
                                                                 <div class="recruit-detail-chip recruit-detail-full">
                                                                     <span class="recruit-detail-label">Background</span>
-                                                                    <p class="recruit-detail-value"><%= previewRecruitText(recruit.experience, 220) || 'Not provided' %></p>
+                                                                    <p class="recruit-detail-value"><%= normalizeRecruitText(recruit.experience) || 'Not provided' %></p>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -1051,6 +1228,9 @@
                                                     <% const status = recruitTeamId === String(team._id) ? (recruit.applicationStatus || 'pending') : null; %>
                                                     <% const isFinal = status === 'accepted' || status === 'rejected'; %>
                                                     <div class="recruit-action-row">
+                                                        <% if (recruit.accountId && user && String(recruit.accountId) !== String(user._id)) { %>
+                                                            <%- include('../partial/report-menu', { menuClass: 'member-report-menu recruit-report-menu', targetType: 'user', targetId: recruit.accountId, targetLabel: recruit.name, contextTeamId: team._id, returnTo: '/manage-team?team=' + team._id }) %>
+                                                        <% } %>
                                                         <button type="button" class="btn btn-danger btn-sm btn-rounded recruit-action-btn" data-action="reject" data-recruit-id="<%= recruit._id %>" data-recruit-name="<%= recruit.name %>" <%= isFinal ? 'disabled' : '' %>>
                                                             <i class="fa-solid fa-xmark"></i> Reject
                                                         </button>
@@ -1089,7 +1269,9 @@
                                         <div class="recruit-card" style="margin-bottom: 12px;">
                                             <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
                                                 <div>
-                                                    <h4 style="margin:0;"><%= waitRecruit.name %></h4>
+                                                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                                        <h4 style="margin:0;"><%= waitRecruit.name %></h4>
+                                                    </div>
                                                     <p class="small text-muted" style="margin:4px 0 0;">Email: <%= waitRecruit.email %></p>
                                                 </div>
                                                 <span class="status-pill" style="background: #eef2ff; color:#4338ca;">Waitlisted</span>
@@ -1099,10 +1281,6 @@
                                                 <div class="recruit-details-panel">
                                                     <div class="recruit-details-grid">
                                                         <div class="recruit-detail-chip">
-                                                            <span class="recruit-detail-label">Age</span>
-                                                            <p class="recruit-detail-value"><%= waitRecruit.age || 'Not provided' %></p>
-                                                        </div>
-                                                        <div class="recruit-detail-chip">
                                                             <span class="recruit-detail-label">Email</span>
                                                             <p class="recruit-detail-value"><%= waitRecruit.email || 'Not provided' %></p>
                                                         </div>
@@ -1111,17 +1289,24 @@
                                                             <p class="recruit-detail-value"><%= waitRecruit.phone || 'Not provided' %></p>
                                                         </div>
                                                         <div class="recruit-detail-chip">
+                                                            <span class="recruit-detail-label">Current grade</span>
+                                                            <p class="recruit-detail-value"><%= waitRecruit.currentGrade || 'Not provided' %></p>
+                                                        </div>
+                                                        <div class="recruit-detail-chip">
                                                             <span class="recruit-detail-label">Interests</span>
                                                             <p class="recruit-detail-value"><%= normalizeRecruitText(waitRecruit.interests) || 'Not provided' %></p>
                                                         </div>
                                                         <div class="recruit-detail-chip recruit-detail-full">
                                                             <span class="recruit-detail-label">Background</span>
-                                                            <p class="recruit-detail-value"><%= previewRecruitText(waitRecruit.experience, 220) || 'Not provided' %></p>
+                                                                    <p class="recruit-detail-value"><%= normalizeRecruitText(waitRecruit.experience) || 'Not provided' %></p>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </details>
                                             <div class="recruit-action-row" style="margin-top: 14px;">
+                                                <% if (waitRecruit.accountId && user && String(waitRecruit.accountId) !== String(user._id)) { %>
+                                                    <%- include('../partial/report-menu', { menuClass: 'member-report-menu recruit-report-menu', targetType: 'user', targetId: waitRecruit.accountId, targetLabel: waitRecruit.name, contextTeamId: team._id, returnTo: '/manage-team?team=' + team._id }) %>
+                                                <% } %>
                                                 <button type="button" class="btn btn-danger btn-sm btn-rounded recruit-action-btn" data-action="reject" data-recruit-id="<%= waitRecruit._id %>" data-recruit-name="<%= waitRecruit.name %>">
                                                     <i class="fa-solid fa-xmark"></i> Decline
                                                 </button>
@@ -1152,7 +1337,9 @@
                                         <div class="recruit-card" style="margin-bottom: 12px; border-color: #86efac; background: linear-gradient(180deg, #f0fdf4, #ffffff);">
                                             <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
                                                 <div>
-                                                    <h4 style="margin:0;"><%= acceptedRecruit.name %></h4>
+                                                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                                        <h4 style="margin:0;"><%= acceptedRecruit.name %></h4>
+                                                    </div>
                                                     <p class="small text-muted" style="margin:4px 0 0;">Email: <%= acceptedRecruit.email %></p>
                                                 </div>
                                                 <span class="status-pill" style="background: #dcfce7; color:#166534;">Accepted</span>
@@ -1162,10 +1349,6 @@
                                                 <div class="recruit-details-panel">
                                                     <div class="recruit-details-grid">
                                                         <div class="recruit-detail-chip">
-                                                            <span class="recruit-detail-label">Age</span>
-                                                            <p class="recruit-detail-value"><%= acceptedRecruit.age || 'Not provided' %></p>
-                                                        </div>
-                                                        <div class="recruit-detail-chip">
                                                             <span class="recruit-detail-label">Email</span>
                                                             <p class="recruit-detail-value"><%= acceptedRecruit.email || 'Not provided' %></p>
                                                         </div>
@@ -1174,16 +1357,25 @@
                                                             <p class="recruit-detail-value"><%= acceptedRecruit.phone || 'Not provided' %></p>
                                                         </div>
                                                         <div class="recruit-detail-chip">
+                                                            <span class="recruit-detail-label">Current grade</span>
+                                                            <p class="recruit-detail-value"><%= acceptedRecruit.currentGrade || 'Not provided' %></p>
+                                                        </div>
+                                                        <div class="recruit-detail-chip">
                                                             <span class="recruit-detail-label">Interests</span>
                                                             <p class="recruit-detail-value"><%= normalizeRecruitText(acceptedRecruit.interests) || 'Not provided' %></p>
                                                         </div>
                                                         <div class="recruit-detail-chip recruit-detail-full">
                                                             <span class="recruit-detail-label">Background</span>
-                                                            <p class="recruit-detail-value"><%= previewRecruitText(acceptedRecruit.experience, 220) || 'Not provided' %></p>
+                                                                    <p class="recruit-detail-value"><%= normalizeRecruitText(acceptedRecruit.experience) || 'Not provided' %></p>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </details>
+                                            <% if (acceptedRecruit.accountId && user && String(acceptedRecruit.accountId) !== String(user._id)) { %>
+                                                <div style="margin-top: 14px;">
+                                                    <%- include('../partial/report-menu', { menuClass: 'member-report-menu recruit-report-menu', targetType: 'user', targetId: acceptedRecruit.accountId, targetLabel: acceptedRecruit.name, contextTeamId: team._id, returnTo: '/manage-team?team=' + team._id }) %>
+                                                </div>
+                                            <% } %>
                                         </div>
                                     <% }); %>
                                 </div>
@@ -1222,6 +1414,9 @@
                                                     <strong><%= manager.name %></strong>
                                                     <% if (manager.primary) { %>
                                                         <span class="status-pill" style="background: #fee2e2; color: #b91c1c; margin-left: 8px;"><i class="fa-solid fa-star" style="margin-right:4px;"></i>Primary</span>
+                                                    <% } %>
+                                                    <% if (user && String(manager._id) !== String(user._id)) { %>
+                                                        <%- include('../partial/report-menu', { menuClass: 'member-report-menu', targetType: 'user', targetId: manager._id, targetLabel: manager.name, contextTeamId: team._id, returnTo: '/manage-team?team=' + team._id }) %>
                                                     <% } %>
                                                 </div>
                                                 <% const isSelf = (user && manager && String(manager._id) === String(user._id)); %>
@@ -1340,8 +1535,6 @@
                         <button type="button" id="recruitInfoClose" class="btn btn-ghost" aria-label="Close">×</button>
                     </div>
                     <dl class="recruit-info-grid">
-                        <dt>Age</dt>
-                        <dd id="recruitInfoAge"></dd>
                         <dt>Email</dt>
                         <dd id="recruitInfoEmail"></dd>
                         <dt>Phone</dt>
@@ -1427,7 +1620,6 @@
                     const infoClose = document.getElementById('recruitInfoClose');
                     const infoFields = {
                         title: document.getElementById('recruitInfoTitle'),
-                        age: document.getElementById('recruitInfoAge'),
                         email: document.getElementById('recruitInfoEmail'),
                         phone: document.getElementById('recruitInfoPhone'),
                         interests: document.getElementById('recruitInfoInterests'),
@@ -1445,7 +1637,6 @@
                     document.querySelectorAll('[data-recruit-info]').forEach(button => {
                         button.addEventListener('click', function() {
                             infoFields.title.textContent = this.dataset.name || 'Applicant Info';
-                            fillInfoField('age', this.dataset.age || '');
                             fillInfoField('email', this.dataset.email || '');
                             fillInfoField('phone', this.dataset.phone || '');
                             fillInfoField('interests', this.dataset.interests || '');
@@ -1538,7 +1729,9 @@
 
                     const icon = button.querySelector('.team-history-toggle-icon');
                     if (icon) {
-                        icon.textContent = nextExpanded ? '↑' : '...';
+                        const historyLabel = list.dataset.historyList === 'awards' ? 'awards' : 'competition history';
+                        icon.textContent = nextExpanded ? 'Show less' : 'Show all ' + historyLabel;
+                        button.setAttribute('aria-label', nextExpanded ? 'Show fewer ' + historyLabel : 'Show all ' + historyLabel);
                     }
                 });
             });
@@ -1556,6 +1749,6 @@
             });
         });
     </script>
-    <script src="/assets/js/main.js?v=46"></script>
+    <script src="/assets/js/main.js?v=74"></script>
 </body>
 </html>

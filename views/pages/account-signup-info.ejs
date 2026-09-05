@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/main.css?v=13">
+  <link rel="stylesheet" href="/assets/css/main.css?v=54">
 </head>
 <body>
       <header></header>
@@ -32,9 +32,6 @@
         <label for="name">Full name</label>
         <input id="name" name="name" value="<%= values && values.name ? values.name : '' %>" required>
 
-        <label for="age">Age</label>
-        <input id="age" name="age" type="number" min="13" max="18" step="1" value="<%= values && values.age ? values.age : '' %>">
-
         <label for="country">Country</label>
         <select id="country" name="country" autocomplete="country-name" data-country-select required>
           <option value="">Select a country</option>
@@ -51,11 +48,19 @@
           <% }); %>
         </select>
 
+        <label for="currentGrade">Current grade</label>
+        <select id="currentGrade" name="currentGrade" required>
+          <option value="">Select your grade for the current school year</option>
+          <% ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'].forEach(function(grade) { %>
+            <option value="<%= grade %>" <%= values && values.currentGrade === grade ? 'selected' : '' %>><%= grade %></option>
+          <% }); %>
+        </select>
+
         <label for="experience">Experience (brief)</label>
-        <textarea id="experience" name="experience" rows="4" placeholder="e.g., none, some Java, built RC car"><%= values && values.experience ? values.experience : '' %></textarea>
+        <textarea id="experience" name="experience" rows="4" maxlength="500" placeholder="e.g., none, some Java, built RC car"><%= values && values.experience ? values.experience : '' %></textarea>
 
         <label for="interests">Interests / Roles</label>
-        <input id="interests" name="interests" placeholder="programming, mechanical, outreach" value="<%= values && values.interests ? values.interests : '' %>">
+        <input id="interests" name="interests" maxlength="200" placeholder="programming, mechanical, outreach" value="<%= values && values.interests ? values.interests : '' %>">
 
         <label for="email">Email</label>
         <input id="email" name="email" type="email" value="<%= values && values.email ? values.email : '' %>" required>
@@ -71,6 +76,6 @@
     </div>
   </main>
 
-  <script src="/assets/js/main.js?v=46"></script>
+  <script src="/assets/js/main.js?v=75"></script>
 </body>
 </html>

@@ -13,6 +13,10 @@ const { isRecruitingTeam } = require('../lib/team-status');
 const { isDatabaseConnected, waitForDatabase } = require('../lib/database');
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'evergreentechatrons.contact@gmail.com';
 const TEAM_EMAIL_DIRECTORY_ACCESS_EMAIL = 'evergreentechatrons.contact@gmail.com';
+const REPORTS_ACCESS_EMAILS = new Set([
+	'evergreentechatrons.contact@gmail.com',
+	'evergreentechatrons@gmail.com'
+]);
 
 router.get('/country-regions', function(req, res) {
 	const country = String(req.query && req.query.country || '').trim();
@@ -27,13 +31,14 @@ function publicUser(user) {
 		id: user._id,
 		name: user.name,
 		email: user.email,
-		age: user.age,
 		country: user.country,
 		state: user.state,
+		canonicalState: canonicalizeCountryRegion(user.country, user.state) || user.state,
 		phone: user.phone,
 		profilePicture: user.profilePicture,
 		interests: user.interests,
 		experience: user.experience,
+		currentGrade: user.currentGrade,
 		teamNumber: user.teamNumber
 	};
 }
@@ -67,16 +72,6 @@ function parseCoordinate(value) {
 	return Number.isFinite(number) ? number : null;
 }
 
-function parseOptionalAge(value) {
-	const raw = String(value ?? '').trim();
-	if (!raw) return { value: undefined, valid: true };
-	const number = Number(raw);
-	return {
-		value: number,
-		valid: Number.isInteger(number) && number >= 13 && number <= 18
-	};
-}
-
 function internalError(res, err, context) {
 	console.error(context, err);
 	return res.status(500).json({ ok: false, error: 'The request could not be completed.' });
@@ -90,7 +85,7 @@ async function requireAuthenticatedApi(req, res, next) {
 		}
 
 		const user = await User.findById(req.session.userId)
-			.select('_id name email age country state phone interests experience')
+			.select('_id name email country state phone interests experience currentGrade')
 			.lean()
 			.exec();
 		if (!user) {
@@ -239,20 +234,31 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 	try {
 		const { teamId } = req.body;
 		const account = req.authUser;
+		const submittedGrade = typeof req.body.currentGrade === 'string' ? req.body.currentGrade.trim() : '';
+		const currentGrade = teamId
+			? String(account.currentGrade || '').trim()
+			: submittedGrade || String(account.currentGrade || '').trim();
+		const currentSchoolYearGrades = new Set(['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12']);
+		if (!currentSchoolYearGrades.has(currentGrade)) {
+			return res.status(400).json({ ok: false, code: 'PROFILE_GRADE_REQUIRED', error: 'Save your current school-year grade in your recruitment profile before applying.' });
+		}
 		const name = String(account.name || '').trim();
 		const normalizedEmail = normalizeEmail(account.email);
-		const age = account.age;
 		const country = String(account.country || '').trim();
 		const state = canonicalizeCountryRegion(country, account.state);
 		const experience = account.experience;
 		const phone = account.phone;
 		const interests = account.interests;
 		if (!name || !normalizedEmail) return res.status(400).json({ ok: false, error: 'Complete your account profile before applying.' });
+		if (String(account.currentGrade || '').trim() !== currentGrade) {
+			await User.updateOne({ _id: account._id }, { $set: { currentGrade } }).exec();
+			account.currentGrade = currentGrade;
+		}
 		const normalizedTeamId = String(teamId || '').trim();
 		const shouldApplyToTeam = Boolean(normalizedTeamId && mongoose.Types.ObjectId.isValid(normalizedTeamId));
 		const [team, existingTeam] = await Promise.all([
 			shouldApplyToTeam
-				? Team.findById(normalizedTeamId).select('_id name teamNumber contact recruiting country').lean().exec()
+				? Team.findById(normalizedTeamId).select('_id name teamNumber contact recruiting country state').lean().exec()
 				: null,
 			shouldApplyToTeam
 				? Team.findOne({
@@ -279,6 +285,10 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 		if (team && !countriesMatch(country, team.country)) {
 			return res.status(403).json({ ok: false, error: 'You can only apply to teams in your country.' });
 		}
+		const teamState = team ? canonicalizeCountryRegion(team.country, team.state) : '';
+		if (team && (!teamState || state !== teamState)) {
+			return res.status(403).json({ ok: false, error: 'You can only apply to teams in your state or region.' });
+		}
 		if (team && !isRecruitingTeam(team)) {
 			return res.status(403).json({ ok: false, error: 'This team is not currently recruiting and cannot receive applications.' });
 		}
@@ -295,10 +305,10 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 
 			const isRejected = student.applicationStatus === 'rejected';
 			student.name = name;
-			student.age = age;
 			student.country = country;
 			student.state = state;
 			student.experience = experience;
+			student.currentGrade = currentGrade;
 			student.phone = phone;
 			student.interests = interests;
 			student.email = normalizedEmail;
@@ -319,9 +329,10 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 				student.sentApplications = Array.isArray(student.sentApplications) ? student.sentApplications : [];
 				const historyIndex = student.sentApplications.findIndex(entry => String(entry.team) === String(team._id));
 				if (historyIndex === -1) {
-					student.sentApplications.push({ team: team._id, status: 'pending', updatedAt: now });
+					student.sentApplications.push({ team: team._id, currentGrade, status: 'pending', updatedAt: now });
 				} else {
 					student.sentApplications[historyIndex].status = 'pending';
+					student.sentApplications[historyIndex].currentGrade = currentGrade;
 					student.sentApplications[historyIndex].message = undefined;
 					student.sentApplications[historyIndex].updatedAt = now;
 				}
@@ -350,8 +361,8 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 							{ label: 'Student', value: name },
 							{ label: 'Email', value: normalizedEmail },
 							{ label: 'Phone', value: phone || 'Not provided' },
-							{ label: 'Age', value: age || 'Not provided' },
 							{ label: 'Location', value: [state, country].filter(Boolean).join(', ') || 'Not provided' },
+							{ label: 'Current grade', value: currentGrade },
 							{ label: 'Experience', value: experience || 'Not provided' },
 							{ label: 'Interests', value: interests || 'Not provided' }
 						],
@@ -372,8 +383,8 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 							`Student: ${name}`,
 							`Email: ${normalizedEmail}`,
 							`Phone: ${phone || 'Not provided'}`,
-							`Age: ${age || 'Not provided'}`,
 							`Location: ${[state, country].filter(Boolean).join(', ') || 'Not provided'}`,
+							`Current grade: ${currentGrade}`,
 							`Experience: ${experience || 'Not provided'}`,
 							`Interests: ${interests || 'Not provided'}`,
 							'',
@@ -386,8 +397,8 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 		}
 
 		student = new Student({
+			currentGrade,
 			name,
-			age,
 			country,
 			state,
 			experience,
@@ -395,7 +406,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 			phone,
 			interests,
 			sentTeams: team ? [team._id] : [],
-			sentApplications: team ? [{ team: team._id, status: 'pending', updatedAt: now }] : [],
+			sentApplications: team ? [{ team: team._id, currentGrade, status: 'pending', updatedAt: now }] : [],
 			requestCount: 1,
 			lastRequestAt: now,
 			applicationTeam: team ? team._id : undefined,
@@ -423,8 +434,8 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 						{ label: 'Student', value: name },
 						{ label: 'Email', value: normalizedEmail },
 						{ label: 'Phone', value: phone || 'Not provided' },
-						{ label: 'Age', value: age || 'Not provided' },
 						{ label: 'Location', value: [state, country].filter(Boolean).join(', ') || 'Not provided' },
+						{ label: 'Current grade', value: currentGrade },
 						{ label: 'Experience', value: experience || 'Not provided' },
 						{ label: 'Interests', value: interests || 'Not provided' }
 					],
@@ -445,8 +456,8 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 						`Student: ${name}`,
 						`Email: ${normalizedEmail}`,
 						`Phone: ${phone || 'Not provided'}`,
-						`Age: ${age || 'Not provided'}`,
 						`Location: ${[state, country].filter(Boolean).join(', ') || 'Not provided'}`,
+						`Current grade: ${currentGrade}`,
 						`Experience: ${experience || 'Not provided'}`,
 						`Interests: ${interests || 'Not provided'}`,
 						'',
@@ -470,12 +481,12 @@ router.get('/signups', function(req, res) {
 router.post('/users/signup', async function(req, res) {
 	try {
 		if (!requireDatabase(res)) return;
-		const { name, email, password, age, country, state, phone, profilePicture, interests, experience } = req.body;
+		const { name, email, password, country, state, phone, profilePicture, interests, experience, currentGrade } = req.body;
 		const normalizedEmail = normalizeEmail(email);
 		if (!name || !normalizedEmail || !password) return res.status(400).json({ ok: false, error: 'name/email/password required' });
 		if (String(password).length < 8) return res.status(400).json({ ok: false, error: 'password must be at least 8 characters' });
-		const parsedAge = parseOptionalAge(age);
-		if (!parsedAge.valid) return res.status(400).json({ ok: false, error: 'age must be a whole number from 13 to 18' });
+		const schoolGrades = new Set(['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12']);
+		if (!schoolGrades.has(String(currentGrade || '').trim())) return res.status(400).json({ ok: false, error: 'Select your grade for the current school year.' });
 		const phoneCheck = validatePhoneNumber(phone, { required: false });
 		if (!phoneCheck.valid) return res.status(400).json({ ok: false, error: phoneCheck.error || 'phone must be valid' });
 		const canonicalState = country ? canonicalizeCountryRegion(country, state) : '';
@@ -485,13 +496,13 @@ router.post('/users/signup', async function(req, res) {
 		const user = new User({
 			name: name.trim(),
 			email: normalizedEmail,
-			age: parsedAge.value,
 			country: String(country || '').trim() || undefined,
 			state: canonicalState || undefined,
 			phone: phoneCheck.normalized,
 			profilePicture,
 			interests,
 			experience,
+			currentGrade: String(currentGrade).trim(),
 			emailVerified: true,
 			emailVerifiedAt: new Date()
 		});
@@ -569,7 +580,7 @@ router.get('/users/me', async function(req, res) {
 	try {
 		if (!req.session.userId) return res.json({ ok: true, user: null });
 		if (!requireDatabase(res)) return;
-		const user = await User.findById(req.session.userId).select('name email age country state phone profilePicture interests experience teamNumber createdAt').exec();
+		const user = await User.findById(req.session.userId).select('name email country state phone profilePicture interests experience currentGrade teamNumber createdAt').exec();
 		if (!user) return res.json({ ok: true, user: null });
 
 		const normalizedEmail = normalizeEmail(user.email);
@@ -587,7 +598,8 @@ router.get('/users/me', async function(req, res) {
 				...publicUser(user),
 				hasTeam: !!team,
 				canViewStats: normalizedEmail === normalizeEmail(SUPPORT_EMAIL),
-				canViewTeamEmailDirectory: normalizedEmail === normalizeEmail(TEAM_EMAIL_DIRECTORY_ACCESS_EMAIL)
+				canViewTeamEmailDirectory: normalizedEmail === normalizeEmail(TEAM_EMAIL_DIRECTORY_ACCESS_EMAIL),
+				canViewReports: REPORTS_ACCESS_EMAILS.has(normalizedEmail)
 			},
 			notifications: notifications.map(serializeNotification),
 			unreadCount
