@@ -392,22 +392,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function loadSharedFooter() {
-  if (document.querySelector('.home-footer') || document.querySelector('.site-footer')) return;
-  fetch('/assets/partial/footer.html')
-    .then(r => r.text())
-    .then(html => {
-      const footerTemplate = document.createElement('template');
-      footerTemplate.innerHTML = firstStartTrustedTypesPolicy.createHTML(html.trim());
-      const footer = footerTemplate.content.firstElementChild;
-      if (footer) document.body.appendChild(footer);
-      const yearEl = document.getElementById('site-year');
-      if (yearEl) yearEl.textContent = new Date().getFullYear();
-    })
-    .catch(() => {});
+  // Express injects the static footer before sending the page.
+  const yearEl = document.getElementById('site-year');
+  if (yearEl) yearEl.textContent = new Date().getFullYear();
 }
 
-// Initialize the shared site shell. Server-rendered pages already include it;
-// the fetch remains as a fallback for standalone/static documents.
+// Initialize the shared site shell injected by Express.
 function loadSiteShells() {
   // Keep a local fallback for pages that are not rendered through Express.
   if (!document.body.classList.contains('home-page') && !document.querySelector('link[href*="bootstrap.min.css"]')) {
@@ -418,20 +408,7 @@ function loadSiteShells() {
     document.head.insertBefore(link, appStylesheet || document.head.firstChild);
   }
 
-  const headerReady = document.querySelector('header .navbar, body > .navbar')
-    ? Promise.resolve()
-    : fetch('/assets/partial/header.html?v=48')
-      .then(r => r.text())
-      .then(html => {
-        const header = document.querySelector('header');
-        if (header) {
-          header.innerHTML = firstStartTrustedTypesPolicy.createHTML(html);
-        } else {
-          const h = document.createElement('div');
-          h.innerHTML = firstStartTrustedTypesPolicy.createHTML(html);
-          document.body.insertBefore(h, document.body.firstChild);
-        }
-      });
+  const headerReady = Promise.resolve();
 
     headerReady.then(() => {
 
@@ -578,20 +555,28 @@ function loadSiteShells() {
 
             inboxEmpty.hidden = true;
             inboxTitle.textContent = unreadCount > 0 ? 'New notifications' : 'Notifications';
-            inboxList.innerHTML = firstStartTrustedTypesPolicy.createHTML(notifications.map((notification) => {
-              const link = notification.link || '/account';
-              const title = escapeHTML(notification.title || 'Notification');
-              const body = escapeHTML(notification.body || '');
+            const notificationElements = notifications.map((notification) => {
+              const rawLink = typeof notification.link === 'string' ? notification.link.trim() : '';
+              const link = rawLink.startsWith('/') && !rawLink.startsWith('//') ? rawLink : '/account';
               const meta = formatNotificationDate(notification.createdAt);
-              const isRead = Boolean(notification.readAt);
-              return `
-                <a class="inbox-dropdown-item ${isRead ? 'is-read' : ''}" href="${escapeHTML(link)}" data-notification-link>
-                  <strong>${title}</strong>
-                  <span>${body}</span>
-                  ${meta ? `<span class="inbox-dropdown-item-meta">${escapeHTML(meta)}</span>` : ''}
-                </a>
-              `;
-            }).join(''));
+              const item = document.createElement('a');
+              item.className = `inbox-dropdown-item${notification.readAt ? ' is-read' : ''}`;
+              item.href = link;
+              item.dataset.notificationLink = '';
+              const title = document.createElement('strong');
+              title.textContent = String(notification.title || 'Notification');
+              const body = document.createElement('span');
+              body.textContent = String(notification.body || '');
+              item.append(title, body);
+              if (meta) {
+                const date = document.createElement('span');
+                date.className = 'inbox-dropdown-item-meta';
+                date.textContent = meta;
+                item.appendChild(date);
+              }
+              return item;
+            });
+            inboxList.replaceChildren(...notificationElements);
             updateInboxControls();
           }
 
@@ -613,7 +598,10 @@ function loadSiteShells() {
                 .join('') || 'U'
               : 'U';
             if (user.profilePicture) {
-              initialsEl.innerHTML = firstStartTrustedTypesPolicy.createHTML(`<img src="${escapeHTML(user.profilePicture)}" alt="Profile picture">`);
+              const profileImage = document.createElement('img');
+              profileImage.src = String(user.profilePicture);
+              profileImage.alt = 'Profile picture';
+              initialsEl.replaceChildren(profileImage);
             } else {
               initialsEl.textContent = initials;
             }

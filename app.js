@@ -1,9 +1,9 @@
 require("dotenv").config();
 
 var express = require("express");
+var helmet = require("helmet");
 var path = require("path");
 var fs = require("fs");
-var zlib = require("zlib");
 var crypto = require("crypto");
 var mongoose = require("mongoose");
 var bodyParser = require("body-parser");
@@ -14,27 +14,19 @@ var session = require("express-session");
 var MongoStore = require("connect-mongo").MongoStore;
 var rateLimit = require("express-rate-limit").rateLimit;
 var flash = require("connect-flash");
-var ejs = require("ejs");
+var renderView = require("./lib/render-view").renderView;
 var params = require("./params/params");
 var setUpPassport = require("./setuppassport");
 var Team = require("./models/team");
 var hasGlobalPrivacyControl = require("./lib/gpc").hasGlobalPrivacyControl;
 var countryHelpers = require("./lib/country");
 var countryRegionHelpers = require("./lib/country-regions");
+var jsonToBase64 = require("./lib/html-data").jsonToBase64;
 //var routes = require("./routes");
 
 var app = express();
 
 const ASSETS_ROOT = path.join(__dirname, "assets");
-const COMPRESSED_CONTENT_TYPES = {
-    ".css": "text/css; charset=utf-8",
-    ".html": "text/html; charset=utf-8",
-    ".js": "application/javascript; charset=utf-8",
-    ".json": "application/json; charset=utf-8",
-    ".svg": "image/svg+xml",
-    ".txt": "text/plain; charset=utf-8",
-    ".xml": "application/xml; charset=utf-8"
-};
 
 const MAIN_CSS_VERSION = "91";
 const MAIN_JS_VERSION = "99";
@@ -85,43 +77,6 @@ function formatAwardHistoryDisplayEntry(entry) {
     });
 }
 
-function servePrecompressedAsset(req, res, next) {
-    if (req.method !== "GET" && req.method !== "HEAD") return next();
-    const encoding = req.acceptsEncodings("br", "gzip");
-    if (encoding !== "br" && encoding !== "gzip") return next();
-
-    const extension = path.extname(req.path).toLowerCase();
-    const contentType = COMPRESSED_CONTENT_TYPES[extension];
-    if (!contentType) return next();
-
-    let decodedPath;
-    try {
-        decodedPath = decodeURIComponent(req.path);
-    } catch (error) {
-        return next();
-    }
-
-    const assetPath = path.resolve(ASSETS_ROOT, "." + decodedPath);
-    const relativePath = path.relative(ASSETS_ROOT, assetPath);
-    if (relativePath.startsWith(".." + path.sep) || path.isAbsolute(relativePath)) return next();
-
-    const compressedPath = assetPath + (encoding === "br" ? ".br" : ".gz");
-    fs.stat(compressedPath, function(error, stats) {
-        if (error || !stats.isFile()) return next();
-
-        res.set("Content-Encoding", encoding);
-        res.set("Content-Type", contentType);
-        res.set("Vary", "Accept-Encoding");
-        res.sendFile(compressedPath, {
-            acceptRanges: false,
-            immutable: true,
-            maxAge: "1y"
-        }, function(sendError) {
-            if (sendError) next(sendError);
-        });
-    });
-}
-
 app.set("port", process.env.PORT || 3000);
 app.set("host", process.env.HOST || "0.0.0.0");
 app.set("view cache", process.env.NODE_ENV === "production");
@@ -140,8 +95,13 @@ const perimeterLimiter = rateLimit({
         return res.status(options.statusCode || 429).type("text/plain").send(options.message);
     }
 });
-app.use(perimeterLimiter);
-app.use(compression());
+// Keep the nonce-based CSP below; Helmet supplies the remaining protections.
+app.use(helmet({
+    contentSecurityPolicy: false,
+    strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true },
+    xFrameOptions: { action: "deny" },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" }
+}));
 
 app.use(function setSecurityHeaders(req, res, next) {
     const nonce = crypto.randomBytes(16).toString("base64");
@@ -150,7 +110,8 @@ app.use(function setSecurityHeaders(req, res, next) {
         "Content-Security-Policy": [
             "default-src 'self'",
             `script-src 'self' 'nonce-${nonce}' blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com`,
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.googleapis.com https://*.gstatic.com",
+            `style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com https://*.googleapis.com https://*.gstatic.com`,
+            "style-src-attr 'unsafe-inline'",
             "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com",
             "font-src 'self' data: https://fonts.gstatic.com",
             "connect-src 'self' data: blob: https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com",
@@ -161,15 +122,14 @@ app.use(function setSecurityHeaders(req, res, next) {
             "form-action 'self' https://accorid.com",
             "frame-ancestors 'none'"
         ].join("; "),
-        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-        "Cross-Origin-Opener-Policy": "same-origin",
-        "X-Frame-Options": "DENY",
-        "X-Content-Type-Options": "nosniff",
-        "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "camera=(), microphone=(), geolocation=(self)"
     });
     next();
 });
+
+// Apply security headers even when the perimeter limiter ends the request.
+app.use(perimeterLimiter);
+app.use(compression());
 
 app.use(function recognizeGlobalPrivacyControl(req, res, next) {
     req.globalPrivacyControl = hasGlobalPrivacyControl(req.get("Sec-GPC"));
@@ -204,7 +164,6 @@ app.use(function denyServerFiles(req, res, next) {
 });
 
 // Static files - serve FIRST before setting up routes/views
-app.use("/assets", servePrecompressedAsset);
 app.use("/assets", express.static(ASSETS_ROOT, {
     maxAge: "1y",
     immutable: true,
@@ -238,6 +197,7 @@ app.locals.countriesMatch = countryHelpers.countriesMatch;
 app.locals.countryRegionsFor = countryRegionHelpers.getCountryRegions;
 app.locals.canonicalizeCountryRegion = countryRegionHelpers.canonicalizeCountryRegion;
 app.locals.googleMapsApiKey = String(process.env.GOOGLE_MAPS_API_KEY || '').trim();
+app.locals.jsonToBase64 = jsonToBase64;
 
 // Read the shared header when the server starts so rendered pages use the same shell.
 // The source file is rebuilt alongside the client shell during development.
@@ -245,7 +205,7 @@ const sharedHeaderHtml = fs.readFileSync(path.join(__dirname, "assets", "partial
 const sharedFooterHtml = fs.readFileSync(path.join(__dirname, "assets", "partial", "footer.html"), "utf8");
 
 app.engine("ejs", function(filePath, data, callback) {
-    ejs.renderFile(filePath, data, function(err, html) {
+    renderView(filePath, data, function(err, html) {
         if (err) return callback(err);
 
         if (typeof html === 'string') {
@@ -254,6 +214,7 @@ app.engine("ejs", function(filePath, data, callback) {
             }
             if (data && data.cspNonce) {
                 html = html.replace(/<script(?![^>]*\bnonce=)([^>]*)>/gi, `<script nonce="${data.cspNonce}"$1>`);
+                html = html.replace(/<style(?![^>]*\bnonce=)([^>]*)>/gi, `<style nonce="${data.cspNonce}"$1>`);
             }
             EXTERNAL_ASSET_REPLACEMENTS.forEach(function(replacement) {
                 html = html.split(replacement[0]).join(replacement[1]);

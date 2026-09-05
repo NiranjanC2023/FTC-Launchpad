@@ -1,0 +1,13 @@
+{
+  "name": "raw-body",
+  "version": "4.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "raw-body-esm": "npm:raw-body@4.0.0"
+  }
+}

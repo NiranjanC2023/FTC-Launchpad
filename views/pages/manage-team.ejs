@@ -974,7 +974,11 @@
                                         <% if (team.awardHistory && team.awardHistory.length) { %>
                                             <ul class="team-history-list" data-history-list="awards" style="margin: 0;">
                                                 <% team.awardHistory.forEach(function(entry, index) { %>
-                                                    <li class="team-history-item team-history-item--award" <%- index >= 2 ? 'hidden data-history-hidden="true"' : '' %>>
+                                                    <% if (index >= 2) { %>
+                                                    <li class="team-history-item team-history-item--award" hidden data-history-hidden="true">
+                                                    <% } else { %>
+                                                    <li class="team-history-item team-history-item--award">
+                                                    <% } %>
                                                         <span class="team-history-entry">
                                                             <span class="team-history-icon" aria-hidden="true"><i class="fa-solid fa-trophy"></i></span>
                                                             <span class="team-history-text"><%= entry %></span>
@@ -1002,7 +1006,11 @@
                                                 <% visibleAdvancementHistory.forEach(function(entry, index) { %>
                                                     <% const historyText = String(entry || '').trim(); %>
                                                     <% const historyClass = /world/i.test(historyText) ? 'team-history-item--worlds' : /regional/i.test(historyText) ? 'team-history-item--regional' : 'team-history-item--other'; %>
-                                                    <li class="team-history-item <%= historyClass %>" <%- index >= 2 ? 'hidden data-history-hidden="true"' : '' %>>
+                                                    <% if (index >= 2) { %>
+                                                    <li class="team-history-item <%= historyClass %>" hidden data-history-hidden="true">
+                                                    <% } else { %>
+                                                    <li class="team-history-item <%= historyClass %>">
+                                                    <% } %>
                                                         <span class="team-history-entry">
                                                             <span class="team-history-icon" aria-hidden="true">
                                                                 <i class="fa-solid <%= /world/i.test(historyText) ? 'fa-globe' : /regional/i.test(historyText) ? 'fa-flag' : 'fa-circle-dot' %>"></i>

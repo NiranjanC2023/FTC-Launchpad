@@ -1,5 +1,7 @@
 const express = require("express");
 const router = express.Router();
+const { formString, accountFormValues, teamFormValues, signupView } = require('../lib/form-values');
+const { objectIdString, objectIdValue, inviteTokenFilter } = require('../lib/query-input');
 const mongoose = require('mongoose');
 const User = require('../models/user');
 const Team = require('../models/team');
@@ -99,14 +101,14 @@ async function getPostLoginRedirect(user) {
     const contactQuery = buildContactEmailQuery(user.email);
     const teamAccessConditions = [
         { contact: contactQuery },
-        { managers: user._id }
+        { managers: { $eq: user._id } }
     ];
 
     const managedTeam = await Team.findOne({ $or: teamAccessConditions }).select('_id').lean().exec();
     if (managedTeam) return '/manage-team';
 
     if (user.teamNumber) {
-        teamAccessConditions.push({ teamNumber: user.teamNumber });
+        teamAccessConditions.push({ teamNumber: { $eq: user.teamNumber } });
     }
 
     const affiliatedTeam = await Team.findOne({ $or: teamAccessConditions }).select('_id').lean().exec();
@@ -121,11 +123,11 @@ async function getAccessibleTeamsForUser(user) {
     const query = {
         $or: [
             { contact: contactQuery },
-            { managers: user._id }
+            { managers: { $eq: user._id } }
         ]
     };
     if (user.teamNumber) {
-        query.$or.push({ teamNumber: user.teamNumber });
+        query.$or.push({ teamNumber: { $eq: user.teamNumber } });
     }
 
     const teams = await Team.find(query)
@@ -171,7 +173,7 @@ function hashResetToken(token) {
 
 function buildContactEmailQuery(email) {
     const normalized = normalizeEmail(email);
-    const raw = String(email || '').trim();
+    const raw = formString(email).trim();
     const values = [...new Set([normalized, raw].filter(Boolean))];
     if (values.length === 1) return values[0];
     return { $in: values };
@@ -189,7 +191,7 @@ async function attachContactTeamsToUser(user) {
     const linkedTeams = [];
     for (const team of teams || []) {
         if (!team) continue;
-        await Team.findByIdAndUpdate(team._id, { $addToSet: { managers: user._id } }).exec();
+        await Team.findByIdAndUpdate(team._id, { $addToSet: { managers: { $eq: user._id } } }).exec();
         linkedTeams.push(team);
     }
 
@@ -211,8 +213,9 @@ function isLocalhostHost(hostname) {
 }
 
 async function acceptInviteToken(token, user) {
-    if (!token || !user) return null;
-    const invite = await ManagerInvite.findOne({ token }).exec();
+    const filter = inviteTokenFilter(token);
+    if (!filter || !user) return null;
+    const invite = await ManagerInvite.findOne(filter).exec();
     if (!invite) return null;
     if (invite.expiresAt && invite.expiresAt < new Date()) return null;
     if (normalizeEmail(user.email) !== normalizeEmail(invite.email)) return null;
@@ -220,7 +223,7 @@ async function acceptInviteToken(token, user) {
     const team = await Team.findById(invite.team).exec();
     if (!team) return null;
 
-    await Team.findByIdAndUpdate(team._id, { $addToSet: { managers: user._id } }).exec();
+    await Team.findByIdAndUpdate(team._id, { $addToSet: { managers: { $eq: user._id } } }).exec();
     invite.acceptedAt = new Date();
     await invite.save();
     return team;
@@ -332,7 +335,7 @@ function databaseErrorMessage() {
 }
 
 function sanitizeNextPath(nextPath, fallback = '/') {
-    const value = String(nextPath || '').trim();
+    const value = formString(nextPath).trim();
     if (!value) return fallback;
 
     const normalizedPath = value.split('?')[0];
@@ -2007,7 +2010,7 @@ router.get("/join-form", ensureAuthenticated, async function(req, res){
             return res.render("pages/join-form", { values: {} });
         }
 
-        const user = await User.findById(req.session.userId).select('name country state experience currentGrade email phone interests').lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).select('name country state experience currentGrade email phone interests').lean().exec();
         if (!user) {
             return res.render("pages/join-form", { values: {} });
         }
@@ -2268,7 +2271,7 @@ router.get("/teams-nearby", async function(req, res){
         let studentApp = null;
         let currentUser = null;
         if (req.session && req.session.userId) {
-            currentUser = await User.findById(req.session.userId).select('name country state experience currentGrade email phone interests').lean().exec();
+            currentUser = await User.findById(objectIdValue(req.session.userId)).select('name country state experience currentGrade email phone interests').lean().exec();
             if (currentUser) {
                 currentUser.canonicalState = canonicalizeCountryRegion(currentUser.country, currentUser.state) || currentUser.state;
             }
@@ -2278,7 +2281,7 @@ router.get("/teams-nearby", async function(req, res){
                     Student.findOne({ email: normalizedEmail }).lean().exec(),
                     Team.findOne({
                         $or: [
-                            { contact: normalizedEmail },
+                            { contact: { $eq: normalizedEmail } },
                             { managers: currentUser._id }
                         ]
                     }).select('_id').lean().exec()
@@ -2309,7 +2312,7 @@ router.post('/reports', ensureAuthenticated, async function(req, res) {
     try {
         if (!(await waitForDatabase())) return fail();
 
-        const reporter = await User.findById(req.session.userId).select('name email teamNumber').lean().exec();
+        const reporter = await User.findById(objectIdValue(req.session.userId)).select('name email teamNumber').lean().exec();
         if (!reporter) return res.redirect('/logout');
 
         const targetType = String(req.body.targetType || '').trim();
@@ -2385,7 +2388,7 @@ router.get('/reports', ensureAuthenticated, async function(req, res) {
             return res.render('pages/reports', { error: databaseErrorMessage(), user: null, reports: [], counts: {} });
         }
 
-        const user = await User.findById(req.session.userId).select('name email').lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).select('name email').lean().exec();
         if (!user) return res.redirect('/logout');
         if (!canAccessReports(user)) return res.redirect('/');
 
@@ -2424,7 +2427,7 @@ router.get('/team-register/email-verification', requireAccountForTeamRegister, f
 });
 
 router.post('/team-register/email-verification', requireAccountForTeamRegister, async function(req, res) {
-    const values = { ...(req.body || {}) };
+    const values = teamFormValues(req.body);
     const program = normalizeProgram(values.program);
     const teamNumber = parsePositiveTeamNumber(values.teamNumber);
     const validationError = validateTeamEmailRegistration(values);
@@ -2576,7 +2579,7 @@ router.post('/manage-team/email-verification', ensureAuthenticated, async functi
     try {
         if (!(await waitForDatabase())) return res.redirect('/manage-team?error=verification_failed');
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const teamId = String(req.body.teamId || '').trim();
@@ -2605,7 +2608,7 @@ router.post('/manage-team/email-verification', ensureAuthenticated, async functi
             isNewTeam: true,
             $or: [
                 { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).lean().exec();
         if (!team) return res.redirect('/manage-team?error=verification_not_new');
@@ -2699,13 +2702,13 @@ router.post('/manage-team/email-verification/confirm', ensureAuthenticated, asyn
         return res.redirect(`${failurePath}&error=${codeError.includes('expired') || codeError.includes('Too many') ? 'verification_expired' : 'verification_code'}`);
     }
     try {
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         const team = user ? await Team.findOne({
             _id: pending.teamId,
             isNewTeam: true,
             $or: [
                 { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).exec() : null;
         if (!team) {
@@ -2785,7 +2788,7 @@ router.post('/manage-team/email-verification/confirm', ensureAuthenticated, asyn
 
 router.get('/team-email-directory', ensureAuthenticated, async function(req, res) {
     try {
-        const user = await User.findById(req.session.userId).select('email').lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).select('email').lean().exec();
         if (!canAccessTeamEmailDirectory(user)) return res.redirect('/');
 
         const teams = await fetchDashboardTeamEmailDirectory();
@@ -2859,7 +2862,7 @@ router.get('/team-register', requireAccountForTeamRegister, async function(req, 
     const registrationMode = pendingValues
         ? (pendingVerification.kind === 'new-registration' ? 'new' : 'existing')
         : (String(req.query.mode || '').toLowerCase() === 'new' ? 'new' : 'existing');
-    const user = await User.findById(req.session.userId).select('email').lean().exec().catch(() => null);
+    const user = await User.findById(objectIdValue(req.session.userId)).select('email').lean().exec().catch(() => null);
     if (!user) return res.redirect('/login');
     const verificationMessages = {
         sent: 'We sent a verification code to the public email on this team’s FIRST Dashboard profile.',
@@ -2891,14 +2894,14 @@ router.get('/team-register', requireAccountForTeamRegister, async function(req, 
 });
 
 async function saveRegisteredTeam(req, res) {
-    const values = req.body;
+    const values = teamFormValues(req.body);
 
     try {
         if (!isDatabaseConnected()) {
             return res.render('pages/team-register', { error: databaseErrorMessage(), message: null, values });
         }
 
-        const registrationUser = await User.findById(req.session.userId).select('email').lean().exec();
+        const registrationUser = await User.findById(objectIdValue(req.session.userId)).select('email').lean().exec();
         if (!registrationUser || !registrationUser.email) return res.redirect('/login');
 
         if (!PROGRAM_LABELS[String(values.program || '').trim()]) {
@@ -3077,8 +3080,8 @@ async function saveRegisteredTeam(req, res) {
             country: resolvedCountry || (isNewTeam ? 'USA' : '')
         });
         let existingTeam = !isNewTeam
-            ? await Team.findOne({ teamNumber, program }).select('contact managers registrationKey').lean().exec()
-            : await Team.findOne({ registrationKey }).select('contact managers registrationKey').lean().exec();
+            ? await Team.findOne({ teamNumber: { $eq: teamNumber }, program: { $eq: program } }).select('contact managers registrationKey').lean().exec()
+            : await Team.findOne({ registrationKey: { $eq: registrationKey } }).select('contact managers registrationKey').lean().exec();
         if (isNewTeam && !existingTeam) {
             const possibleDuplicates = await Team.find({ isNewTeam: true, program })
                 .select('name address city state country contact managers registrationKey')
@@ -3105,8 +3108,8 @@ async function saveRegisteredTeam(req, res) {
         }
 
         const teamFilter = isNewTeam
-            ? { registrationKey }
-            : { teamNumber, program };
+            ? { registrationKey: { $eq: registrationKey } }
+            : { teamNumber: { $eq: teamNumber }, program: { $eq: program } };
 
         const teamData = {
             program,
@@ -3162,7 +3165,7 @@ async function saveRegisteredTeam(req, res) {
         if (req.session && req.session.userId && savedTeam) {
             await Team.findByIdAndUpdate(savedTeam._id, { $addToSet: { managers: req.session.userId } }).exec();
             if (!isNewTeam) {
-                await User.findByIdAndUpdate(req.session.userId, { $set: { teamNumber } }).exec();
+                await User.findByIdAndUpdate(objectIdValue(req.session.userId), { $set: { teamNumber } }).exec();
             }
         }
 
@@ -3191,7 +3194,7 @@ router.get('/stats', ensureAuthenticated, async function(req, res) {
             return res.render('pages/site-stats', { error: databaseErrorMessage(), user: null, stats: null });
         }
 
-        const user = await User.findById(req.session.userId).select('name email createdAt teamNumber').lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).select('name email createdAt teamNumber').lean().exec();
         if (!user) return res.redirect('/logout');
         if (!isStatsAccessUser(user)) return res.redirect('/');
 
@@ -3383,7 +3386,7 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
     try {
         if (!isDatabaseConnected()) return res.render('pages/manage-team', { error: databaseErrorMessage(), pendingInvitations: [], teamTenureLabel: null, teamOptions: [], teamSelectionOnly: false, currentTeamRole: '', teamManagers: [], recruits: [], waitlisted: [], acceptedRecruits: [], acceptedCount: 0, waitlistCount: 0, rejectedCount: 0 });
         
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         // Handle error messages passed via query string
@@ -3682,7 +3685,7 @@ router.get('/my-applications', ensureAuthenticated, async function(req, res) {
     try {
         if (!isDatabaseConnected()) return res.render('pages/my-applications', { error: databaseErrorMessage() });
         
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         // Find the student profile associated with this user's email
@@ -3754,7 +3757,7 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const { notes, recruiting } = req.body;
@@ -3765,7 +3768,7 @@ router.post('/manage-team/update', ensureAuthenticated, async function(req, res)
             {
                 $or: [
                     { contact: buildContactEmailQuery(user.email) },
-                    { managers: user._id }
+                    { managers: { $eq: user._id } }
                 ]
             }
         ).exec();
@@ -3806,13 +3809,13 @@ router.post('/manage-team/managers/add', ensureAuthenticated, async function(req
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const team = await Team.findOne({
             $or: [
                     { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).exec();
 
@@ -3820,12 +3823,12 @@ router.post('/manage-team/managers/add', ensureAuthenticated, async function(req
             return res.redirect('/manage-team?error=manager_invalid');
         }
 
-        const managerUserId = req.body.managerUserId;
-        if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
+        const managerUserId = objectIdString(req.body && req.body.managerUserId);
+        if (!managerUserId) {
             return res.redirect('/manage-team?error=manager_invalid');
         }
 
-        const candidate = await User.findOne({ _id: managerUserId, teamNumber: team.teamNumber }).exec();
+        const candidate = await User.findOne({ _id: objectIdValue(managerUserId), teamNumber: { $eq: team.teamNumber } }).exec();
         if (!candidate) {
             return res.redirect('/manage-team?error=manager_invalid');
         }
@@ -3843,13 +3846,13 @@ router.post('/manage-team/managers/remove', ensureAuthenticated, async function(
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const team = await Team.findOne({
             $or: [
                     { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).exec();
 
@@ -3857,8 +3860,8 @@ router.post('/manage-team/managers/remove', ensureAuthenticated, async function(
             return res.redirect('/manage-team?error=manager_remove_denied');
         }
 
-        const managerUserId = req.body.managerUserId;
-        if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
+        const managerUserId = objectIdString(req.body && req.body.managerUserId);
+        if (!managerUserId) {
             return res.redirect('/manage-team?error=manager_remove_invalid');
         }
 
@@ -3904,13 +3907,13 @@ router.post('/manage-team/managers/remove-role', ensureAuthenticated, async func
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const team = await Team.findOne({
             $or: [
                 { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).exec();
 
@@ -3918,8 +3921,8 @@ router.post('/manage-team/managers/remove-role', ensureAuthenticated, async func
             return res.redirect('/manage-team?error=manager_remove_denied');
         }
 
-        const managerUserId = req.body.managerUserId;
-        if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
+        const managerUserId = objectIdString(req.body && req.body.managerUserId);
+        if (!managerUserId) {
             return res.redirect('/manage-team?error=manager_remove_invalid');
         }
 
@@ -3966,13 +3969,13 @@ router.post('/manage-team/managers/transfer-ownership', ensureAuthenticated, asy
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const team = await Team.findOne({
             $or: [
                 { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).exec();
 
@@ -3986,8 +3989,8 @@ router.post('/manage-team/managers/transfer-ownership', ensureAuthenticated, asy
             return res.redirect('/manage-team?error=role_update_denied');
         }
 
-        const managerUserId = req.body.managerUserId;
-        if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
+        const managerUserId = objectIdString(req.body && req.body.managerUserId);
+        if (!managerUserId) {
             return res.redirect('/manage-team?error=role_update_invalid');
         }
 
@@ -4027,13 +4030,13 @@ router.post('/manage-team/managers/remove-member', ensureAuthenticated, async fu
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const team = await Team.findOne({
             $or: [
                 { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).exec();
 
@@ -4041,8 +4044,8 @@ router.post('/manage-team/managers/remove-member', ensureAuthenticated, async fu
             return res.redirect('/manage-team?error=manager_remove_denied');
         }
 
-        const managerUserId = req.body.managerUserId;
-        if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
+        const managerUserId = objectIdString(req.body && req.body.managerUserId);
+        if (!managerUserId) {
             return res.redirect('/manage-team?error=manager_remove_invalid');
         }
 
@@ -4093,13 +4096,13 @@ router.post('/manage-team/managers/leave-team', ensureAuthenticated, async funct
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const team = await Team.findOne({
             $or: [
                 { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).exec();
 
@@ -4171,13 +4174,13 @@ router.post('/manage-team/managers/captain', ensureAuthenticated, async function
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const team = await Team.findOne({
             $or: [
                     { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).exec();
 
@@ -4192,8 +4195,8 @@ router.post('/manage-team/managers/captain', ensureAuthenticated, async function
             return res.redirect('/manage-team?error=role_update_denied');
         }
 
-        const managerUserId = req.body.managerUserId;
-        if (!managerUserId || !mongoose.Types.ObjectId.isValid(managerUserId)) {
+        const managerUserId = objectIdString(req.body && req.body.managerUserId);
+        if (!managerUserId) {
             return res.redirect('/manage-team?error=role_update_invalid');
         }
 
@@ -4222,13 +4225,13 @@ router.post('/manage-team/invitations/clear', ensureAuthenticated, async functio
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const team = await Team.findOne({
             $or: [
                     { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).lean().exec();
 
@@ -4260,13 +4263,13 @@ router.post('/manage-team/recruitment/clear', ensureAuthenticated, async functio
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const team = await Team.findOne({
             $or: [
                     { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).exec();
 
@@ -4300,13 +4303,13 @@ router.post('/manage-team/invite', ensureAuthenticated, async function(req, res)
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const team = await Team.findOne({
             $or: [
                 { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).exec();
 
@@ -4371,7 +4374,7 @@ router.post('/manage-team/delete', ensureAuthenticated, async function(req, res)
     try {
         if (!isDatabaseConnected()) return res.status(503).send(databaseErrorMessage());
 
-        const user = await User.findById(req.session.userId).exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).exec();
         if (!user) return res.redirect('/logout');
 
         // Delete the team where the contact email matches the logged-in user
@@ -4397,11 +4400,11 @@ router.post('/manage-team/delete', ensureAuthenticated, async function(req, res)
 router.get('/manage-team/contact/:recruitId', ensureAuthenticated, async function(req, res) {
     try {
         const recruit = await Student.findById(req.params.recruitId).lean().exec();
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         const team = await Team.findOne({
             $or: [
                 { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).lean().exec();
         
@@ -4422,13 +4425,13 @@ router.post('/manage-team/recruit/:recruitId/status', ensureAuthenticated, async
             return res.redirect('/manage-team?error=mail_failed');
         }
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const team = await Team.findOne({
             $or: [
                 { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).lean().exec();
         if (!team) return res.redirect('/manage-team?error=invite_denied');
@@ -4522,11 +4525,11 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
     try {
         const { message, meetingDate, meetingTime, meetingLocation } = req.body;
         const recruit = await Student.findById(req.params.recruitId).exec();
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         const team = await Team.findOne({
             $or: [
                 { contact: buildContactEmailQuery(user.email) },
-                { managers: user._id }
+                { managers: { $eq: user._id } }
             ]
         }).lean().exec();
 
@@ -4603,14 +4606,14 @@ router.get('/account', ensureAuthenticated, async function(req, res) {
             return res.render('pages/account', { error: databaseErrorMessage(), user: null, studentProfile: null, team: null, teamOptions: [] });
         }
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const teamOptions = await getAccessibleTeamsForUser(user);
         const teamByContact = await Team.findOne({ contact: buildContactEmailQuery(user.email) }).lean().exec();
-        const teamByManager = await Team.findOne({ managers: user._id }).lean().exec();
-        const teamByNumber = user.teamNumber ? await Team.findOne({ teamNumber: user.teamNumber }).lean().exec() : null;
-        const studentProfile = await Student.findOne({ email: user.email }).lean().exec();
+        const teamByManager = await Team.findOne({ managers: { $eq: user._id } }).lean().exec();
+        const teamByNumber = user.teamNumber ? await Team.findOne({ teamNumber: { $eq: user.teamNumber } }).lean().exec() : null;
+        const studentProfile = await Student.findOne({ email: { $eq: normalizeEmail(user.email) } }).lean().exec();
         const selectedTeam = teamOptions.find(option => String(option._id) === String(req.query.team || req.session.activeTeamId || '')) || teamOptions[0] || teamByContact || teamByNumber || teamByManager || null;
         if (selectedTeam) {
             req.session.activeTeamId = String(selectedTeam._id);
@@ -4632,30 +4635,31 @@ router.get('/account', ensureAuthenticated, async function(req, res) {
 // Invite landing page
 router.get('/invite/:token', async function(req, res) {
     try {
-        if (!isDatabaseConnected()) return res.render('pages/invite-signup', { error: databaseErrorMessage(), token: req.params.token, email: '', teamName: '' });
+        if (!isDatabaseConnected()) return res.render('pages/invite-signup', { error: databaseErrorMessage(), token: formString(req.params.token), email: '', teamName: '' });
 
-        const invite = await ManagerInvite.findOne({ token: req.params.token }).lean().exec();
+        const filter = inviteTokenFilter(req.params.token);
+        const invite = filter ? await ManagerInvite.findOne(filter).lean().exec() : null;
         if (!invite) {
-            return res.render('pages/invite-signup', { error: 'This invitation link is invalid or expired.', token: req.params.token, email: '', teamName: '' });
+            return res.render('pages/invite-signup', { error: 'This invitation link is invalid or expired.', token: formString(req.params.token), email: '', teamName: '' });
         }
 
         const team = await Team.findById(invite.team).lean().exec();
         if (!team) {
-            return res.render('pages/invite-signup', { error: 'The invited team could not be found.', token: req.params.token, email: invite.email, teamName: '' });
+            return res.render('pages/invite-signup', { error: 'The invited team could not be found.', token: formString(req.params.token), email: invite.email, teamName: '' });
         }
 
         if (req.session.userId) {
-            const user = await User.findById(req.session.userId).lean().exec();
+            const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
             if (user && normalizeEmail(user.email) === normalizeEmail(invite.email)) {
                 await acceptInviteToken(req.params.token, user);
                 return res.redirect('/manage-team');
             }
         }
 
-        res.render('pages/invite-signup', { error: null, token: req.params.token, email: invite.email, teamName: team.name });
+        res.render('pages/invite-signup', { error: null, token: formString(req.params.token), email: invite.email, teamName: team.name });
     } catch (err) {
         console.error('Invite route error:', err);
-        res.render('pages/invite-signup', { error: 'Unable to process the invitation right now.', token: req.params.token, email: '', teamName: '' });
+        res.render('pages/invite-signup', { error: 'Unable to process the invitation right now.', token: formString(req.params.token), email: '', teamName: '' });
     }
 });
 
@@ -4663,7 +4667,7 @@ router.get('/invite/:token', async function(req, res) {
 router.get('/signup', function(req, res){
     res.render('pages/signup', {
         error: null,
-        inviteToken: req.query.inviteToken || null,
+        inviteToken: formString(req.query.inviteToken) || null,
         nextPath: sanitizeNextPath(req.query.next, '')
     });
 });
@@ -4678,8 +4682,9 @@ router.get('/terms', function(req, res){
 // Dedicated pages for each signup mode (selection page links here)
 router.get('/signup/seeker', async function(req, res){
     const values = {};
-    if (req.query.inviteToken) {
-        const invite = await ManagerInvite.findOne({ token: req.query.inviteToken }).lean().exec();
+    const filter = inviteTokenFilter(req.query.inviteToken);
+    if (filter) {
+        const invite = await ManagerInvite.findOne(filter).lean().exec();
         if (invite) {
             values.email = invite.email;
         }
@@ -4687,15 +4692,16 @@ router.get('/signup/seeker', async function(req, res){
     res.render('pages/signup-seeker', {
         error: null,
         values,
-        inviteToken: req.query.inviteToken || null,
+        inviteToken: formString(req.query.inviteToken) || null,
         nextPath: sanitizeNextPath(req.query.next, '')
     });
 });
 
 router.get('/signup/manager', async function(req, res){
     const values = {};
-    if (req.query.inviteToken) {
-        const invite = await ManagerInvite.findOne({ token: req.query.inviteToken }).lean().exec();
+    const filter = inviteTokenFilter(req.query.inviteToken);
+    if (filter) {
+        const invite = await ManagerInvite.findOne(filter).lean().exec();
         if (invite) {
             values.email = invite.email;
         }
@@ -4703,7 +4709,7 @@ router.get('/signup/manager', async function(req, res){
     res.render('pages/signup-manager', {
         error: null,
         values,
-        inviteToken: req.query.inviteToken || null,
+        inviteToken: formString(req.query.inviteToken) || null,
         nextPath: sanitizeNextPath(req.query.next, '')
     });
 });
@@ -4727,7 +4733,7 @@ router.get('/signup/verify', function(req, res){
 router.post('/signup', async function(req, res){
     const mode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
     try {
-        if (!isDatabaseConnected()) return res.render(`pages/signup-${mode}`, { error: databaseErrorMessage(), values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
+        if (!isDatabaseConnected()) return res.render(signupView(mode), { error: databaseErrorMessage(), values: accountFormValues(req.body), inviteToken: formString(req.body && req.body.inviteToken) || null, nextPath: sanitizeNextPath(req.body.next, '') });
         const { name, email, password, country, state, phone, profilePicture, interests, experience, currentGrade, inviteToken, policyAccepted } = req.body;
         const nextPath = sanitizeNextPath(req.body.next, '');
         const normalizedEmail = normalizeEmail(email);
@@ -4735,10 +4741,10 @@ router.post('/signup', async function(req, res){
             ? validatePhoneNumber(phone, { required: true })
             : validatePhoneNumber(phone, { required: false });
         if (!phoneCheck.valid) {
-            return res.render(`pages/signup-${mode}`, {
+            return res.render(signupView(mode), {
                 error: phoneCheck.error || 'Enter a valid phone number.',
-                values: req.body,
-                inviteToken: inviteToken || null,
+                values: accountFormValues(req.body),
+                inviteToken: formString(inviteToken) || null,
                 nextPath
             });
         }
@@ -4755,25 +4761,25 @@ router.post('/signup', async function(req, res){
         const managerRequiredFields = { name, normalizedEmail, password };
         const requiredFields = mode === 'seeker' ? seekerRequiredFields : managerRequiredFields;
         const hasMissingRequiredField = Object.values(requiredFields).some(value => !String(value ?? '').trim());
-        if (hasMissingRequiredField) return res.render(`pages/signup-${mode}`, { error: 'All fields required', values: req.body, inviteToken: inviteToken || null, nextPath });
-        if (String(password).length < 8) return res.render(`pages/signup-${mode}`, { error: 'Password must be at least 8 characters.', values: req.body, inviteToken: inviteToken || null, nextPath });
+        if (hasMissingRequiredField) return res.render(signupView(mode), { error: 'All fields required', values: accountFormValues(req.body), inviteToken: formString(inviteToken) || null, nextPath });
+        if (String(password).length < 8) return res.render(signupView(mode), { error: 'Password must be at least 8 characters.', values: accountFormValues(req.body), inviteToken: formString(inviteToken) || null, nextPath });
         const schoolGrades = new Set(['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12']);
-        if (mode === 'seeker' && !schoolGrades.has(String(currentGrade || '').trim())) return res.render(`pages/signup-${mode}`, { error: 'Select your grade for the current school year.', values: req.body, inviteToken: inviteToken || null, nextPath });
+        if (mode === 'seeker' && !schoolGrades.has(String(currentGrade || '').trim())) return res.render(signupView(mode), { error: 'Select your grade for the current school year.', values: accountFormValues(req.body), inviteToken: formString(inviteToken) || null, nextPath });
         if (!['1', 'on', 'true'].includes(String(policyAccepted || '').trim().toLowerCase())) {
-            return res.render(`pages/signup-${mode}`, {
+            return res.render(signupView(mode), {
                 error: 'You must agree to the privacy policy before creating an account.',
-                values: req.body,
-                inviteToken: inviteToken || null,
+                values: accountFormValues(req.body),
+                inviteToken: formString(inviteToken) || null,
                 nextPath
             });
         }
 
         const canonicalState = mode === 'seeker' ? canonicalizeCountryRegion(country, state) : '';
         if (mode === 'seeker' && !canonicalState) {
-            return res.render(`pages/signup-${mode}`, {
+            return res.render(signupView(mode), {
                 error: 'Choose a state, province, or region that belongs to the selected country.',
-                values: req.body,
-                inviteToken: inviteToken || null,
+                values: accountFormValues(req.body),
+                inviteToken: formString(inviteToken) || null,
                 nextPath
             });
         }
@@ -4782,7 +4788,7 @@ router.post('/signup', async function(req, res){
         delete req.session.pendingTeamEmailVerification;
         const existing = await User.findOne({ email: normalizedEmail }).exec();
         if (existing && existing.emailVerified !== false) {
-            return res.render(`pages/signup-${mode}`, { error: 'Email already registered', values: req.body, inviteToken: inviteToken || null, nextPath });
+            return res.render(signupView(mode), { error: 'Email already registered', values: accountFormValues(req.body), inviteToken: formString(inviteToken) || null, nextPath });
         }
         const verificationCode = generateSignupVerificationCode();
         const codeSalt = crypto.randomBytes(16).toString('hex');
@@ -4819,7 +4825,7 @@ router.post('/signup', async function(req, res){
                 interests: String(interests || '').trim(),
                 experience: String(experience || '').trim(),
                 currentGrade: String(currentGrade || '').trim(),
-                inviteToken: inviteToken || null,
+                inviteToken: formString(inviteToken) || null,
                 nextPath,
                 policyAccepted: '1',
                 userId: String(user._id)
@@ -4839,10 +4845,10 @@ router.post('/signup', async function(req, res){
                 await User.deleteOne({ _id: user._id }).exec().catch(() => {});
             }
             console.error('Failed to send signup verification email:', emailErr);
-            return res.render(`pages/signup-${mode}`, {
+            return res.render(signupView(mode), {
                 error: 'We could not send a verification code to that email right now. Please try again.',
-                values: req.body,
-                inviteToken: inviteToken || null,
+                values: accountFormValues(req.body),
+                inviteToken: formString(inviteToken) || null,
                 nextPath
             });
         }
@@ -4858,7 +4864,7 @@ router.post('/signup', async function(req, res){
     } catch (err) {
         console.error('Signup failed:', err);
         const renderMode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
-        res.render(`pages/signup-${renderMode}`, { error: 'Unable to create the account right now.', values: req.body || {}, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
+        res.render(signupView(renderMode), { error: 'Unable to create the account right now.', values: accountFormValues(req.body), inviteToken: formString(req.body && req.body.inviteToken) || null, nextPath: sanitizeNextPath(req.body.next, '') });
     }
 });
 
@@ -4988,10 +4994,10 @@ router.post('/signup/verify', async function(req, res){
 
     try {
         if (!isDatabaseConnected()) {
-            return res.render(`pages/signup-${mode}`, {
+            return res.render(signupView(mode), {
                 error: databaseErrorMessage(),
-                values: pending.data,
-                inviteToken: inviteToken || null,
+                values: accountFormValues(pending.data),
+                inviteToken: formString(inviteToken) || null,
                 nextPath
             });
         }
@@ -5051,10 +5057,10 @@ router.post('/signup/verify', async function(req, res){
         res.redirect('/');
     } catch (err) {
         console.error('Email verification signup failed:', err);
-        res.render(`pages/signup-${mode}`, {
+        res.render(signupView(mode), {
             error: 'Unable to create the account right now.',
-            values: pending.data,
-            inviteToken: inviteToken || null,
+            values: accountFormValues(pending.data),
+            inviteToken: formString(inviteToken) || null,
             nextPath
         });
     }
@@ -5071,7 +5077,7 @@ router.post('/account', ensureAuthenticated, async function(req, res) {
             ? { $set: { profilePicture } }
             : { $unset: { profilePicture: "" } };
         const updatedUser = await User.findByIdAndUpdate(
-            req.session.userId,
+            objectIdValue(req.session.userId),
             update,
             { new: true, runValidators: true }
         ).lean().exec();
@@ -5079,8 +5085,8 @@ router.post('/account', ensureAuthenticated, async function(req, res) {
         if (!updatedUser) return res.redirect('/logout');
 
         const teamByContact = await Team.findOne({ contact: buildContactEmailQuery(updatedUser.email) }).lean().exec();
-        const teamByNumber = updatedUser.teamNumber ? await Team.findOne({ teamNumber: updatedUser.teamNumber }).lean().exec() : null;
-        const studentProfile = await Student.findOne({ email: updatedUser.email }).lean().exec();
+        const teamByNumber = updatedUser.teamNumber ? await Team.findOne({ teamNumber: { $eq: updatedUser.teamNumber } }).lean().exec() : null;
+        const studentProfile = await Student.findOne({ email: { $eq: normalizeEmail(updatedUser.email) } }).lean().exec();
 
         res.render('pages/account', {
             error: null,
@@ -5102,7 +5108,7 @@ router.get('/account/signup-info', ensureAuthenticated, async function(req, res)
         const backUrl = getSignupInfoBackUrl(backTarget);
         if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: {}, backTarget, backUrl, pendingTeamId });
 
-        const user = await User.findById(req.session.userId).lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!user) return res.redirect('/logout');
 
         const values = {
@@ -5131,9 +5137,9 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
         const pendingTeamId = '';
         const backTarget = getSignupInfoBackTarget(req.body.back);
         const backUrl = getSignupInfoBackUrl(backTarget);
-        if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: req.body || {}, backTarget, backUrl, pendingTeamId });
+        if (!isDatabaseConnected()) return res.render('pages/account-signup-info', { error: databaseErrorMessage(), success: null, values: accountFormValues(req.body), backTarget, backUrl, pendingTeamId });
 
-        const currentUser = await User.findById(req.session.userId).lean().exec();
+        const currentUser = await User.findById(objectIdValue(req.session.userId)).lean().exec();
         if (!currentUser) return res.redirect('/logout');
 
         const name = String(req.body.name || '').trim();
@@ -5150,7 +5156,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             return res.render('pages/account-signup-info', {
                 error: phoneCheck.error || 'Enter a valid phone number.',
                 success: null,
-                values: req.body || {},
+                values: accountFormValues(req.body),
                 backTarget,
                 backUrl,
                 pendingTeamId
@@ -5164,26 +5170,26 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             return res.render('pages/account-signup-info', {
                 error: 'Name, country, matching state or region, and valid email are required.',
                 success: null,
-                values: req.body || {},
+                values: accountFormValues(req.body),
                 backTarget,
                 backUrl,
                 pendingTeamId
             });
         }
 
-        const existingUser = await User.findOne({ email: normalizedEmail, _id: { $ne: req.session.userId } }).lean().exec();
+        const existingUser = await User.findOne({ email: normalizedEmail, _id: { $ne: objectIdValue(req.session.userId) } }).lean().exec();
         if (existingUser) {
             return res.render('pages/account-signup-info', {
                 error: 'That email is already in use by another account.',
                 success: null,
-                values: req.body || {},
+                values: accountFormValues(req.body),
                 backTarget,
                 backUrl,
                 pendingTeamId
             });
         }
 
-        const updatedUser = await User.findByIdAndUpdate(req.session.userId, {
+        const updatedUser = await User.findByIdAndUpdate(objectIdValue(req.session.userId), {
             name,
             country,
             state: canonicalState,
@@ -5248,7 +5254,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
         res.render('pages/account-signup-info', {
             error: err.message || 'Failed to save signup info.',
             success: null,
-            values: req.body || {},
+            values: accountFormValues(req.body),
             backTarget,
             backUrl,
             pendingTeamId
@@ -5259,8 +5265,8 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
 router.get('/login', function(req, res){
     res.render('pages/login', {
         error: null,
-        notice: req.query.notice || null,
-        inviteToken: req.query.inviteToken || null,
+        notice: formString(req.query.notice) || null,
+        inviteToken: formString(req.query.inviteToken) || null,
         nextPath: sanitizeNextPath(req.query.next, '')
     });
 });
@@ -5355,7 +5361,7 @@ router.get('/reset-password/:token', async function(req, res){
         if (!isDatabaseConnected()) {
             return res.render('pages/reset-password', {
                 error: databaseErrorMessage(),
-                token: req.params.token,
+                token: formString(req.params.token),
                 success: null
             });
         }
@@ -5369,21 +5375,21 @@ router.get('/reset-password/:token', async function(req, res){
         if (!user) {
             return res.render('pages/reset-password', {
                 error: 'That reset link is invalid or has expired.',
-                token: req.params.token,
+                token: formString(req.params.token),
                 success: null
             });
         }
 
         return res.render('pages/reset-password', {
             error: null,
-            token: req.params.token,
+            token: formString(req.params.token),
             success: null
         });
     } catch (err) {
         console.error('Password reset page error:', err);
         return res.render('pages/reset-password', {
             error: 'Unable to open the reset page right now.',
-            token: req.params.token,
+            token: formString(req.params.token),
             success: null
         });
     }
@@ -5394,7 +5400,7 @@ router.post('/reset-password/:token', async function(req, res){
         if (!isDatabaseConnected()) {
             return res.render('pages/reset-password', {
                 error: databaseErrorMessage(),
-                token: req.params.token,
+                token: formString(req.params.token),
                 success: null
             });
         }
@@ -5403,7 +5409,7 @@ router.post('/reset-password/:token', async function(req, res){
         if (!password || !confirmPassword) {
             return res.render('pages/reset-password', {
                 error: 'Please enter and confirm your new password.',
-                token: req.params.token,
+                token: formString(req.params.token),
                 success: null
             });
         }
@@ -5411,7 +5417,7 @@ router.post('/reset-password/:token', async function(req, res){
         if (String(password) !== String(confirmPassword)) {
             return res.render('pages/reset-password', {
                 error: 'Passwords do not match.',
-                token: req.params.token,
+                token: formString(req.params.token),
                 success: null
             });
         }
@@ -5419,7 +5425,7 @@ router.post('/reset-password/:token', async function(req, res){
         if (String(password).length < 8) {
             return res.render('pages/reset-password', {
                 error: 'Password must be at least 8 characters long.',
-                token: req.params.token,
+                token: formString(req.params.token),
                 success: null
             });
         }
@@ -5433,7 +5439,7 @@ router.post('/reset-password/:token', async function(req, res){
         if (!user) {
             return res.render('pages/reset-password', {
                 error: 'That reset link is invalid or has expired.',
-                token: req.params.token,
+                token: formString(req.params.token),
                 success: null
             });
         }
@@ -5452,7 +5458,7 @@ router.post('/reset-password/:token', async function(req, res){
         console.error('Password reset submit error:', err);
         return res.render('pages/reset-password', {
             error: 'Unable to update your password right now.',
-            token: req.params.token,
+            token: formString(req.params.token),
             success: null
         });
     }
@@ -5472,24 +5478,24 @@ router.get('/auth-gate', function(req, res){
 
 router.post('/login', async function(req, res){
     try {
-        if (!isDatabaseConnected()) return res.render('pages/login', { error: databaseErrorMessage(), notice: null, inviteToken: req.body.inviteToken || null, nextPath: sanitizeNextPath(req.body.next, '') });
+        if (!isDatabaseConnected()) return res.render('pages/login', { error: databaseErrorMessage(), notice: null, inviteToken: formString(req.body && req.body.inviteToken) || null, nextPath: sanitizeNextPath(req.body.next, '') });
         const { email, password, inviteToken } = req.body;
         const nextPath = sanitizeNextPath(req.body.next, '');
         const remember = req.body && (req.body.remember === '1' || req.body.remember === 'on' || req.body.remember === true);
         const normalizedEmail = normalizeEmail(email);
-        if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required', notice: null, inviteToken: inviteToken || null, nextPath });
+        if (!normalizedEmail || !password) return res.render('pages/login', { error: 'Email and password required', notice: null, inviteToken: formString(inviteToken) || null, nextPath });
         const user = await User.findOne({ email: normalizedEmail }).exec();
-        if (!user) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
+        if (!user) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: formString(inviteToken) || null, nextPath });
         if (user.emailVerified === false) {
             return res.render('pages/login', {
                 error: 'Please verify your email before signing in.',
                 notice: null,
-                inviteToken: inviteToken || null,
+                inviteToken: formString(inviteToken) || null,
                 nextPath
             });
         }
         const ok = await user.validatePassword(password);
-        if (!ok) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: inviteToken || null, nextPath });
+        if (!ok) return res.render('pages/login', { error: 'Invalid credentials', notice: null, inviteToken: formString(inviteToken) || null, nextPath });
         await signIn(req, user);
         applyRememberMe(req, remember);
         const contactTeams = await attachContactTeamsToUser(user);
@@ -5507,7 +5513,7 @@ router.post('/login', async function(req, res){
         res.redirect(await getPostLoginRedirect(user));
     } catch (err) {
         console.error('Login failed:', err);
-        res.render('pages/login', { error: 'Unable to sign in right now.', notice: null, inviteToken: req.body && req.body.inviteToken ? req.body.inviteToken : null, nextPath: sanitizeNextPath(req.body && req.body.next, '') });
+        res.render('pages/login', { error: 'Unable to sign in right now.', notice: null, inviteToken: formString(req.body && req.body.inviteToken) || null, nextPath: sanitizeNextPath(req.body && req.body.next, '') });
     }
 });
 

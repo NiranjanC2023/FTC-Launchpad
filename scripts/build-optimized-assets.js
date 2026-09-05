@@ -4,16 +4,10 @@ const CleanCSS = require('clean-css');
 const { PurgeCSS } = require('purgecss');
 const { minify: minifyJavaScript } = require('terser');
 const sharp = require('sharp');
+const { walkRegularFiles } = require('../lib/safe-file-walk');
 
 const projectRoot = path.join(__dirname, '..');
 const assetRoot = path.join(projectRoot, 'assets');
-
-function walk(directory) {
-  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const entryPath = path.join(directory, entry.name);
-    return entry.isDirectory() ? walk(entryPath) : [entryPath];
-  });
-}
 
 async function minifyStylesheets() {
   const stylesheetNames = ['main.css', 'first-start.css', 'icons.css'];
@@ -78,7 +72,7 @@ async function minifyScripts() {
 }
 
 async function optimizeImages() {
-  const imageCandidates = walk(path.join(assetRoot, 'img')).filter((filePath) => {
+  const imageCandidates = walkRegularFiles(path.join(assetRoot, 'img')).filter((filePath) => {
     return /\.(jpe?g|png)$/i.test(filePath);
   });
 
@@ -144,7 +138,7 @@ async function optimizeImages() {
 
   // Generate variants for any WebP-only carousel assets.
   const carouselRoot = path.join(assetRoot, 'img', 'carousel');
-  const standaloneWebpFiles = walk(carouselRoot).filter((filePath) => {
+  const standaloneWebpFiles = walkRegularFiles(carouselRoot).filter((filePath) => {
     return /\.webp$/i.test(filePath) && !/\.w\d+\.webp$/i.test(filePath) && !/@2x\.webp$/i.test(filePath);
   });
   await Promise.all(standaloneWebpFiles.map(async (sourcePath) => {

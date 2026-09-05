@@ -117,9 +117,12 @@
     </div>
 
     <script src="/assets/js/main.js?v=74"></script>
-    <script>
+    <script data-applications-base64="<%= jsonToBase64(applications || []) %>">
         (function() {
-            const applications = <%- JSON.stringify(applications || []).replace(/</g, '\\u003c') %>;
+            const encodedApplications = document.currentScript.dataset.applicationsBase64 || '';
+            const applications = encodedApplications
+                ? JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(encodedApplications), char => char.charCodeAt(0))))
+                : [];
             const modal = document.getElementById('applicationMailModal');
             if (!modal || !applications.length) return;
 

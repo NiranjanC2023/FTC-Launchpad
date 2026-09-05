@@ -13,6 +13,9 @@
   },
   "license": "ISC",
   "author": "Evergreen-Tech-a-Trons",
+  "engines": {
+    "node": ">=22"
+  },
   "type": "commonjs",
   "main": "app.js",
   "scripts": {
@@ -22,12 +25,12 @@
     "start": "node app.js",
     "predev": "npm run build:client",
     "dev": "nodemon app.js",
-    "test": "node --check app.js && node --check routes/web.js && node --check routes/api.js && node --check scripts/build-site-shell.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js && node --check scripts/restore-team-precise-coordinates.js && node tests/country-regions.test.js",
+    "test": "node --check app.js && node --check routes/web.js && node --check routes/api.js && node --check scripts/build-site-shell.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js && node --check scripts/restore-team-precise-coordinates.js && node tests/country-regions.test.js && node tests/render-security.test.js && node tests/query-security.test.js && node tests/ejs-xss.test.js && node tests/client-dom-xss.test.js && node tests/file-access-security.test.js && node tests/request-body-security.test.js && node tests/csp-security.test.js",
     "test:full": "npm run build:client && npm test"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "body-parser": "^1.20.3",
+    "body-parser": "2.3.0",
     "compression": "^1.8.1",
     "connect-flash": "^0.1.1",
     "connect-mongo": "^6.0.0",
@@ -38,9 +41,11 @@
     "express": "^4.21.2",
     "express-rate-limit": "^8.6.1",
     "express-session": "^1.18.1",
-    "mongoose": "^8.10.1",
+    "helmet": "^8.3.0",
+    "mongoose": "^8.24.4",
     "nodemailer": "^6.10.1",
-    "passport": "^0.7.0"
+    "passport": "^0.7.0",
+    "raw-body": "file:vendor/raw-body-compat"
   },
   "devDependencies": {
     "clean-css": "^5.3.3",
@@ -48,5 +53,10 @@
     "purgecss": "^8.0.0",
     "sharp": "^0.35.3",
     "terser": "^5.49.0"
+  },
+  "overrides": {
+    "body-parser": "2.3.0",
+    "qs": "6.16.0",
+    "raw-body": "$raw-body"
   }
 }

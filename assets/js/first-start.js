@@ -86,7 +86,10 @@ document.addEventListener('DOMContentLoaded', function(){
   if (recruitingDataElement && recruitingGrid && proximityStatus) {
     let recruitingTeams = [];
     try {
-      recruitingTeams = JSON.parse(recruitingDataElement.textContent || '[]');
+      const encodedRecruitingTeams = recruitingDataElement.dataset.jsonBase64 || '';
+      recruitingTeams = encodedRecruitingTeams
+        ? JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(encodedRecruitingTeams), char => char.charCodeAt(0))))
+        : [];
     } catch (error) {
       recruitingTeams = [];
     }

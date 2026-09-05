@@ -542,7 +542,7 @@
 
 
 
-  <script id="homeRecruitingTeamsData" type="application/json" nonce="<%= cspNonce %>"><%- JSON.stringify(typeof homeRecruitingTeams !== 'undefined' ? homeRecruitingTeams : []).replace(/</g, '\\u003c') %></script>
+  <script id="homeRecruitingTeamsData" type="application/json" nonce="<%= cspNonce %>" data-json-base64="<%= jsonToBase64(typeof homeRecruitingTeams !== 'undefined' ? homeRecruitingTeams : []) %>"></script>
 
   <script src="/assets/js/main.js?v=74"></script>
 

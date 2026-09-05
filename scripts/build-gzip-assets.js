@@ -1,18 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const { walkRegularFiles } = require('../lib/safe-file-walk');
 
 const assetsRoot = path.join(__dirname, '..', 'assets');
 const compressibleExtensions = new Set(['.css', '.html', '.js', '.json', '.svg', '.txt', '.xml']);
 
-function walk(directory) {
-  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const entryPath = path.join(directory, entry.name);
-    return entry.isDirectory() ? walk(entryPath) : [entryPath];
-  });
-}
-
-const sourceFiles = walk(assetsRoot).filter((filePath) => {
+const sourceFiles = walkRegularFiles(assetsRoot).filter((filePath) => {
   return compressibleExtensions.has(path.extname(filePath).toLowerCase());
 });
 

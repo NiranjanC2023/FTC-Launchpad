@@ -49,13 +49,20 @@
     </div>
   </main>
 
-  <!-- Server-provided teams array (replace on server) -->
-  <script>
+  <!-- Server-provided page state is base64-encoded inside escaped attributes. -->
+  <script
+    data-teams-base64="<%= jsonToBase64(typeof teams !== 'undefined' ? teams : null) %>"
+    data-user-coords-base64="<%= jsonToBase64(typeof userCoords !== 'undefined' ? userCoords : null) %>"
+    data-student-app-base64="<%= jsonToBase64(typeof studentApp !== 'undefined' ? studentApp : null) %>"
+    data-user-base64="<%= jsonToBase64(typeof user !== 'undefined' ? user : null) %>">
     // Public team listings include each team's published contact email.
-    window.__TEAMS__ = <%- JSON.stringify(typeof teams !== 'undefined' ? teams : null).replace(/</g, '\\u003c') %>;
-    window.__USER_COORDS__ = <%- JSON.stringify(typeof userCoords !== 'undefined' ? userCoords : null).replace(/</g, '\\u003c') %>;
-    window.__STUDENT_APP__ = <%- JSON.stringify(typeof studentApp !== 'undefined' ? studentApp : null).replace(/</g, '\\u003c') %>;
-    window.__USER__ = <%- JSON.stringify(typeof user !== 'undefined' ? user : null).replace(/</g, '\\u003c') %>;
+    const decodePageData = encoded => encoded
+      ? JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(encoded), char => char.charCodeAt(0))))
+      : null;
+    window.__TEAMS__ = decodePageData(document.currentScript.dataset.teamsBase64);
+    window.__USER_COORDS__ = decodePageData(document.currentScript.dataset.userCoordsBase64);
+    window.__STUDENT_APP__ = decodePageData(document.currentScript.dataset.studentAppBase64);
+    window.__USER__ = decodePageData(document.currentScript.dataset.userBase64);
     window.__GOOGLE_MAPS_ENABLED__ = <%= googleMapsApiKey ? 'true' : 'false' %>;
   </script>
 

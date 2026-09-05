@@ -1,6 +1,7 @@
 var express = require("express");
 var router = express.Router();
 const mongoose = require('mongoose');
+const { objectIdValue } = require('../lib/query-input');
 const Team = require('../models/team');
 const Student = require('../models/student');
 const User = require('../models/user');
@@ -84,7 +85,7 @@ async function requireAuthenticatedApi(req, res, next) {
 			return res.status(401).json({ ok: false, error: 'Sign in is required.' });
 		}
 
-		const user = await User.findById(req.session.userId)
+		const user = await User.findById(objectIdValue(req.session.userId))
 			.select('_id name email country state phone interests experience currentGrade')
 			.lean()
 			.exec();
@@ -263,8 +264,8 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 			shouldApplyToTeam
 				? Team.findOne({
 					$or: [
-						{ contact: normalizedEmail },
-						{ managers: account._id }
+						{ contact: { $eq: normalizedEmail } },
+						{ managers: { $eq: account._id } }
 					]
 				}).select('_id').lean().exec()
 				: null
@@ -550,7 +551,7 @@ router.post('/notifications/read', async function(req, res) {
 		if (!requireDatabase(res)) return;
 		if (!req.session.userId) return res.status(401).json({ ok: false, error: 'not authenticated' });
 
-		const user = await User.findById(req.session.userId).select('email').lean().exec();
+		const user = await User.findById(objectIdValue(req.session.userId)).select('email').lean().exec();
 		if (!user) return res.status(401).json({ ok: false, error: 'not authenticated' });
 
 		await markNotificationsRead(user.email);
@@ -565,7 +566,7 @@ router.post('/notifications/clear', async function(req, res) {
 		if (!requireDatabase(res)) return;
 		if (!req.session.userId) return res.status(401).json({ ok: false, error: 'not authenticated' });
 
-		const user = await User.findById(req.session.userId).select('email').lean().exec();
+		const user = await User.findById(objectIdValue(req.session.userId)).select('email').lean().exec();
 		if (!user) return res.status(401).json({ ok: false, error: 'not authenticated' });
 
 		const deletedCount = await clearNotifications(user.email);
@@ -580,14 +581,14 @@ router.get('/users/me', async function(req, res) {
 	try {
 		if (!req.session.userId) return res.json({ ok: true, user: null });
 		if (!requireDatabase(res)) return;
-		const user = await User.findById(req.session.userId).select('name email country state phone profilePicture interests experience currentGrade teamNumber createdAt').exec();
+		const user = await User.findById(objectIdValue(req.session.userId)).select('name email country state phone profilePicture interests experience currentGrade teamNumber createdAt').exec();
 		if (!user) return res.json({ ok: true, user: null });
 
 		const normalizedEmail = normalizeEmail(user.email);
 		const team = await Team.findOne({
 			$or: [
-				{ contact: normalizedEmail },
-				{ managers: user._id }
+				{ contact: { $eq: normalizedEmail } },
+				{ managers: { $eq: user._id } }
 			]
 		}).select('_id').lean().exec();
 		const notifications = await listNotifications(normalizedEmail, 50);
