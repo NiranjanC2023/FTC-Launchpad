@@ -857,7 +857,7 @@
                         </select>
 
                         <label for="officialTeamNumber">Official FTC team number</label>
-                        <input id="officialTeamNumber" class="form-control" type="number" name="teamNumber" min="1" step="1" inputmode="numeric" required value="<%= verificationValues.teamNumber || '' %>">
+                        <input id="officialTeamNumber" class="form-control" type="text" name="teamNumber" inputmode="numeric" pattern="[0-9]+" required value="<%= verificationValues.teamNumber || '' %>">
 
                         <label for="verifyTeamName">Team name</label>
                         <input id="verifyTeamName" class="form-control" name="name" required value="<%= verificationValues.name || '' %>">

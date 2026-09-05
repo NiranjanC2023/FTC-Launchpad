@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>My Account - FTC Starter Hub</title>
+  <title>My Account - Find FIRST</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/assets/css/main.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -252,9 +252,6 @@
       background: #065f30;
       transform: translateY(-1px);
     }
-    .photo-save {
-      justify-self: start;
-    }
     .account-form {
       margin-top: 18px;
       display: grid;
@@ -478,7 +475,6 @@
                     <span>Choose photo</span>
                     <input type="file" id="profilePictureFile" accept="image/*">
                   </label>
-                  <button type="submit" class="btn btn-primary photo-save">Save photo</button>
                 </form>
               </div>
               <div class="account-meta">
@@ -583,6 +579,7 @@
                 preview = img;
               }
             }
+            fileInput.closest('form')?.submit();
           };
           reader.readAsDataURL(file);
         });

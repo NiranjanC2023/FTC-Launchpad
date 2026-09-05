@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Register Team - FTC Starter Hub</title>
+  <title>Register Team - Find FIRST</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/assets/css/main.css?v=58">
 </head>
@@ -16,7 +16,7 @@
       <a href="/" class="btn btn-secondary back-button">&larr; Back Home</a>
       <h1>Register Your Team</h1>
       <p class="subtitle">Verified FIRST teams can choose whether they appear for students looking nearby, and new teams can create a listing while they are getting organized.</p>
-      <p class="registration-site-notice"><strong>This IS NOT FIRST registration, register at the FIRST website. This is registering to appear on the FIRST Start recruiting website.</strong></p>
+      <p class="registration-site-notice"><strong>This IS NOT FIRST registration, register at the FIRST website. This is registering to appear on the Find FIRST recruiting website.</strong></p>
 
       <% if (error) { %>
         <div class="alert alert-danger"><%= error %></div>
@@ -61,7 +61,7 @@
               <span>New team</span>
             </label>
           </div>
-          <p class="registration-choice-note">Use official team verification for an existing FIRST record, or choose new team if you are starting a team that has not been registered yet.</p>
+          <p class="registration-choice-note">For an official team, enter only its FIRST team number, meeting address, and recruiting details. The team name, organization, location, and program information are filled from FIRST records.</p>
         </div>
 
         <div class="form-grid-full" data-email-verification-status>
@@ -70,7 +70,7 @@
               The FIRST Dashboard public email verified <strong><%= teamEmailVerification.program %> <%= teamEmailVerification.teamNumber %></strong>.
             </div>
           <% } else { %>
-            <p class="form-note text-muted">Existing teams must verify ownership with a code sent to the public email on their FIRST Dashboard profile.</p>
+            <p class="form-note text-muted">A code will be sent to the contact email to confirm that your team can receive messages.</p>
           <% } %>
         </div>
 
@@ -83,11 +83,11 @@
 
         <div class="registration-field-inline form-grid-full <%= selectedMode === 'new' ? 'registration-hidden' : '' %>" data-registration-field="teamNumber">
           <label for="teamNumber">Team number</label>
-          <input id="teamNumber" name="teamNumber" type="number" min="1" <%= selectedMode === 'new' ? '' : 'required' %> value="<%= values.teamNumber || '' %>" />
+          <input id="teamNumber" name="teamNumber" type="text" inputmode="numeric" pattern="[0-9]+" <%= selectedMode === 'new' ? '' : 'required' %> value="<%= values.teamNumber || '' %>" />
         </div>
 
-        <label for="name">Team name</label>
-        <input id="name" name="name" required value="<%= values.name || '' %>" />
+        <label for="name" class="<%= selectedMode === 'new' ? '' : 'registration-hidden' %>" data-team-name-field>Team name</label>
+        <input id="name" name="name" <%= selectedMode === 'new' ? 'required' : 'disabled' %> value="<%= values.name || '' %>" class="<%= selectedMode === 'new' ? '' : 'registration-hidden' %>" data-team-name-field />
 
         <label for="contact" class="<%= selectedMode === 'new' ? '' : 'registration-hidden' %>" data-team-contact-field>Contact email</label>
         <input id="contact" name="contact" type="email" <%= selectedMode === 'new' ? 'required' : 'disabled' %> value="<%= values.contact || '' %>" class="<%= selectedMode === 'new' ? '' : 'registration-hidden' %>" data-team-contact-field />
@@ -163,6 +163,8 @@
       const teamNumberInput = form.querySelector('#teamNumber');
       const contactFields = Array.from(form.querySelectorAll('[data-team-contact-field]'));
       const contactInput = form.querySelector('#contact');
+      const nameFields = Array.from(form.querySelectorAll('[data-team-name-field]'));
+      const nameInput = form.querySelector('#name');
       const awardsInput = form.querySelector('#awards');
       const yearsInput = form.querySelector('#yearsInProgram');
       const extraInputs = [awardsInput, yearsInput].filter(Boolean);
@@ -174,6 +176,7 @@
       const clearButton = form.querySelector('[data-clear-team-register]');
       const verifiedProgram = <%- JSON.stringify(typeof teamEmailVerification !== 'undefined' && teamEmailVerification ? teamEmailVerification.program : '') %>;
       const verifiedTeamNumber = <%- JSON.stringify(typeof teamEmailVerification !== 'undefined' && teamEmailVerification ? String(teamEmailVerification.teamNumber) : '') %>;
+      const verifiedNewEmail = <%- JSON.stringify(typeof teamEmailVerification !== 'undefined' && teamEmailVerification && teamEmailVerification.kind === 'new-registration') %>;
 
       function syncMode() {
         const selected = modeInputs.find(input => input.checked);
@@ -191,6 +194,11 @@
         }
 
         contactFields.forEach(field => field.classList.toggle('registration-hidden', !isNew));
+        nameFields.forEach(field => field.classList.toggle('registration-hidden', !isNew));
+        if (nameInput) {
+          nameInput.disabled = !isNew;
+          nameInput.required = isNew;
+        }
         if (contactInput) {
           contactInput.disabled = !isNew;
           contactInput.required = isNew;
@@ -210,14 +218,14 @@
           input.disabled = !showExtras;
         });
 
-        const proofMatches = !isNew
+        const proofMatches = (isNew && verifiedNewEmail) || (!isNew
           && verifiedProgram === programValue
-          && verifiedTeamNumber === String(teamNumberInput?.value || '').trim();
-        if (verificationButton) verificationButton.hidden = isNew || proofMatches;
-        if (verificationButton) verificationButton.disabled = isNew;
-        if (saveButton) saveButton.hidden = !isNew && !proofMatches;
-        if (verificationStatus) verificationStatus.hidden = isNew;
-        if (verificationRequirements) verificationRequirements.hidden = isNew || proofMatches || form.checkValidity();
+          && verifiedTeamNumber === String(teamNumberInput?.value || '').trim());
+        if (verificationButton) verificationButton.hidden = proofMatches;
+        if (verificationButton) verificationButton.disabled = false;
+        if (saveButton) saveButton.hidden = !proofMatches;
+        if (verificationStatus) verificationStatus.hidden = false;
+        if (verificationRequirements) verificationRequirements.hidden = proofMatches || form.checkValidity();
 
       }
 

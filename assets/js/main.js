@@ -971,9 +971,14 @@ function getTeamRecruitingLabel(team) {
     if (advancementFilter) advancementFilter.value = 'all';
     if (distanceFilter) distanceFilter.value = 'all';
     applySearch();
-    closeFilterDropdown();
-    searchInput.focus();
+    if (filterDropdown) filterDropdown.focus?.();
   }
+
+  // Keep the filter panel interactive while a selection updates the results.
+  // This is especially important on touch devices, where the native select
+  // menu can otherwise bubble a click and close the panel underneath it.
+  filterDropdown?.addEventListener('click', (event) => event.stopPropagation());
+  filterDropdown?.addEventListener('pointerdown', (event) => event.stopPropagation());
 
   [programFilter, awardsFilter, yearsFilter, advancementFilter, distanceFilter].filter(Boolean).forEach((filterEl) => {
     filterEl.addEventListener('change', () => {

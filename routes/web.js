@@ -76,21 +76,21 @@ function clearPendingSignupVerification(req) {
 async function sendSignupVerificationEmail({ to, code }) {
     const verificationFrom = process.env.SIGNUP_VERIFICATION_FROM || DEFAULT_FROM;
     const html = buildTransactionalEmailTemplate({
-        preheader: 'Your FIRST Start verification code',
+        preheader: 'Your Find FIRST verification code',
         title: 'Verify your email',
-        intro: 'Use this verification code to finish creating your FIRST Start account.',
+        intro: 'Use this verification code to finish creating your Find FIRST account.',
         details: [
             { label: 'Verification code', value: `<strong style="font-size:28px;letter-spacing:0.18em;">${code}</strong>` },
             { label: 'Expiration', value: 'This code expires in 10 minutes.' }
         ],
         outro: 'If you did not request this code, you can safely ignore this message.',
-        footer: 'FIRST Start account verification'
+        footer: 'Find FIRST account verification'
     });
 
     await sendTransactionalEmail({
         to,
         from: verificationFrom,
-        subject: 'Your FIRST Start verification code',
+        subject: 'Your Find FIRST verification code',
         html
     });
 }
@@ -834,7 +834,6 @@ function validateTeamEmailRegistration(values = {}) {
     if (!PROGRAM_LABELS[String(values.program || '').trim()] || !parsePositiveTeamNumber(values.teamNumber)) {
         return 'Choose a FIRST program and enter a valid team number before requesting a verification code.';
     }
-    if (!String(values.name || '').trim()) return 'Enter the team name before requesting a verification code.';
     if (!isUsableTeamAddress(values.address)) return 'Enter a complete team address before requesting a verification code.';
     return '';
 }
@@ -1025,22 +1024,23 @@ async function fetchDashboardTeamEmailDirectory() {
     return teams;
 }
 
-async function sendTeamVerificationEmail({ to, code, program, teamNumber }) {
+async function sendTeamVerificationEmail({ to, code, program, teamNumber, isNewTeam = false }) {
+    const teamLabel = isNewTeam ? `your new ${program} team listing` : `${program} team ${teamNumber}`;
     const html = buildTransactionalEmailTemplate({
-        preheader: `Verification code for ${program} team ${teamNumber}`,
-        title: 'Verify your FIRST team',
-        intro: `Someone is verifying ownership of ${program} team ${teamNumber} on Find FIRST.`,
+        preheader: `Verification code for ${teamLabel}`,
+        title: isNewTeam ? 'Verify your team email' : 'Verify your FIRST team',
+        intro: `Someone is verifying the contact email for ${teamLabel} on Find FIRST.`,
         details: [
             { label: 'Verification code', value: `<strong style="font-size:28px;letter-spacing:0.18em;">${code}</strong>` },
             { label: 'Expiration', value: 'This code expires in 10 minutes.' }
         ],
         outro: 'Only share this code if you want this person to manage the team listing. If you did not request it, you can ignore this email.',
-        footer: 'Find FIRST team ownership verification'
+        footer: 'Find FIRST team email verification'
     });
     await sendTransactionalEmail({
         to,
         from: process.env.TEAM_VERIFICATION_FROM || DEFAULT_FROM,
-        subject: `Verify ${program} team ${teamNumber} on Find FIRST`,
+        subject: isNewTeam ? 'Verify your team email on Find FIRST' : `Verify ${program} team ${teamNumber} on Find FIRST`,
         html
     });
 }
@@ -2412,8 +2412,18 @@ router.post('/team-register/email-verification', requireAccountForTeamRegister, 
                 values
             });
         }
+        if (String(values.registrationMode || '').toLowerCase() === 'new') {
+            const publicEmail = normalizeEmail(values.contact);
+            const verification = buildPendingTeamEmailVerification({ kind: 'new-registration', program, publicEmail,
+                values: { ...values, program, registrationMode: 'new', contact: publicEmail } });
+            await sendTeamVerificationEmail({ to: publicEmail, code: verification.code, program, isNewTeam: true });
+            req.session.pendingTeamEmailVerification = verification.pending;
+            delete req.session.teamEmailVerification;
+            await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+            return res.redirect('/team-register?verification=sent');
+        }
         if (program === 'FTC' || program === 'FRC') {
-            const officialVerification = await verifyTeamWithApi(teamNumber, program, values.name);
+            const officialVerification = await verifyTeamWithApi(teamNumber, program);
             if (!officialVerification.ok || !officialVerification.nameMatched) {
                 return res.render('pages/team-register', {
                     error: officialVerification.ok ? 'Team is unable to be verified.' : officialVerification.error,
@@ -2485,9 +2495,10 @@ router.post('/team-register/email-verification', requireAccountForTeamRegister, 
 
 router.post('/team-register/email-verification/confirm', requireAccountForTeamRegister, async function(req, res) {
     const pending = req.session.pendingTeamEmailVerification;
-    const error = getTeamEmailVerificationError(pending, 'registration', req.body.verificationCode);
+    const expectedKind = pending && pending.kind === 'new-registration' ? 'new-registration' : 'registration';
+    const error = getTeamEmailVerificationError(pending, expectedKind, req.body.verificationCode);
     if (error) {
-        if (pending && pending.kind === 'registration') pending.attempts = Number(pending.attempts || 0) + 1;
+        if (pending && pending.kind === expectedKind) pending.attempts = Number(pending.attempts || 0) + 1;
         return res.redirect(`/team-register?verification=${encodeURIComponent(error.includes('expired') || error.includes('Too many') ? 'expired' : 'incorrect')}`);
     }
     req.session.teamEmailVerification = {
@@ -2499,13 +2510,13 @@ router.post('/team-register/email-verification/confirm', requireAccountForTeamRe
     };
     delete pending.codeHash;
     delete pending.codeSalt;
-    req.body = buildVerifiedTeamRegistrationValues(pending);
+    req.body = pending.kind === 'new-registration' ? { ...pending.values, contact: pending.publicEmail, registrationMode: 'new' } : buildVerifiedTeamRegistrationValues(pending);
     return saveRegisteredTeam(req, res);
 });
 
 router.post('/team-register/email-verification/resend', requireAccountForTeamRegister, async function(req, res) {
     const current = req.session.pendingTeamEmailVerification;
-    if (!current || current.kind !== 'registration') return res.redirect('/team-register?verification=missing');
+    if (!current || !['registration', 'new-registration'].includes(current.kind)) return res.redirect('/team-register?verification=missing');
     if (Date.now() - Number(current.sentAt || 0) < TEAM_EMAIL_VERIFICATION_RESEND_INTERVAL_MS) {
         return res.redirect('/team-register?verification=wait');
     }
@@ -2515,7 +2526,8 @@ router.post('/team-register/email-verification/resend', requireAccountForTeamReg
             to: current.publicEmail,
             code: verification.code,
             program: current.program,
-            teamNumber: current.teamNumber
+            teamNumber: current.teamNumber,
+            isNewTeam: current.kind === 'new-registration'
         });
         req.session.pendingTeamEmailVerification = verification.pending;
         return res.redirect('/team-register?verification=resent');
@@ -2895,7 +2907,8 @@ async function saveRegisteredTeam(req, res) {
         values.contact = contact;
         const teamNumber = isNewTeam ? null : parsePositiveTeamNumber(values.teamNumber);
 
-        if (!isNewTeam && !teamEmailProofMatches(req.session.teamEmailVerification, program, teamNumber)) {
+        if (!teamEmailProofMatches(req.session.teamEmailVerification, program, teamNumber)
+            || (isNewTeam && req.session.teamEmailVerification.kind !== 'new-registration')) {
             return res.render('pages/team-register', {
                 error: 'Verify team ownership through the public email on the FIRST Dashboard before saving it.',
                 message: null,
@@ -2915,7 +2928,7 @@ async function saveRegisteredTeam(req, res) {
             });
         }
 
-        if (!values.name || !values.address || (!isNewTeam && !teamNumber) || (!isOfficialTeam && (!values.city || !values.country))) {
+        if ((isNewTeam && !values.name) || !values.address || (!isNewTeam && !teamNumber) || (!isOfficialTeam && (!values.city || !values.country))) {
             return res.render('pages/team-register', {
                 error: !isNewTeam && !teamNumber
                     ? 'Enter a valid team number greater than zero.'
@@ -2931,7 +2944,7 @@ async function saveRegisteredTeam(req, res) {
 
         let verification = { ok: true, team: null, source: 'Self-reported' };
         if (isOfficialTeam) {
-            verification = await verifyTeamWithApi(teamNumber, program, values.name);
+            verification = await verifyTeamWithApi(teamNumber, program);
             if (!verification.ok) {
                 return res.render('pages/team-register', { error: verification.error, message: null, values });
             }
@@ -4420,7 +4433,7 @@ router.post('/manage-team/recruit/:recruitId/status', ensureAuthenticated, async
                     ${customBlock}
                     <p style="margin-top: 20px;">If you have questions, please reply to this message at <strong>${team.contact}</strong>.</p>
                     <hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;" />
-                    <p style="font-size: 0.85rem; color: #6b7280;">Sent via FTC Starter Hub My Team</p>
+                    <p style="font-size: 0.85rem; color: #6b7280;">Sent via Find FIRST My Team</p>
                 </div>
             `
         };
@@ -4491,7 +4504,7 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
             html: `
                 <div style="font-family: sans-serif; padding: 20px; color: #333;">
                     <h2>Hello ${recruit.name}!</h2>
-                    <p>${team.program || 'FIRST'} Team <strong>${team.teamNumber} - ${team.name}</strong> has seen your profile on the FTC Starter Hub and would like to connect!</p>
+                    <p>${team.program || 'FIRST'} Team <strong>${team.teamNumber} - ${team.name}</strong> has seen your profile on the Find FIRST and would like to connect!</p>
                     <div style="background: #f4f4f4; padding: 15px; border-radius: 8px; margin: 20px 0;">
                         <p style="margin-top:0;"><strong>Message from the team:</strong></p>
                         <p>${message}</p>
@@ -4503,7 +4516,7 @@ router.post('/manage-team/contact/:recruitId', ensureAuthenticated, async functi
                     </div>
                     <p>Please reply directly to this email (${team.contact}) to coordinate.</p>
                     <hr>
-                    <p style="font-size: 0.8rem; color: #666;">Sent via FTC Starter Hub Dashboard</p>
+                    <p style="font-size: 0.8rem; color: #666;">Sent via Find FIRST Dashboard</p>
                 </div>
             `
         };
@@ -5251,9 +5264,9 @@ router.post('/forgot-password', async function(req, res){
 
             const resetUrl = `${getAppBaseUrl(req)}/reset-password/${encodeURIComponent(token)}`;
             const resetHtml = buildTransactionalEmailTemplate({
-                preheader: 'Reset your FIRST Start password using the secure link below.',
+                preheader: 'Reset your Find FIRST password using the secure link below.',
                 title: 'Reset your password',
-                intro: 'We received a request to reset the password for your FIRST Start account. Use the button below to choose a new password. This link expires in 1 hour for your security.',
+                intro: 'We received a request to reset the password for your Find FIRST account. Use the button below to choose a new password. This link expires in 1 hour for your security.',
                 ctaLabel: 'Set a new password',
                 ctaUrl: resetUrl,
                 outro: 'If you did not request this reset, you can safely ignore this email.',
@@ -5262,12 +5275,12 @@ router.post('/forgot-password', async function(req, res){
             await sendTransactionalEmail({
                 from: DEFAULT_FROM,
                 to: user.email,
-                subject: 'FIRST Start password reset',
+                subject: 'Find FIRST password reset',
                 html: resetHtml,
                 text: [
-                    'FIRST Start password reset',
+                    'Find FIRST password reset',
                     '',
-                    'We received a request to reset the password for your FIRST Start account.',
+                    'We received a request to reset the password for your Find FIRST account.',
                     `Reset link: ${resetUrl}`,
                     '',
                     'This link expires in 1 hour.',

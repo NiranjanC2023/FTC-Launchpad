@@ -354,9 +354,9 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 				const teamEmail = String(team.contact || '').trim();
 				if (teamEmail) {
 					const html = buildTransactionalEmailTemplate({
-						preheader: `${name} sent team info through FIRST Start.`,
+						preheader: `${name} sent team info through Find FIRST.`,
 						title: 'New student info received',
-						intro: `${name} sent their information to ${team.name}. Here is the ready-to-review profile submitted through FIRST Start.`,
+						intro: `${name} sent their information to ${team.name}. Here is the ready-to-review profile submitted through Find FIRST.`,
 						details: [
 							{ label: 'Student', value: name },
 							{ label: 'Email', value: normalizedEmail },
@@ -367,7 +367,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 							{ label: 'Interests', value: interests || 'Not provided' }
 						],
 						outro: 'You can reply directly to this email to continue the conversation.',
-						footer: `This message was sent automatically from FIRST Start for ${team.name}.`
+						footer: `This message was sent automatically from Find FIRST for ${team.name}.`
 					});
 
 					await sendTransactionalEmail({
@@ -388,7 +388,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 							`Experience: ${experience || 'Not provided'}`,
 							`Interests: ${interests || 'Not provided'}`,
 							'',
-							'This message was sent automatically from FIRST Start.'
+							'This message was sent automatically from Find FIRST.'
 						].join('\n')
 					});
 				}
@@ -427,9 +427,9 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 			const teamEmail = String(team.contact || '').trim();
 			if (teamEmail) {
 				const html = buildTransactionalEmailTemplate({
-					preheader: `${name} sent team info through FIRST Start.`,
+					preheader: `${name} sent team info through Find FIRST.`,
 					title: 'New student info received',
-					intro: `${name} sent their information to ${team.name}. Here is the ready-to-review profile submitted through FIRST Start.`,
+					intro: `${name} sent their information to ${team.name}. Here is the ready-to-review profile submitted through Find FIRST.`,
 					details: [
 						{ label: 'Student', value: name },
 						{ label: 'Email', value: normalizedEmail },
@@ -440,7 +440,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 						{ label: 'Interests', value: interests || 'Not provided' }
 					],
 					outro: 'You can reply directly to this email to continue the conversation.',
-					footer: `This message was sent automatically from FIRST Start for ${team.name}.`
+					footer: `This message was sent automatically from Find FIRST for ${team.name}.`
 				});
 
 				await sendTransactionalEmail({
@@ -461,7 +461,7 @@ router.post('/signups', requireAuthenticatedApi, async function(req, res) {
 						`Experience: ${experience || 'Not provided'}`,
 						`Interests: ${interests || 'Not provided'}`,
 						'',
-						'This message was sent automatically from FIRST Start.'
+						'This message was sent automatically from Find FIRST.'
 					].join('\n')
 				});
 			}

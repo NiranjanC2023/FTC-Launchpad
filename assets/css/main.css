@@ -5531,6 +5531,13 @@ header > .theme-toggle {
   }
 }
 
+/* Keep the brand and navigation from colliding on medium desktop widths. */
+@media (max-width: 1600px) {
+  header .creator-badge {
+    display: none !important;
+  }
+}
+
 @media (max-width: 700px) {
   .navbar-collapse {
     margin-top: 10px;
