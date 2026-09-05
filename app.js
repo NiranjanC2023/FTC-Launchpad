@@ -22,11 +22,13 @@ var hasGlobalPrivacyControl = require("./lib/gpc").hasGlobalPrivacyControl;
 var countryHelpers = require("./lib/country");
 var countryRegionHelpers = require("./lib/country-regions");
 var jsonToBase64 = require("./lib/html-data").jsonToBase64;
+var subresourceIntegrity = require("./lib/subresource-integrity");
 //var routes = require("./routes");
 
 var app = express();
 
 const ASSETS_ROOT = path.join(__dirname, "assets");
+const ASSET_INTEGRITY = subresourceIntegrity.buildIntegrityMap(__dirname);
 
 const MAIN_CSS_VERSION = "91";
 const MAIN_JS_VERSION = "99";
@@ -98,7 +100,12 @@ const perimeterLimiter = rateLimit({
 // Keep the nonce-based CSP below; Helmet supplies the remaining protections.
 app.use(helmet({
     contentSecurityPolicy: false,
-    strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true },
+    crossOriginEmbedderPolicy: { policy: "credentialless" },
+    strictTransportSecurity: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    },
     xFrameOptions: { action: "deny" },
     referrerPolicy: { policy: "strict-origin-when-cross-origin" }
 }));
@@ -108,7 +115,7 @@ app.use(function setSecurityHeaders(req, res, next) {
     res.locals.cspNonce = nonce;
     res.set({
         "Content-Security-Policy": [
-            "default-src 'self'",
+            "default-src 'none'",
             `script-src 'self' 'nonce-${nonce}' blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com`,
             `style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com https://*.googleapis.com https://*.gstatic.com`,
             "style-src-attr 'unsafe-inline'",
@@ -254,6 +261,8 @@ app.engine("ejs", function(filePath, data, callback) {
                     `${BOOTSTRAP_STYLESHEET}\n$1`
                 );
             }
+
+            html = subresourceIntegrity.addSubresourceIntegrity(html, ASSET_INTEGRITY);
 
             html = html.replace(
                 /<header([^>]*)>\s*<\/header>/i,

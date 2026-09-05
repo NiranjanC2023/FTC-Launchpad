@@ -25,7 +25,7 @@
     "start": "node app.js",
     "predev": "npm run build:client",
     "dev": "nodemon app.js",
-    "test": "node --check app.js && node --check routes/web.js && node --check routes/api.js && node --check scripts/build-site-shell.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js && node --check scripts/restore-team-precise-coordinates.js && node tests/country-regions.test.js && node tests/render-security.test.js && node tests/query-security.test.js && node tests/ejs-xss.test.js && node tests/client-dom-xss.test.js && node tests/file-access-security.test.js && node tests/request-body-security.test.js && node tests/csp-security.test.js",
+    "test": "node --check app.js && node --check routes/web.js && node --check routes/api.js && node --check scripts/build-site-shell.js && node --check scripts/build-gzip-assets.js && node --check scripts/build-optimized-assets.js && node --check scripts/purge-precise-location.js && node --check scripts/restore-team-precise-coordinates.js && node tests/country-regions.test.js && node tests/render-security.test.js && node tests/query-security.test.js && node tests/ejs-xss.test.js && node tests/client-dom-xss.test.js && node tests/file-access-security.test.js && node tests/request-body-security.test.js && node tests/csp-security.test.js && node tests/subresource-integrity.test.js",
     "test:full": "npm run build:client && npm test"
   },
   "dependencies": {
