@@ -230,7 +230,7 @@
 
             <span>FIRST teams</span>
 
-            <strong>79,000</strong>
+            <strong><%= homeStats && homeStats.activeTeams ? homeStats.activeTeams.toLocaleString() : '—' %></strong>
 
             <p>active FIRST teams</p>
 
@@ -242,7 +242,7 @@
 
             <span>Youth participants</span>
 
-            <strong>853,000</strong>
+            <strong><%= homeStats && homeStats.youthParticipants ? homeStats.youthParticipants.toLocaleString() : '—' %></strong>
 
             <p>youth participants</p>
 

@@ -564,7 +564,16 @@
           if (!file) return;
           const reader = new FileReader();
           reader.onload = () => {
-            const result = String(reader.result || '');
+            const source = String(reader.result || '');
+            const image = new Image();
+            image.onload = () => {
+              const maxSize = 1000;
+              const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+              canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+              canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+              const result = canvas.toDataURL('image/jpeg', 0.82);
             hiddenInput.value = result;
             if (preview) {
               if (preview.tagName === 'IMG') {
@@ -580,6 +589,8 @@
               }
             }
             fileInput.closest('form')?.submit();
+            };
+            image.src = source;
           };
           reader.readAsDataURL(file);
         });

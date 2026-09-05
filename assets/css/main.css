@@ -356,10 +356,11 @@ header .navbar {
 .navbar-header {
   float: none !important;
   flex: 0 0 auto;
-  margin-right: 12px;
+  margin-right: 28px;
   margin-left: 0;
   display: flex;
   align-items: center;
+  gap: 16px;
 }
 
 .navbar-header .navbar-brand {
@@ -408,7 +409,7 @@ header .navbar {
   gap: 12px;
   flex: 1 1 auto;
   min-width: 0;
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .navbar-toggle {
@@ -2314,6 +2315,7 @@ h3 {
 }
 
 .choice-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -2326,11 +2328,37 @@ h3 {
 }
 
 .choice-pill input[type="radio"] {
+  position: absolute;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 1px !important;
+  min-height: 1px !important;
+  margin: 0;
+  opacity: 0;
+}
+
+.choice-pill span::before {
+  content: "";
+  display: inline-block;
   width: 18px;
   height: 18px;
-  min-height: 18px;
-  margin: 0;
-  accent-color: var(--accent-primary);
+  margin-right: 10px;
+  border: 2px solid var(--accent-primary);
+  border-radius: 50%;
+  background: var(--surface);
+  vertical-align: -4px;
+  box-sizing: border-box;
+}
+
+.choice-pill input[type="radio"]:checked + span::before {
+  background: radial-gradient(circle, var(--accent-primary) 0 45%, transparent 50%);
+}
+
+/* The registration form's generic input rules must not restore a square
+   native control behind these custom circular team-type selectors. */
+.choice-pill input[type="radio"]:focus-visible + span::before {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .registration-choice-note {
@@ -3754,7 +3782,7 @@ textarea.form-control {
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  z-index: 30;
+  z-index: 1000;
   min-width: 220px;
   padding: 14px;
   background: var(--surface);
@@ -3818,6 +3846,8 @@ textarea.form-control {
 }
 
 .teams-list-container {
+  position: relative;
+  z-index: 20;
   width: 100%;
   max-width: 980px;
   margin: 24px auto 0;
@@ -5531,9 +5561,16 @@ header > .theme-toggle {
   }
 }
 
-/* Keep the brand and navigation from colliding on medium desktop widths. */
+/* The full creator badge only fits alongside the complete desktop navigation
+ * on very wide screens. The compact menu takes over below this point. */
 @media (max-width: 1600px) {
   header .creator-badge {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1280px) {
+  header .navbar-header .creator-badge {
     display: none !important;
   }
 }
@@ -5962,6 +5999,12 @@ header .navbar-nav > li > a {
 }
 
 @media (min-width: 1281px) {
+  /* Keep the brand, creator badge, and first navigation link distinct. */
+  header .navbar-header {
+    gap: 18px;
+    margin: 0 28px 0 0 !important;
+  }
+
   header .navbar-collapse {
     justify-content: flex-end;
     margin-left: auto;
@@ -5977,6 +6020,31 @@ header .navbar-nav > li > a {
 
   html[data-auth-state="anonymous"] header .navbar-tools {
     display: none;
+  }
+}
+
+@media (min-width: 1281px) and (max-width: 1600px) {
+  header .navbar-header {
+    gap: 12px;
+    margin-right: 18px !important;
+  }
+
+  header .creator-badge {
+    min-height: 32px;
+    padding: 5px 9px;
+    font-size: 0.76rem;
+  }
+
+  header .creator-badge::before {
+    width: 6px;
+    height: 6px;
+    margin-right: 6px;
+  }
+
+  header .creator-badge-beta {
+    margin-left: 6px;
+    padding-left: 6px;
+    font-size: 0.66rem;
   }
 }
 

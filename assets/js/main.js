@@ -970,15 +970,8 @@ function getTeamRecruitingLabel(team) {
     if (yearsFilter) yearsFilter.value = 'all';
     if (advancementFilter) advancementFilter.value = 'all';
     if (distanceFilter) distanceFilter.value = 'all';
-    applySearch();
-    if (filterDropdown) filterDropdown.focus?.();
+    applySearch({ resetPage: true });
   }
-
-  // Keep the filter panel interactive while a selection updates the results.
-  // This is especially important on touch devices, where the native select
-  // menu can otherwise bubble a click and close the panel underneath it.
-  filterDropdown?.addEventListener('click', (event) => event.stopPropagation());
-  filterDropdown?.addEventListener('pointerdown', (event) => event.stopPropagation());
 
   [programFilter, awardsFilter, yearsFilter, advancementFilter, distanceFilter].filter(Boolean).forEach((filterEl) => {
     filterEl.addEventListener('change', () => {
@@ -2010,6 +2003,10 @@ function initCountryRegionSelects() {
     const regionSelect = form && form.querySelector('[data-region-select]');
     if (!regionSelect || countrySelect.dataset.regionBound === 'true') return;
     countrySelect.dataset.regionBound = 'true';
+    const serverRenderedOptions = Array.from(regionSelect.options).map((option) => ({
+      value: option.value,
+      text: option.textContent
+    }));
 
     const replaceOptions = (regions, placeholder) => {
       regionSelect.replaceChildren();
@@ -2047,8 +2044,22 @@ function initCountryRegionSelects() {
           regionSelect.value = payload.regions[0];
         }
       } catch (error) {
-        replaceOptions([], 'Unable to load states or regions');
-        regionSelect.disabled = true;
+        // Keep server-rendered options usable when the enhancement request is
+        // unavailable (for example during a brief API/rate-limit failure).
+        if (serverRenderedOptions.length > 1) {
+          regionSelect.replaceChildren();
+          serverRenderedOptions.forEach(({ value, text }) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = text;
+            regionSelect.appendChild(option);
+          });
+          regionSelect.disabled = false;
+          if (currentRegion) regionSelect.value = currentRegion;
+        } else {
+          replaceOptions([], 'Unable to load states or regions');
+          regionSelect.disabled = true;
+        }
       }
     };
 
@@ -2349,7 +2360,7 @@ function loadSiteShells() {
 
   const headerReady = document.querySelector('header .navbar, body > .navbar')
     ? Promise.resolve()
-    : fetch('/assets/partial/header.html?v=47')
+    : fetch('/assets/partial/header.html?v=48')
       .then(r => r.text())
       .then(html => {
         const header = document.querySelector('header');

@@ -32,7 +32,7 @@
         <form method="POST" action="/team-register/email-verification/confirm" class="form-grid" style="margin-bottom:24px;">
           <div class="form-grid-full">
             <h2>Enter the team verification code</h2>
-            <p class="form-note text-muted">The 6-digit code was sent to <strong><%= pendingEmailVerification.maskedEmail %></strong>, the public email listed for <%= pendingEmailVerification.program %> team <%= pendingEmailVerification.teamNumber %> on the FIRST Dashboard.</p>
+            <p class="form-note text-muted">The 6-digit code was sent to <strong><%= pendingEmailVerification.maskedEmail %></strong><% if (pendingEmailVerification.kind === 'new-registration') { %>, the contact email for your new team.<% } else { %>, the public email listed for <%= pendingEmailVerification.program %> team <%= pendingEmailVerification.teamNumber %> on the FIRST Dashboard.<% } %></p>
           </div>
           <label for="teamVerificationCode">Verification code</label>
           <input id="teamVerificationCode" name="verificationCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
@@ -61,16 +61,20 @@
               <span>New team</span>
             </label>
           </div>
-          <p class="registration-choice-note">For an official team, enter only its FIRST team number, meeting address, and recruiting details. The team name, organization, location, and program information are filled from FIRST records.</p>
+          <p class="registration-choice-note"><% if (selectedMode === 'new') { %>For a new team, enter your team name, contact email, meeting address, and recruiting details. A verification code will be sent to your contact email.<% } else { %>For an official team, enter only its FIRST team number, meeting address, and recruiting details. The team name, organization, location, and program information are filled from FIRST records.<% } %></p>
         </div>
 
         <div class="form-grid-full" data-email-verification-status>
           <% if (typeof teamEmailVerification !== 'undefined' && teamEmailVerification) { %>
             <div class="alert alert-success">
-              The FIRST Dashboard public email verified <strong><%= teamEmailVerification.program %> <%= teamEmailVerification.teamNumber %></strong>.
+              <% if (teamEmailVerification.kind === 'new-registration') { %>
+                The contact email for your new team has been verified.
+              <% } else { %>
+                The FIRST Dashboard public email verified <strong><%= teamEmailVerification.program %> <%= teamEmailVerification.teamNumber %></strong>.
+              <% } %>
             </div>
           <% } else { %>
-            <p class="form-note text-muted">A code will be sent to the contact email to confirm that your team can receive messages.</p>
+            <p class="form-note text-muted">We require teams to have a publicly available email address set on their FIRST Dashboard profile. A verification code will be sent to that email to verify the team.</p>
           <% } %>
         </div>
 

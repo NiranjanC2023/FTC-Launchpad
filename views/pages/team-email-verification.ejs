@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Verify Team Email - Find FIRST</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/assets/css/main.css?v=58">
+</head>
+<body>
+  <header></header>
+  <main>
+    <div class="container" style="max-width:680px;">
+      <a href="/team-register" class="btn btn-secondary back-button">&larr; Back to Registration</a>
+      <h1>Verify your team email</h1>
+      <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+      <p class="subtitle">Enter the 6-digit code sent to <strong><%= pending.maskedEmail %></strong>.<% if (pending.kind === 'new-registration') { %> This is the contact email you entered for your new team.<% } else { %> This is the public email listed on the FIRST Dashboard profile.<% } %></p>
+      <form method="POST" action="/team-register/email-verification/confirm" class="form-grid">
+        <label for="verificationCode">Verification code</label>
+        <input id="verificationCode" name="verificationCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus>
+        <span></span>
+        <div class="registration-submit-actions">
+          <button class="btn btn-primary" type="submit">Verify Team Email</button>
+          <button class="btn btn-secondary" type="submit" formaction="/team-register/email-verification/resend" formnovalidate>Resend Code</button>
+        </div>
+      </form>
+    </div>
+  </main>
+  <script src="/assets/js/main.js?v=74"></script>
+</body>
+</html>

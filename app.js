@@ -36,9 +36,9 @@ const COMPRESSED_CONTENT_TYPES = {
     ".xml": "application/xml; charset=utf-8"
 };
 
-const MAIN_CSS_VERSION = "89";
+const MAIN_CSS_VERSION = "91";
 const MAIN_JS_VERSION = "99";
-const HOME_CSS_VERSION = "6";
+const HOME_CSS_VERSION = "8";
 const HOME_JS_VERSION = "13";
 const SITE_SHELL_JS_VERSION = "5";
 const BOOTSTRAP_STYLESHEET = '<link rel="stylesheet" href="/assets/vendor/bootstrap/bootstrap.min.css?v=3.3.6">';
@@ -239,6 +239,8 @@ app.locals.countryRegionsFor = countryRegionHelpers.getCountryRegions;
 app.locals.canonicalizeCountryRegion = countryRegionHelpers.canonicalizeCountryRegion;
 app.locals.googleMapsApiKey = String(process.env.GOOGLE_MAPS_API_KEY || '').trim();
 
+// Read the shared header when the server starts so rendered pages use the same shell.
+// The source file is rebuilt alongside the client shell during development.
 const sharedHeaderHtml = fs.readFileSync(path.join(__dirname, "assets", "partial", "header.html"), "utf8");
 const sharedFooterHtml = fs.readFileSync(path.join(__dirname, "assets", "partial", "footer.html"), "utf8");
 
@@ -448,8 +450,10 @@ app.use([
 ], authenticationLimiter);
 app.use(["/api/geocode-zip", "/api/geocode-location"], geocodingLimiter);
 
-app.use(bodyParser.urlencoded({ extended: false, limit: "512kb", parameterLimit: 100 }));
-app.use(express.json({ limit: "512kb", strict: true }));
+// Profile photos are submitted as compressed data URLs. Keep a bounded limit
+// large enough for ordinary phone images while still rejecting oversized bodies.
+app.use(bodyParser.urlencoded({ extended: false, limit: "5mb", parameterLimit: 100 }));
+app.use(express.json({ limit: "5mb", strict: true }));
 app.use(cookieParser());
 const isProduction = process.env.NODE_ENV === "production";
 const sessionSecret = process.env.SESSION_SECRET || (!isProduction ? crypto.randomBytes(32).toString("hex") : "");

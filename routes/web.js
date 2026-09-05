@@ -828,11 +828,12 @@ function teamEmailCodeMatches(pending, submittedCode) {
 }
 
 function validateTeamEmailRegistration(values = {}) {
-    if (String(values.registrationMode || '').toLowerCase() !== 'existing') {
-        return 'Email ownership verification is only available for existing teams.';
-    }
-    if (!PROGRAM_LABELS[String(values.program || '').trim()] || !parsePositiveTeamNumber(values.teamNumber)) {
+    const isNewTeam = String(values.registrationMode || '').toLowerCase() === 'new';
+    if (!PROGRAM_LABELS[String(values.program || '').trim()] || (!isNewTeam && !parsePositiveTeamNumber(values.teamNumber))) {
         return 'Choose a FIRST program and enter a valid team number before requesting a verification code.';
+    }
+    if (isNewTeam && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(values.contact))) {
+        return 'Enter a valid contact email before requesting a verification code.';
     }
     if (!isUsableTeamAddress(values.address)) return 'Enter a complete team address before requesting a verification code.';
     return '';
@@ -1022,6 +1023,17 @@ async function fetchDashboardTeamEmailDirectory() {
     ));
     teamEmailDirectoryCache = { expiresAt: Date.now() + TEAM_EMAIL_DIRECTORY_CACHE_TTL_MS, teams };
     return teams;
+}
+
+async function getCurrentFirstTeamStats() {
+    const teams = await fetchDashboardTeamEmailDirectory();
+    const currentYear = teams.reduce((year, team) => Math.max(year, Number(team.profileYear) || 0), 0);
+    const activeTeams = teams.filter(team => Number(team.profileYear) === currentYear).length;
+    return {
+        activeTeams,
+        youthParticipants: activeTeams * 8,
+        currentYear
+    };
 }
 
 async function sendTeamVerificationEmail({ to, code, program, teamNumber, isNewTeam = false }) {
@@ -1819,6 +1831,7 @@ router.get("/", async function(req, res){
     let carouselImages = [];
     let featuredTeams = [];
     let recruitingTeams = [];
+    let homeStats = { activeTeams: null, youthParticipants: null, currentYear: null };
     try {
         const dir = path.join(__dirname, '..', 'assets', 'img', 'carousel');
         if (fs.existsSync(dir)) {
@@ -1927,10 +1940,17 @@ router.get("/", async function(req, res){
         recruitingTeams = [];
     }
 
+    try {
+        homeStats = await getCurrentFirstTeamStats();
+    } catch (error) {
+        console.error('Unable to load current FIRST team stats:', error.message);
+    }
+
     res.render("index", {
         carouselImages,
         homeFeaturedTeams: featuredTeams,
-        homeRecruitingTeams: recruitingTeams
+        homeRecruitingTeams: recruitingTeams,
+        homeStats
     });
 });
 
@@ -2388,6 +2408,21 @@ router.get('/reports', ensureAuthenticated, async function(req, res) {
     }
 });
 
+router.get('/team-register/email-verification', requireAccountForTeamRegister, function(req, res) {
+    const pending = req.session.pendingTeamEmailVerification;
+    if (!pending || !pending.codeHash) return res.redirect('/team-register');
+    const errorMessages = {
+        incorrect: 'That verification code is incorrect. Please try again.',
+        expired: 'That verification code expired or had too many incorrect attempts. Request a new code.',
+        wait: 'Please wait one minute before requesting another code.',
+        failed: 'We could not send a verification code right now. Please try again.'
+    };
+    return res.render('pages/team-email-verification', {
+        pending,
+        error: errorMessages[String(req.query.error || '')] || ''
+    });
+});
+
 router.post('/team-register/email-verification', requireAccountForTeamRegister, async function(req, res) {
     const values = { ...(req.body || {}) };
     const program = normalizeProgram(values.program);
@@ -2404,14 +2439,6 @@ router.post('/team-register/email-verification', requireAccountForTeamRegister, 
         if (!(await waitForDatabase())) {
             return res.render('pages/team-register', { error: databaseErrorMessage(), message: null, values });
         }
-        const alreadyRegistered = await Team.findOne({ program, teamNumber }).select('_id').lean().exec();
-        if (alreadyRegistered) {
-            return res.render('pages/team-register', {
-                error: 'This team is already registered. Manage the existing listing from My Team.',
-                message: null,
-                values
-            });
-        }
         if (String(values.registrationMode || '').toLowerCase() === 'new') {
             const publicEmail = normalizeEmail(values.contact);
             const verification = buildPendingTeamEmailVerification({ kind: 'new-registration', program, publicEmail,
@@ -2420,7 +2447,15 @@ router.post('/team-register/email-verification', requireAccountForTeamRegister, 
             req.session.pendingTeamEmailVerification = verification.pending;
             delete req.session.teamEmailVerification;
             await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
-            return res.redirect('/team-register?verification=sent');
+            return res.redirect('/team-register/email-verification');
+        }
+        const alreadyRegistered = await Team.findOne({ program, teamNumber }).select('_id').lean().exec();
+        if (alreadyRegistered) {
+            return res.render('pages/team-register', {
+                error: 'This team is already registered. Manage the existing listing from My Team.',
+                message: null,
+                values
+            });
         }
         if (program === 'FTC' || program === 'FRC') {
             const officialVerification = await verifyTeamWithApi(teamNumber, program);
@@ -2482,7 +2517,7 @@ router.post('/team-register/email-verification', requireAccountForTeamRegister, 
         req.session.pendingTeamEmailVerification = verification.pending;
         delete req.session.teamEmailVerification;
         await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
-        return res.redirect('/team-register?verification=sent');
+        return res.redirect('/team-register/email-verification');
     } catch (error) {
         console.error('Unable to send team verification email:', error.message);
         return res.render('pages/team-register', {
@@ -2499,7 +2534,7 @@ router.post('/team-register/email-verification/confirm', requireAccountForTeamRe
     const error = getTeamEmailVerificationError(pending, expectedKind, req.body.verificationCode);
     if (error) {
         if (pending && pending.kind === expectedKind) pending.attempts = Number(pending.attempts || 0) + 1;
-        return res.redirect(`/team-register?verification=${encodeURIComponent(error.includes('expired') || error.includes('Too many') ? 'expired' : 'incorrect')}`);
+        return res.redirect(`/team-register/email-verification?error=${encodeURIComponent(error.includes('expired') || error.includes('Too many') ? 'expired' : 'incorrect')}`);
     }
     req.session.teamEmailVerification = {
         program: pending.program,
@@ -2516,9 +2551,9 @@ router.post('/team-register/email-verification/confirm', requireAccountForTeamRe
 
 router.post('/team-register/email-verification/resend', requireAccountForTeamRegister, async function(req, res) {
     const current = req.session.pendingTeamEmailVerification;
-    if (!current || !['registration', 'new-registration'].includes(current.kind)) return res.redirect('/team-register?verification=missing');
+    if (!current || !['registration', 'new-registration'].includes(current.kind)) return res.redirect('/team-register');
     if (Date.now() - Number(current.sentAt || 0) < TEAM_EMAIL_VERIFICATION_RESEND_INTERVAL_MS) {
-        return res.redirect('/team-register?verification=wait');
+        return res.redirect('/team-register/email-verification?error=wait');
     }
     try {
         const verification = buildPendingTeamEmailVerification(current);
@@ -2530,10 +2565,10 @@ router.post('/team-register/email-verification/resend', requireAccountForTeamReg
             isNewTeam: current.kind === 'new-registration'
         });
         req.session.pendingTeamEmailVerification = verification.pending;
-        return res.redirect('/team-register?verification=resent');
+        return res.redirect('/team-register/email-verification');
     } catch (error) {
         console.error('Unable to resend team verification email:', error.message);
-        return res.redirect('/team-register?verification=failed');
+        return res.redirect('/team-register/email-verification?error=failed');
     }
 });
 
@@ -2818,10 +2853,11 @@ router.get('/team-email-directory', ensureAuthenticated, async function(req, res
 
 router.get('/team-register', requireAccountForTeamRegister, async function(req, res) {
     const pendingVerification = req.session.pendingTeamEmailVerification;
-    const pendingRegistration = pendingVerification && pendingVerification.kind === 'registration' ? pendingVerification : null;
+    const pendingRegistration = pendingVerification && ['registration', 'new-registration'].includes(pendingVerification.kind)
+        ? pendingVerification : null;
     const pendingValues = pendingRegistration && pendingRegistration.values;
     const registrationMode = pendingValues
-        ? 'existing'
+        ? (pendingVerification.kind === 'new-registration' ? 'new' : 'existing')
         : (String(req.query.mode || '').toLowerCase() === 'new' ? 'new' : 'existing');
     const user = await User.findById(req.session.userId).select('email').lean().exec().catch(() => null);
     if (!user) return res.redirect('/login');
@@ -2831,6 +2867,10 @@ router.get('/team-register', requireAccountForTeamRegister, async function(req, 
         verified: 'The team email was verified. Review the details and save the team.',
         wait: 'Please wait one minute before requesting another code.'
     };
+    if (pendingRegistration && pendingRegistration.kind === 'new-registration') {
+        verificationMessages.sent = 'We sent a verification code to the contact email you entered for this new team.';
+        verificationMessages.resent = 'A new verification code was sent to your team contact email.';
+    }
     const verificationErrors = {
         incorrect: 'That verification code is incorrect. Please try again.',
         expired: 'That verification code expired or had too many incorrect attempts. Request a new code.',
