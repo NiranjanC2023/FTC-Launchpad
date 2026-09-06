@@ -17,6 +17,7 @@ const { validatePhoneNumber } = require('../lib/phone');
 const { canonicalizeCountryRegion, isValidCountryRegion } = require('../lib/country-regions');
 const { isRecruitingTeam } = require('../lib/team-status');
 const { isDatabaseConnected, waitForDatabase } = require('../lib/database');
+const { parseDateOfBirth, isAtLeastAge } = require('../lib/age');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -29,6 +30,7 @@ const REPORTS_ACCESS_EMAILS = new Set([
 const REPORT_REASONS = new Set(['spam_or_scam', 'inappropriate_content', 'impersonation', 'privacy_or_safety', 'other']);
 const LOCALHOST_HOST_PATTERN = /^(localhost|127(?:\.\d{1,3}){3}|\[?::1\]?)(?::\d+)?$/i;
 const LOCAL_PRIVACY_POLICY_HTML = fs.readFileSync(path.join(__dirname, '..', 'views', 'partial', 'privacy-policy.html'), 'utf8');
+const LOCAL_TERMS_HTML = fs.readFileSync(path.join(__dirname, '..', 'views', 'partial', 'terms-of-conditions.html'), 'utf8');
 const SIGNUP_VERIFICATION_RESEND_INTERVAL_MS = 5 * 60 * 1000;
 
 function signIn(req, user) {
@@ -279,6 +281,7 @@ function anonymousAllowedPath(pathname) {
         || path === '/signup/seeker'
         || path === '/signup/manager'
         || path === '/terms'
+        || path === '/terms-of-conditions'
         || path === '/join-form'
         || path === '/join-team'
         || path === '/teams-nearby'
@@ -2020,17 +2023,16 @@ router.get("/join-form", ensureAuthenticated, async function(req, res){
             return res.render("pages/join-form", { values: {} });
         }
 
-        const user = await User.findById(objectIdValue(req.session.userId)).select('name country state experience currentGrade email phone interests').lean().exec();
+        const user = await User.findById(objectIdValue(req.session.userId)).select('name country state experience email phone interests').lean().exec();
         if (!user) {
             return res.render("pages/join-form", { values: {} });
         }
 
         const studentProfile = user.email
-            ? await Student.findOne({ email: normalizeEmail(user.email) }).select('name country state experience email phone interests currentGrade').lean().exec()
+            ? await Student.findOne({ email: normalizeEmail(user.email) }).select('name country state experience email phone interests').lean().exec()
             : null;
 
         const values = {
-            currentGrade: (studentProfile && studentProfile.currentGrade) || user.currentGrade || '',
             name: (studentProfile && studentProfile.name) || user.name || '',
             country: (studentProfile && studentProfile.country) || user.country || '',
             state: (studentProfile && studentProfile.state) || user.state || '',
@@ -2281,7 +2283,7 @@ router.get("/teams-nearby", async function(req, res){
         let studentApp = null;
         let currentUser = null;
         if (req.session && req.session.userId) {
-            currentUser = await User.findById(objectIdValue(req.session.userId)).select('name country state experience currentGrade email phone interests').lean().exec();
+            currentUser = await User.findById(objectIdValue(req.session.userId)).select('name country state experience email phone interests').lean().exec();
             if (currentUser) {
                 currentUser.canonicalState = canonicalizeCountryRegion(currentUser.country, currentUser.state) || currentUser.state;
             }
@@ -3629,7 +3631,6 @@ router.get('/manage-team', ensureAuthenticated, async function(req, res) {
                 if (!existing || new Date(updatedAt || 0) > new Date(existing.updatedAt || 0)) {
                     recruitMap.set(key, {
                         ...recruit,
-                        currentGrade: entry.currentGrade || recruit.currentGrade || '',
                         applicationTeam: entryTeam,
                         applicationStatus: entry.status || recruit.applicationStatus || 'pending',
                         statusMessage: entry.message || recruit.statusMessage || '',
@@ -4689,6 +4690,13 @@ router.get('/terms', function(req, res){
     });
 });
 
+router.get('/terms-of-conditions', function(req, res){
+    res.render('pages/terms', {
+        nextPath: sanitizeNextPath(req.query.next, ''),
+        policyHtml: LOCAL_TERMS_HTML
+    });
+});
+
 // Dedicated pages for each signup mode (selection page links here)
 router.get('/signup/seeker', async function(req, res){
     const values = {};
@@ -4744,7 +4752,7 @@ router.post('/signup', async function(req, res){
     const mode = req.body && req.body.signupMode === 'manager' ? 'manager' : 'seeker';
     try {
         if (!isDatabaseConnected()) return res.render(signupView(mode), { error: databaseErrorMessage(), values: accountFormValues(req.body), inviteToken: formString(req.body && req.body.inviteToken) || null, nextPath: sanitizeNextPath(req.body.next, '') });
-        const { name, email, password, country, state, phone, profilePicture, interests, experience, currentGrade, inviteToken, policyAccepted } = req.body;
+        const { name, email, password, country, state, phone, dateOfBirth, profilePicture, interests, experience, inviteToken, policyAccepted, termsAccepted } = req.body;
         const nextPath = sanitizeNextPath(req.body.next, '');
         const normalizedEmail = normalizeEmail(email);
         const phoneCheck = mode === 'seeker'
@@ -4764,7 +4772,6 @@ router.post('/signup', async function(req, res){
             password,
             country,
             state,
-            currentGrade,
             interests,
             experience
         };
@@ -4772,12 +4779,19 @@ router.post('/signup', async function(req, res){
         const requiredFields = mode === 'seeker' ? seekerRequiredFields : managerRequiredFields;
         const hasMissingRequiredField = Object.values(requiredFields).some(value => !String(value ?? '').trim());
         if (hasMissingRequiredField) return res.render(signupView(mode), { error: 'All fields required', values: accountFormValues(req.body), inviteToken: formString(inviteToken) || null, nextPath });
+        if (!isAtLeastAge(dateOfBirth, 13)) return res.render(signupView(mode), { error: 'You must be at least 13 years old to create an account.', values: accountFormValues(req.body), inviteToken: formString(inviteToken) || null, nextPath });
         if (String(password).length < 8) return res.render(signupView(mode), { error: 'Password must be at least 8 characters.', values: accountFormValues(req.body), inviteToken: formString(inviteToken) || null, nextPath });
-        const schoolGrades = new Set(['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12']);
-        if (mode === 'seeker' && !schoolGrades.has(String(currentGrade || '').trim())) return res.render(signupView(mode), { error: 'Select your grade for the current school year.', values: accountFormValues(req.body), inviteToken: formString(inviteToken) || null, nextPath });
         if (!['1', 'on', 'true'].includes(String(policyAccepted || '').trim().toLowerCase())) {
             return res.render(signupView(mode), {
                 error: 'You must agree to the privacy policy before creating an account.',
+                values: accountFormValues(req.body),
+                inviteToken: formString(inviteToken) || null,
+                nextPath
+            });
+        }
+        if (!['1', 'on', 'true'].includes(String(termsAccepted || '').trim().toLowerCase())) {
+            return res.render(signupView(mode), {
+                error: 'You must agree to the terms and conditions before creating an account.',
                 values: accountFormValues(req.body),
                 inviteToken: formString(inviteToken) || null,
                 nextPath
@@ -4810,13 +4824,13 @@ router.post('/signup', async function(req, res){
 
         user.name = String(name || '').trim();
         user.email = normalizedEmail;
+        user.dateOfBirth = parseDateOfBirth(dateOfBirth);
         user.country = mode === 'seeker' ? String(country || '').trim() : undefined;
         user.state = mode === 'seeker' ? canonicalState : undefined;
         user.phone = phoneCheck.normalized ? String(phoneCheck.normalized).trim() : undefined;
         user.profilePicture = String(profilePicture || '').trim();
         user.interests = mode === 'seeker' ? String(interests || '').trim() : undefined;
         user.experience = mode === 'seeker' ? String(experience || '').trim() : undefined;
-        user.currentGrade = mode === 'seeker' ? String(currentGrade || '').trim() : undefined;
         user.emailVerified = false;
         user.emailVerifiedAt = undefined;
         await user.setPassword(password);
@@ -4827,6 +4841,7 @@ router.post('/signup', async function(req, res){
             data: {
                 name: String(name || '').trim(),
                 email: normalizedEmail,
+                dateOfBirth: String(dateOfBirth || '').trim(),
                 password: String(password || ''),
                 country: String(country || '').trim(),
                 state: canonicalState,
@@ -4834,10 +4849,10 @@ router.post('/signup', async function(req, res){
                 profilePicture: String(profilePicture || '').trim(),
                 interests: String(interests || '').trim(),
                 experience: String(experience || '').trim(),
-                currentGrade: String(currentGrade || '').trim(),
                 inviteToken: formString(inviteToken) || null,
                 nextPath,
                 policyAccepted: '1',
+                termsAccepted: '1',
                 userId: String(user._id)
             },
             codeSalt,
@@ -4998,7 +5013,7 @@ router.post('/signup/verify', async function(req, res){
         });
     }
 
-    const { name, email, password, country, state, phone, profilePicture, interests, experience, currentGrade, inviteToken, nextPath } = pending.data;
+    const { name, email, password, country, state, phone, dateOfBirth, profilePicture, interests, experience, inviteToken, nextPath } = pending.data;
     const mode = pending.mode === 'manager' ? 'manager' : 'seeker';
     clearPendingSignupVerification(req);
 
@@ -5021,13 +5036,13 @@ router.post('/signup/verify', async function(req, res){
             user = new User({
                 name: name.trim(),
                 email,
+                dateOfBirth: parseDateOfBirth(dateOfBirth),
                 country: mode === 'seeker' ? String(country || '').trim() : undefined,
                 state: mode === 'seeker' ? String(state || '').trim() : undefined,
                 phone: String(phone || '').trim(),
                 profilePicture: String(profilePicture || '').trim(),
                 interests: mode === 'seeker' ? String(interests || '').trim() : undefined,
                 experience: mode === 'seeker' ? String(experience || '').trim() : undefined,
-                currentGrade: mode === 'seeker' ? String(currentGrade || '').trim() : undefined,
                 emailVerified: true,
                 emailVerifiedAt: new Date()
             });
@@ -5036,13 +5051,13 @@ router.post('/signup/verify', async function(req, res){
 
         user.name = name.trim();
         user.email = email;
+        user.dateOfBirth = parseDateOfBirth(dateOfBirth);
         user.country = mode === 'seeker' ? String(country || '').trim() : undefined;
         user.state = mode === 'seeker' ? String(state || '').trim() : undefined;
         user.phone = String(phone || '').trim();
         user.profilePicture = String(profilePicture || '').trim();
         user.interests = mode === 'seeker' ? String(interests || '').trim() : undefined;
         user.experience = mode === 'seeker' ? String(experience || '').trim() : undefined;
-        user.currentGrade = mode === 'seeker' ? String(currentGrade || '').trim() : undefined;
         user.emailVerified = true;
         user.emailVerifiedAt = user.emailVerifiedAt || new Date();
         if (!user.passwordHash) {
@@ -5126,7 +5141,6 @@ router.get('/account/signup-info', ensureAuthenticated, async function(req, res)
             country: user.country || '',
             state: user.state || '',
             experience: user.experience || '',
-            currentGrade: user.currentGrade || '',
             email: user.email || '',
             phone: user.phone || '',
             interests: user.interests || ''
@@ -5156,7 +5170,6 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
         const country = String(req.body.country || '').trim();
         const state = String(req.body.state || '').trim();
         const experience = String(req.body.experience || '').trim();
-        const currentGrade = String(req.body.currentGrade || '').trim();
         const email = String(req.body.email || '').trim();
         const phone = String(req.body.phone || '').trim();
         const interests = String(req.body.interests || '').trim();
@@ -5175,8 +5188,7 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
 
         const normalizedEmail = normalizeEmail(email);
         const canonicalState = canonicalizeCountryRegion(country, state);
-        const schoolGrades = new Set(['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12']);
-        if (!name || !normalizedEmail || !country || !canonicalState || !schoolGrades.has(currentGrade)) {
+        if (!name || !normalizedEmail || !country || !canonicalState) {
             return res.render('pages/account-signup-info', {
                 error: 'Name, country, matching state or region, and valid email are required.',
                 success: null,
@@ -5207,7 +5219,6 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             phone: phoneCheck.normalized,
             interests,
             experience,
-            currentGrade
         }, { new: true, runValidators: true }).exec();
 
         const student = await Student.findOne({ email: normalizeEmail(currentUser.email) }).exec();
@@ -5216,7 +5227,6 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             student.country = country;
             student.state = canonicalState;
             student.experience = experience;
-            student.currentGrade = currentGrade;
             student.interests = interests;
             student.phone = phoneCheck.normalized;
             student.email = normalizedEmail;
@@ -5243,7 +5253,6 @@ router.post('/account/signup-info', ensureAuthenticated, async function(req, res
             error: null,
             success: 'Signup info saved successfully.',
             values: {
-                currentGrade,
                 name,
                 country,
                 state: canonicalState,

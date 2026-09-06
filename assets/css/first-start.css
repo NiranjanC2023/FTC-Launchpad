@@ -1657,7 +1657,7 @@
   max-width: none;
   margin: 0;
   display: grid;
-  grid-template-columns: minmax(260px, 1.2fr) repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(260px, 1.2fr) repeat(5, minmax(0, 1fr));
   gap: clamp(18px, 2vw, 36px);
   align-items: start;
   padding: 12px clamp(24px, 4vw, 72px) 16px;

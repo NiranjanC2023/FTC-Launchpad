@@ -30,7 +30,7 @@ var app = express();
 const ASSETS_ROOT = path.join(__dirname, "assets");
 const ASSET_INTEGRITY = subresourceIntegrity.buildIntegrityMap(__dirname);
 
-const MAIN_CSS_VERSION = "91";
+const MAIN_CSS_VERSION = "92";
 const MAIN_JS_VERSION = "99";
 const HOME_CSS_VERSION = "8";
 const HOME_JS_VERSION = "13";

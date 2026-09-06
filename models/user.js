@@ -12,7 +12,7 @@ const UserSchema = new mongoose.Schema({
   profilePicture: { type: String, trim: true },
   interests: { type: String, trim: true },
   experience: { type: String, trim: true },
-  currentGrade: { type: String, trim: true, maxlength: 20 },
+  dateOfBirth: { type: Date },
   teamNumber: { type: Number },
   emailVerified: { type: Boolean, default: true },
   emailVerifiedAt: { type: Date },

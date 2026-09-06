@@ -148,7 +148,7 @@ function initJoinForm() {
       const response = await fetch('/api/signups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentGrade: form.elements.currentGrade.value.trim() })
+        body: JSON.stringify({})
       });
       const payload = await response.json().catch(() => ({}));
       if (response.status === 401) {
@@ -2218,6 +2218,22 @@ function initHomeFeaturedTeams() {
 function initSignupForm() {
   const form = document.getElementById('signupForm');
   if (!form) return;
+
+  const dateOfBirthInput = form.querySelector('input[name="dateOfBirth"]');
+  if (dateOfBirthInput) {
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - 13);
+    const cutoffValue = [cutoff.getFullYear(), String(cutoff.getMonth() + 1).padStart(2, '0'), String(cutoff.getDate()).padStart(2, '0')].join('-');
+    dateOfBirthInput.max = cutoffValue;
+    const validateAge = () => {
+      dateOfBirthInput.setCustomValidity(dateOfBirthInput.value && dateOfBirthInput.value > cutoffValue
+        ? 'You must be at least 13 years old to create an account.'
+        : '');
+    };
+    dateOfBirthInput.addEventListener('input', validateAge);
+    dateOfBirthInput.addEventListener('change', validateAge);
+    form.addEventListener('submit', validateAge);
+  }
 
   const modeButtons = document.querySelectorAll('.signup-mode');
   const modeInput = form.querySelector('#signupMode') || form.querySelector('input[name="signupMode"]');

@@ -35,6 +35,11 @@
           <input name="password" id="password" type="password" class="form-control" required />
         </div>
         <div class="mb-3">
+          <label class="form-label" for="dateOfBirth">Date of birth</label>
+          <input name="dateOfBirth" id="dateOfBirth" type="date" class="form-control" value="<%= values && values.dateOfBirth ? values.dateOfBirth : '' %>" required />
+          <small class="text-muted">You must be at least 13 years old to create an account.</small>
+        </div>
+        <div class="mb-3">
           <label class="form-label" for="country">Country</label>
           <select name="country" id="country" class="form-control" autocomplete="country-name" data-country-select required>
             <option value="">Select a country</option>
@@ -55,16 +60,6 @@
         <div class="mb-3">
           <label class="form-label">Phone</label>
           <input name="phone" id="phone" type="tel" class="form-control" value="<%= values && values.phone ? values.phone : '' %>" required />
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label" for="currentGrade">Current grade</label>
-          <select name="currentGrade" id="currentGrade" class="form-control" required>
-            <option value="">Select your grade for the current school year</option>
-            <% ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'].forEach(function(grade) { %>
-              <option value="<%= grade %>" <%= values && values.currentGrade === grade ? 'selected' : '' %>><%= grade %></option>
-            <% }); %>
-          </select>
         </div>
 
         <div class="mb-3">
@@ -93,12 +88,19 @@
           ><%= values && values.experience ? values.experience : '' %></textarea>
         </div>
 
-        <div class="mb-3" style="display:flex; flex-wrap:wrap; align-items:center; gap:12px; justify-content:space-between;">
-          <label class="form-label" style="display:flex; align-items:center; gap:10px; margin:0;">
+        <div class="mb-3 agreement-row">
+          <label class="form-label agreement-label">
             <input name="policyAccepted" type="checkbox" value="1" required <%= values && ['1', 'on', 'true'].includes(String(values.policyAccepted || '').toLowerCase()) ? 'checked' : '' %> />
             <span>I agree to the privacy policy</span>
           </label>
           <a class="btn terms-button" href="/terms#usercentrics-ppg">View privacy policy</a>
+        </div>
+        <div class="mb-3 agreement-row">
+          <label class="form-label agreement-label">
+            <input name="termsAccepted" type="checkbox" value="1" required <%= values && ['1', 'on', 'true'].includes(String(values.termsAccepted || '').toLowerCase()) ? 'checked' : '' %> />
+            <span>I agree to the terms and conditions</span>
+          </label>
+          <a class="btn terms-button" href="/terms-of-conditions#usercentrics-ppg">View terms and conditions</a>
         </div>
 
         <button class="btn btn-primary" type="submit">Create account</button>

@@ -1202,7 +1202,6 @@
                                                     <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
                                                         <span class="label label-info" style="background: var(--bg-secondary); color: var(--accent-primary); font-weight: 800;"><%= recruit.interests %></span>
                                                     </div>
-                                                    <p class="small text-muted" style="margin: 0;"><strong>Current grade:</strong> <%= recruit.currentGrade || 'Not provided' %></p>
                                                     <p class="small text-muted" style="margin: 0;"><strong>Background:</strong> <%= previewRecruitText(recruit.experience, 160) || 'Not provided' %></p>
                                                     <details class="recruit-details-dropdown">
                                                         <summary>Applicant details</summary>
@@ -1215,10 +1214,6 @@
                                                                 <div class="recruit-detail-chip">
                                                                     <span class="recruit-detail-label">Phone</span>
                                                                     <p class="recruit-detail-value"><%= recruit.phone || 'Not provided' %></p>
-                                                                </div>
-                                                                <div class="recruit-detail-chip">
-                                                                    <span class="recruit-detail-label">Current grade</span>
-                                                                    <p class="recruit-detail-value"><%= recruit.currentGrade || 'Not provided' %></p>
                                                                 </div>
                                                                 <div class="recruit-detail-chip recruit-detail-full">
                                                                     <span class="recruit-detail-label">Interests</span>
@@ -1297,10 +1292,6 @@
                                                             <p class="recruit-detail-value"><%= waitRecruit.phone || 'Not provided' %></p>
                                                         </div>
                                                         <div class="recruit-detail-chip">
-                                                            <span class="recruit-detail-label">Current grade</span>
-                                                            <p class="recruit-detail-value"><%= waitRecruit.currentGrade || 'Not provided' %></p>
-                                                        </div>
-                                                        <div class="recruit-detail-chip">
                                                             <span class="recruit-detail-label">Interests</span>
                                                             <p class="recruit-detail-value"><%= normalizeRecruitText(waitRecruit.interests) || 'Not provided' %></p>
                                                         </div>
@@ -1363,10 +1354,6 @@
                                                         <div class="recruit-detail-chip">
                                                             <span class="recruit-detail-label">Phone</span>
                                                             <p class="recruit-detail-value"><%= acceptedRecruit.phone || 'Not provided' %></p>
-                                                        </div>
-                                                        <div class="recruit-detail-chip">
-                                                            <span class="recruit-detail-label">Current grade</span>
-                                                            <p class="recruit-detail-value"><%= acceptedRecruit.currentGrade || 'Not provided' %></p>
                                                         </div>
                                                         <div class="recruit-detail-chip">
                                                             <span class="recruit-detail-label">Interests</span>

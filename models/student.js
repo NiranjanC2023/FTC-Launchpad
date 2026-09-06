@@ -5,13 +5,11 @@ const StudentSchema = new mongoose.Schema({
   country: { type: String, trim: true },
   state: { type: String, trim: true },
   experience: { type: String },
-  currentGrade: { type: String, trim: true, maxlength: 40 },
   email: { type: String },
   phone: { type: String },
   interests: { type: String },
   sentTeams: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }],
   sentApplications: [{
-    currentGrade: { type: String, trim: true, maxlength: 40 },
     team: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
     status: { type: String, enum: ['pending', 'accepted', 'waitlisted', 'rejected'], default: 'pending' },
     message: { type: String },

@@ -48,13 +48,6 @@
           <% }); %>
         </select>
 
-        <label for="currentGrade">Current grade</label>
-        <select id="currentGrade" name="currentGrade" required>
-          <option value="">Select your grade for the current school year</option>
-          <% ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'].forEach(function(grade) { %>
-            <option value="<%= grade %>" <%= values && values.currentGrade === grade ? 'selected' : '' %>><%= grade %></option>
-          <% }); %>
-        </select>
 
         <label for="experience">Experience (brief)</label>
         <textarea id="experience" name="experience" rows="4" maxlength="500" placeholder="e.g., none, some Java, built RC car"><%= values && values.experience ? values.experience : '' %></textarea>
