@@ -11,6 +11,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Styles -->
+  <% if (googleMapsApiKey) { %>
+    <!-- The renderer adds the CSP nonce; Google Maps copies it to its injected styles. -->
+    <style></style>
+  <% } %>
   <link rel="stylesheet" href="/assets/css/main.css?v=64">
   <!-- Font Awesome for marker icon -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
