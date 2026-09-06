@@ -749,6 +749,7 @@ const TEAM_EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000;
 const TEAM_EMAIL_VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000;
 const TEAM_EMAIL_VERIFICATION_MAX_ATTEMPTS = 5;
 const TEAM_EMAIL_DIRECTORY_CACHE_TTL_MS = 5 * 60 * 1000;
+const HOMEPAGE_TEAMS_CACHE_TTL_MS = 60 * 1000;
 const TEAM_EMAIL_DIRECTORY_PROGRAMS = [
     { key: 'FLL Challenge', names: ['FIRST LEGO League Challenge'], monikers: ['FLL', 'FLL Challenge'] },
     { key: 'FTC', names: ['FIRST Tech Challenge'], monikers: ['FTC'] },
@@ -760,6 +761,12 @@ const BLUE_ALLIANCE_API_BASE = 'https://www.thebluealliance.com/api/v3';
 const BLUE_ALLIANCE_AUTH_KEY = process.env.TBA_AUTH_KEY || process.env.BLUE_ALLIANCE_API_KEY || process.env.BLUE_ALLIANCE_AUTH_KEY || '';
 const teamApiDetailsCache = new Map();
 let teamEmailDirectoryCache = { expiresAt: 0, teams: [] };
+let homepageTeamsCache = { expiresAt: 0, teams: [], refresh: null };
+let homepageStatsCache = {
+    expiresAt: 0,
+    value: { activeTeams: null, youthParticipants: null, currentYear: null },
+    refresh: null
+};
 const FTC_AWARD_TYPE_LABELS = {};
 
 function normalizeProgram(program) {
@@ -1829,125 +1836,114 @@ function cachedAssetSize(filePath) {
     return carouselAssetSizeCache.get(filePath);
 }
 
+function buildCarouselManifest() {
+    const dir = path.join(__dirname, '..', 'assets', 'img', 'carousel');
+    if (!fs.existsSync(dir)) return [];
+    const files = fs.readdirSync(dir)
+        .filter(f => /\.(png|jpe?g|webp|gif)$/i.test(f))
+        .filter(f => !/@2x\.[^.]+$/i.test(f))
+        .filter(f => !/\.w\d+\.webp$/i.test(f))
+        .filter(f => f !== '54352814752_6bf43c5dde_c.jpg')
+        .sort();
+    const filesByBase = new Map();
+    files.forEach((fileName) => {
+        const ext = path.extname(fileName);
+        const base = ext ? fileName.slice(0, -ext.length) : fileName;
+        if (!filesByBase.has(base)) filesByBase.set(base, resolveBestCarouselImageFile(dir, fileName));
+    });
+    return Array.from(new Set(filesByBase.values())).sort().slice(0, 4).map(f => {
+        const ext = path.extname(f);
+        const base = f.slice(0, -ext.length);
+        const src = `/assets/img/carousel/${encodeURIComponent(f)}?v=2`;
+        const responsiveSources = [480, 640, 768, 960, 1280, 1600, 1920]
+            .map(width => ({ width, fileName: `${base}.w${width}.webp` }))
+            .filter(item => fs.existsSync(path.join(dir, item.fileName)))
+            .map(item => `/assets/img/carousel/${encodeURIComponent(item.fileName)}?v=2 ${item.width}w`);
+        const avifSources = [480, 640, 768, 960, 1280, 1600, 1920]
+            .map(width => ({ width, fileName: `${base}.w${width}.avif`, webpFileName: `${base}.w${width}.webp` }))
+            .filter(item => {
+                const avifSize = cachedAssetSize(path.join(dir, item.fileName));
+                const webpSize = cachedAssetSize(path.join(dir, item.webpFileName));
+                return avifSize !== null && (webpSize === null || avifSize < webpSize);
+            })
+            .map(item => `/assets/img/carousel/${encodeURIComponent(item.fileName)}?v=3 ${item.width}w`);
+        const hiRes = `${base}@2x${ext}`;
+        const fallbackSrcset = fs.existsSync(path.join(dir, hiRes))
+            ? `${src} 1x, /assets/img/carousel/${encodeURIComponent(hiRes)} 2x`
+            : null;
+        return {
+            src,
+            srcset: responsiveSources.length ? responsiveSources.join(', ') : fallbackSrcset,
+            avifSrcset: avifSources.length ? avifSources.join(', ') : null
+        };
+    });
+}
+
+const carouselManifest = buildCarouselManifest();
+
+async function queryHomepageTeams() {
+    const teams = await Team.find({
+        program: { $in: Object.keys(PROGRAM_LABELS) },
+        recruiting: { $ne: false },
+        $or: [{ verified: true }, { isNewTeam: true }]
+    }).sort({ updatedAt: -1, teamNumber: 1 }).limit(300)
+        .select('program teamNumber isNewTeam name city state country lat lon notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified updatedAt')
+        .lean().exec();
+    return (Array.isArray(teams) ? teams : []).filter(isRecruitingTeam).map(team => ({
+        id: String(team._id), program: team.program || 'FTC', league: team.program || 'FTC',
+        teamNumber: team.teamNumber, name: team.name, lat: Number(team.lat), lon: Number(team.lon),
+        location: [team.city, team.state, team.country].filter(Boolean).join(', ') || 'Location not listed',
+        description: team.notes || (team.isNewTeam ? 'A new team forming and looking for students nearby.' : 'View this recruiting team and see what they are looking for in students.'),
+        notes: team.notes || '', awards: team.awards || '', awardHistory: sortHistoryEntriesMostRecent(team.awardHistory || []),
+        yearsInProgram: team.yearsInProgram,
+        advancementLevels: Array.isArray(team.advancementLevels) ? team.advancementLevels : [],
+        advancementHistory: sortHistoryEntriesMostRecent(team.advancementHistory || []),
+        recruiting: true, verified: team.verified, isNewTeam: Boolean(team.isNewTeam)
+    }));
+}
+
+async function getHomepageTeams() {
+    if (homepageTeamsCache.expiresAt > Date.now()) return homepageTeamsCache.teams;
+    if (!homepageTeamsCache.refresh) {
+        homepageTeamsCache.refresh = queryHomepageTeams().then(teams => {
+            homepageTeamsCache.teams = teams;
+            homepageTeamsCache.expiresAt = Date.now() + HOMEPAGE_TEAMS_CACHE_TTL_MS;
+            return teams;
+        }).catch(error => {
+            if (!homepageTeamsCache.teams.length) throw error;
+            return homepageTeamsCache.teams;
+        }).finally(() => { homepageTeamsCache.refresh = null; });
+    }
+    return homepageTeamsCache.teams.length ? homepageTeamsCache.teams : homepageTeamsCache.refresh;
+}
+
+function refreshHomepageStats() {
+    if (homepageStatsCache.refresh || homepageStatsCache.expiresAt > Date.now()) return;
+    homepageStatsCache.refresh = getCurrentFirstTeamStats()
+        .then(value => {
+            homepageStatsCache.value = value;
+            homepageStatsCache.expiresAt = Date.now() + TEAM_EMAIL_DIRECTORY_CACHE_TTL_MS;
+        })
+        .catch(error => console.error('Unable to refresh current FIRST team stats:', error.message))
+        .finally(() => { homepageStatsCache.refresh = null; });
+}
+
 // Home page
 router.get("/", async function(req, res){
-    let carouselImages = [];
+    const carouselImages = carouselManifest;
     let featuredTeams = [];
     let recruitingTeams = [];
     let homeStats = { activeTeams: null, youthParticipants: null, currentYear: null };
     try {
-        const dir = path.join(__dirname, '..', 'assets', 'img', 'carousel');
-        if (fs.existsSync(dir)) {
-            const files = fs.readdirSync(dir)
-                .filter(f => /\.(png|jpe?g|webp|gif)$/i.test(f))
-                .filter(f => !/@2x\.[^.]+$/i.test(f))
-                .filter(f => !/\.w\d+\.webp$/i.test(f))
-                .filter(f => f !== '54352814752_6bf43c5dde_c.jpg')
-                .sort();
-
-            const filesByBase = new Map();
-            files.forEach((fileName) => {
-                const ext = path.extname(fileName);
-                const base = ext ? fileName.slice(0, -ext.length) : fileName;
-                if (!filesByBase.has(base)) {
-                    filesByBase.set(base, resolveBestCarouselImageFile(dir, fileName));
-                }
-            });
-
-            const selectedFiles = Array.from(new Set(filesByBase.values())).sort().slice(0, 4);
-
-            carouselImages = selectedFiles.map(f => {
-                const ext = path.extname(f);
-                const base = f.slice(0, -ext.length);
-                const hiRes = base + '@2x' + ext;
-                const hiResPath = path.join(dir, hiRes);
-                const src = '/assets/img/carousel/' + encodeURIComponent(f) + '?v=2';
-                let srcset = null;
-                let avifSrcset = null;
-                const responsiveSources = [480, 640, 768, 960, 1280, 1600, 1920]
-                    .map(width => ({ width, fileName: `${base}.w${width}.webp` }))
-                    .filter(item => fs.existsSync(path.join(dir, item.fileName)))
-                    .map(item => `/assets/img/carousel/${encodeURIComponent(item.fileName)}?v=2 ${item.width}w`);
-                if (responsiveSources.length) {
-                    srcset = responsiveSources.join(', ');
-                } else if (fs.existsSync(hiResPath)) {
-                    const hi = '/assets/img/carousel/' + encodeURIComponent(hiRes);
-                    srcset = `${src} 1x, ${hi} 2x`;
-                }
-                const responsiveAvifSources = [480, 640, 768, 960, 1280, 1600, 1920]
-                    .map(width => ({
-                        width,
-                        fileName: `${base}.w${width}.avif`,
-                        webpFileName: `${base}.w${width}.webp`
-                    }))
-                    .filter(item => {
-                        const avifPath = path.join(dir, item.fileName);
-                        const webpPath = path.join(dir, item.webpFileName);
-                        const avifSize = cachedAssetSize(avifPath);
-                        const webpSize = cachedAssetSize(webpPath);
-                        return avifSize !== null && (webpSize === null || avifSize < webpSize);
-                    })
-                    .map(item => `/assets/img/carousel/${encodeURIComponent(item.fileName)}?v=3 ${item.width}w`);
-                if (responsiveAvifSources.length) {
-                    avifSrcset = responsiveAvifSources.join(', ');
-                }
-                return { src, srcset, avifSrcset };
-            });
-        }
-    } catch (e) {
-        carouselImages = [];
-    }
-
-    try {
-        const teams = await Team.find({
-            program: { $in: Object.keys(PROGRAM_LABELS) },
-            $or: [{ verified: true }, { isNewTeam: true }]
-        })
-            .sort({ updatedAt: -1, teamNumber: 1 })
-            .limit(300)
-            .select('program teamNumber isNewTeam name city state country lat lon notes awards awardHistory yearsInProgram advancementLevels advancementHistory recruiting verified updatedAt')
-            .lean()
-            .exec();
-
-        recruitingTeams = (Array.isArray(teams) ? teams : [])
-                .map((team) => ({
-                    ...team,
-                    recruiting: isRecruitingTeam(team)
-                }))
-                .filter((team) => isRecruitingTeam(team))
-                .map((team) => ({
-                    id: String(team._id),
-                    program: team.program || 'FTC',
-                    league: team.program || 'FTC',
-                    teamNumber: team.teamNumber,
-                    name: team.name,
-                    lat: Number(team.lat),
-                    lon: Number(team.lon),
-                    location: [team.city, team.state, team.country].filter(Boolean).join(', ') || 'Location not listed',
-                    description: team.notes || (team.isNewTeam
-                        ? 'A new team forming and looking for students nearby.'
-                        : 'View this recruiting team and see what they are looking for in students.'),
-                    notes: team.notes || '',
-                    awards: team.awards || '',
-                    awardHistory: sortHistoryEntriesMostRecent(team.awardHistory || []),
-                    yearsInProgram: team.yearsInProgram,
-                    advancementLevels: Array.isArray(team.advancementLevels) ? team.advancementLevels : [],
-                    advancementHistory: sortHistoryEntriesMostRecent(team.advancementHistory || []),
-                    recruiting: isRecruitingTeam(team),
-                    verified: team.verified,
-                    isNewTeam: Boolean(team.isNewTeam)
-                }));
+        recruitingTeams = await getHomepageTeams();
         featuredTeams = recruitingTeams.slice(0, 3);
     } catch (error) {
         featuredTeams = [];
         recruitingTeams = [];
     }
 
-    try {
-        homeStats = await getCurrentFirstTeamStats();
-    } catch (error) {
-        console.error('Unable to load current FIRST team stats:', error.message);
-    }
+    homeStats = homepageStatsCache.value;
+    refreshHomepageStats();
 
     res.render("index", {
         carouselImages,

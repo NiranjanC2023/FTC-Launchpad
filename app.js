@@ -146,7 +146,9 @@ app.use(function recognizeGlobalPrivacyControl(req, res, next) {
 
 app.use(function preloadHomepageStyles(req, res, next) {
     if ((req.method === "GET" || req.method === "HEAD") && req.path === "/") {
-        res.set("Link", `</assets/css/home.min.css?v=${HOME_CSS_VERSION}>; rel=preload; as=style`);
+        const preload = subresourceIntegrity.versionAssetUrls('<link href="/assets/css/home.min.css">', ASSET_INTEGRITY);
+        const href = preload.match(/href="([^"]+)"/)[1];
+        res.set("Link", `<${href}>; rel=preload; as=style`);
     }
     next();
 });
@@ -172,8 +174,8 @@ app.use(function denyServerFiles(req, res, next) {
 
 // Static files - serve FIRST before setting up routes/views
 app.use("/assets", express.static(ASSETS_ROOT, {
-    maxAge: "1y",
-    immutable: true,
+    maxAge: process.env.NODE_ENV === "production" ? "1y" : 0,
+    immutable: process.env.NODE_ENV === "production",
     etag: true,
     lastModified: true
 }));
@@ -262,7 +264,13 @@ app.engine("ejs", function(filePath, data, callback) {
                 );
             }
 
-            html = subresourceIntegrity.addSubresourceIntegrity(html, ASSET_INTEGRITY);
+            // Development builds can finish after the server has restarted.
+            // Hash the current files so the page never rejects a freshly built bundle.
+            const integrityMap = process.env.NODE_ENV === 'production'
+                ? ASSET_INTEGRITY
+                : subresourceIntegrity.buildIntegrityMap(__dirname);
+            html = subresourceIntegrity.versionAssetUrls(html, integrityMap);
+            html = subresourceIntegrity.addSubresourceIntegrity(html, integrityMap);
 
             html = html.replace(
                 /<header([^>]*)>\s*<\/header>/i,

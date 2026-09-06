@@ -165,6 +165,10 @@ async function optimizeImages() {
 async function build() {
   await minifyStylesheets();
   await minifyScripts();
+  if (process.argv.includes('--skip-images')) {
+    console.log('Optimized CSS and JavaScript (image variants unchanged)');
+    return;
+  }
   const imageCount = await optimizeImages();
   console.log(`Optimized client assets and generated WebP variants for ${imageCount} images`);
 }

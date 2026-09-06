@@ -5,7 +5,8 @@ const path = require('node:path');
 const {
     INTEGRITY_ASSETS,
     buildIntegrityMap,
-    addSubresourceIntegrity
+    addSubresourceIntegrity,
+    versionAssetUrls
 } = require('../lib/subresource-integrity');
 
 const projectRoot = path.join(__dirname, '..');
@@ -29,3 +30,12 @@ assert.equal((rendered.match(/crossorigin="anonymous"/g) || []).length, 2);
 assert.ok(!rendered.match(/maps\.googleapis\.com[^>]+integrity=/));
 
 console.log('Subresource integrity regression tests passed.');
+
+const originalTag = '<script src="/assets/js/main.min.js?v=99"></script>';
+const versioned = versionAssetUrls(originalTag, integrityMap);
+assert.ok(!versioned.includes('?v=99'), 'Rebuilt scripts must bypass previously cached URLs');
+assert.equal(versionAssetUrls(versioned, integrityMap), versioned);
+const updatedMap = new Map(integrityMap);
+updatedMap.set('/assets/js/main.min.js', 'sha384-newBuildDigest');
+assert.notEqual(versionAssetUrls(originalTag, updatedMap), versioned);
+assert.match(addSubresourceIntegrity(versioned, integrityMap), /integrity="sha384-/);

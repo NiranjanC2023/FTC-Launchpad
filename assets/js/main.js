@@ -1823,9 +1823,10 @@ function initTeamsPage() {
   const hasInitialCoords = coords
     && Number.isFinite(Number(coords.lat))
     && Number.isFinite(Number(coords.lon));
-  if (initialQuery || hasInitialCoords) {
-    renderTeams(teams, coords);
-  }
+  // Listings and search must be usable while a location prompt or lookup is
+  // pending, including when the browser never answers the permission prompt.
+  renderTeams(teams, hasInitialCoords ? coords : null);
+  status.textContent = 'Showing recruiting teams';
 
   function setZipMessage(message, isError = false) {
     if (!zipMessage) return;
