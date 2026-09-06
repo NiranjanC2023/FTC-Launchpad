@@ -1,4 +1,24 @@
+async function updateHomeStats() {
+  const counters = document.querySelectorAll('[data-home-stat]');
+  if (!counters.length) return;
+  try {
+    const response = await fetch('/home-stats', { signal: AbortSignal.timeout(60000) });
+    if (!response.ok) throw new Error('Statistics unavailable');
+    const stats = await response.json();
+    counters.forEach(counter => {
+      const value = stats[counter.dataset.homeStat];
+      if (!Number.isFinite(value) || value < 0) throw new Error('Invalid statistic');
+    });
+    counters.forEach(counter => { counter.textContent = stats[counter.dataset.homeStat].toLocaleString(); });
+  } catch (error) {
+    counters.forEach(counter => {
+      if (counter.textContent === 'Loading…') counter.textContent = 'Unavailable';
+    });
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function(){
+  updateHomeStats();
   const carouselRoot = document.querySelector('#fs-carousel-home');
   if (carouselRoot) {
     const track = carouselRoot.querySelector('.splide__list');

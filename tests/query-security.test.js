@@ -70,6 +70,32 @@ async function main() {
     inviteQueries.forEach(filter => assert.deepEqual(filter, { token: { $eq: token } }));
 
     const team = { _id: new mongoose.Types.ObjectId(), teamNumber: 1234 };
+    const managerUpdates = [];
+    Team.findByIdAndUpdate = (teamId, update) => {
+        // Exercise Mongoose's actual update casting without writing to a database.
+        const castingQuery = new mongoose.Query({}, {}, Team, Team.collection);
+        const cast = castingQuery._castUpdate(update);
+        assert.equal(cast.$addToSet.managers.toHexString(), id);
+        managerUpdates.push(cast);
+        return query(team);
+    };
+    User.findByIdAndUpdate = () => query(user);
+    Team.find = () => query([team]);
+    const contactLogin = await call('post', '/login', { body: { email: user.email, password: 'test-password' } });
+    assert.equal(contactLogin.redirect, '/my-team');
+    Team.find = () => query([]);
+    Team.findById = () => query(team);
+    let inviteSaved = false;
+    ManagerInvite.findOne = () => query({
+        team: team._id, email: user.email,
+        save: async () => { inviteSaved = true; }
+    });
+    const invitedLogin = await call('post', '/login', {
+        body: { email: user.email, password: 'test-password', inviteToken: token }
+    });
+    assert.equal(invitedLogin.redirect, '/manage-team');
+    assert.equal(inviteSaved, true);
+    assert.equal(managerUpdates.length, 2);
     User.findById = value => { assert.ok(value instanceof mongoose.Types.ObjectId); return query(user); };
     Team.findOne = () => query(team);
     const candidates = [];

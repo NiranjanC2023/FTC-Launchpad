@@ -230,7 +230,7 @@
 
             <span>FIRST teams</span>
 
-            <strong><%= homeStats && homeStats.activeTeams ? homeStats.activeTeams.toLocaleString() : '—' %></strong>
+            <strong data-home-stat="activeTeams" aria-live="polite"><%= homeStats && Number.isFinite(homeStats.activeTeams) ? homeStats.activeTeams.toLocaleString() : 'Loading…' %></strong>
 
             <p>active FIRST teams</p>
 
@@ -242,9 +242,9 @@
 
             <span>Youth participants</span>
 
-            <strong><%= homeStats && homeStats.youthParticipants ? homeStats.youthParticipants.toLocaleString() : '—' %></strong>
+            <strong data-home-stat="youthParticipants" aria-live="polite"><%= homeStats && Number.isFinite(homeStats.youthParticipants) ? homeStats.youthParticipants.toLocaleString() : 'Loading…' %></strong>
 
-            <p>youth participants</p>
+            <p>estimated youth participants</p>
 
           </div>
 

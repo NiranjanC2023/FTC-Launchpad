@@ -191,7 +191,7 @@ async function attachContactTeamsToUser(user) {
     const linkedTeams = [];
     for (const team of teams || []) {
         if (!team) continue;
-        await Team.findByIdAndUpdate(team._id, { $addToSet: { managers: { $eq: user._id } } }).exec();
+        await Team.findByIdAndUpdate(team._id, { $addToSet: { managers: user._id } }).exec();
         linkedTeams.push(team);
     }
 
@@ -223,7 +223,7 @@ async function acceptInviteToken(token, user) {
     const team = await Team.findById(invite.team).exec();
     if (!team) return null;
 
-    await Team.findByIdAndUpdate(team._id, { $addToSet: { managers: { $eq: user._id } } }).exec();
+    await Team.findByIdAndUpdate(team._id, { $addToSet: { managers: user._id } }).exec();
     invite.acceptedAt = new Date();
     await invite.save();
     return team;
@@ -271,6 +271,7 @@ function anonymousAllowedPath(pathname) {
         '/team-org'
     ]);
     return path === '/'
+        || path === '/home-stats'
         || path === '/login'
         || path === '/forgot-password'
         || path.startsWith('/reset-password')
@@ -932,6 +933,7 @@ function getDashboardTeamProfile(record) {
 
 async function fetchDashboardTeamDirectoryPage(programConfig, profileYear, offset = 0) {
     const response = await fetch(FIRST_SEARCH_API_URL, {
+        signal: AbortSignal.timeout(10000),
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
@@ -1918,7 +1920,8 @@ async function getHomepageTeams() {
 }
 
 function refreshHomepageStats() {
-    if (homepageStatsCache.refresh || homepageStatsCache.expiresAt > Date.now()) return;
+    if (homepageStatsCache.refresh) return homepageStatsCache.refresh;
+    if (homepageStatsCache.expiresAt > Date.now()) return Promise.resolve();
     homepageStatsCache.refresh = getCurrentFirstTeamStats()
         .then(value => {
             homepageStatsCache.value = value;
@@ -1926,7 +1929,18 @@ function refreshHomepageStats() {
         })
         .catch(error => console.error('Unable to refresh current FIRST team stats:', error.message))
         .finally(() => { homepageStatsCache.refresh = null; });
+    return homepageStatsCache.refresh;
 }
+
+router.get('/home-stats', async function(req, res) {
+    await refreshHomepageStats();
+    const stats = homepageStatsCache.value;
+    if (!Number.isFinite(stats.activeTeams) || !Number.isFinite(stats.youthParticipants)) {
+        return res.status(503).json({ error: 'Statistics are temporarily unavailable.' });
+    }
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json(stats);
+});
 
 // Home page
 router.get("/", async function(req, res){

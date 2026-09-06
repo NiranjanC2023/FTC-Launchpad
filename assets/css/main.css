@@ -5160,22 +5160,8 @@ header > .theme-toggle {
     box-shadow: var(--shadow-sm);
 }
 
-.public-email-tutorial-steps img {
-    display: block;
-    width: 100%;
-    height: auto;
-    margin-bottom: 14px;
-    border: 1px solid #e1e7e3;
-    border-radius: 10px;
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
-}
-
 .public-email-tutorial-number {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    z-index: 1;
+    margin: 0 4px 12px;
     display: grid;
     width: 32px;
     height: 32px;
@@ -5217,17 +5203,6 @@ header > .theme-toggle {
         grid-template-columns: 1fr;
     }
 
-    .public-email-tutorial-steps li {
-        display: grid;
-        grid-template-columns: minmax(180px, 38%) 1fr;
-        column-gap: 16px;
-        align-items: start;
-    }
-
-    .public-email-tutorial-steps img {
-        grid-row: 1 / span 2;
-        margin-bottom: 0;
-    }
 }
 
 @media (max-width: 600px) {
@@ -5236,13 +5211,6 @@ header > .theme-toggle {
         white-space: normal;
     }
 
-    .public-email-tutorial-steps li {
-        display: block;
-    }
-
-    .public-email-tutorial-steps img {
-        margin-bottom: 14px;
-    }
 }
 
 .team-email-directory {
